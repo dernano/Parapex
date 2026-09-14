@@ -93,11 +93,11 @@ const ergebnis = await seite.evaluate(() => {
     }
     return true;
   });
-  pruefe('Startdeck: 12 Karten aus allen vier Gattungen', () => {
-    if (P.START_DECK.length !== 12) return 'Startdeck hat ' + P.START_DECK.length;
-    const g = new Set(P.START_DECK.map(id => id.split('-')[0]));
-    if (g.size !== 4) return 'nur ' + g.size + ' Gattungen';
-    for (const id of P.START_DECK) if (!P.EINHEITEN_POOL.find(k => k.id === id)) return id + ' gibt es nicht';
+  pruefe('Startdeck ist das ganze Blatt: 52 Karten, jede genau einmal', () => {
+    if (P.START_DECK.length !== P.EINHEITEN_POOL.length) return 'Startdeck hat ' + P.START_DECK.length;
+    const gesehen = new Set(P.START_DECK);
+    if (gesehen.size !== P.START_DECK.length) return 'eine Karte liegt doppelt darin';
+    for (const k of P.EINHEITEN_POOL) if (!gesehen.has(k.id)) return k.id + ' fehlt';
     return true;
   });
 
@@ -292,8 +292,10 @@ const ergebnis = await seite.evaluate(() => {
     return gleich(w.wucht, 7, 'Wucht');
   });
   pruefe('Turmtyp wirkt nur auf die passende Gattung', () => {
+    // Auf die Regel pruefen, nicht auf die Zahl: der Faktor ist eine
+    // Stellschraube in KERN und darf sich aendern.
     const passt = P.berechneWucht([{ nr: 1, typ: 'schuetzenturm', einheit: P.neueEinheit('bogen-8') }]);
-    if (passt.wucht !== 10) return 'Bogen auf Schützenturm: ' + passt.wucht;
+    if (passt.wucht !== Math.round(8 * P.KERN.turmFaktor)) return 'Bogen auf Schützenturm: ' + passt.wucht;
     const nicht = P.berechneWucht([{ nr: 1, typ: 'schuetzenturm', einheit: P.neueEinheit('kanonier-8') }]);
     return gleich(nicht.wucht, 8, 'Kanonier auf Schützenturm');
   });
@@ -599,7 +601,11 @@ const ergebnis = await seite.evaluate(() => {
     if (l.ende !== 'sieg') return 'Ende ' + l.ende;
     if (kaempfe !== l.knoten.filter(k => ['kampf', 'elite', 'boss'].includes(k.art)).length)
       return kaempfe + ' Kämpfe';
-    if (l.deck.length <= P.START_DECK.length) return 'Deck ist nicht gewachsen';
+    // Mit dem vollen Blatt waechst ein Deck nicht mehr, es wird geschmaelert.
+    // Geprueft wird also, dass es sich ueberhaupt bewegt hat - und dass keine
+    // Ausmusterung es unter die Handgroesse gedrueckt hat.
+    if (l.deck.length === P.START_DECK.length) return 'Deck hat sich nicht bewegt';
+    if (l.deck.length < P.KERN.handGroesse) return 'Deck ist auf ' + l.deck.length + ' geschrumpft';
     return true;
   });
 

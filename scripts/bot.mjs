@@ -71,8 +71,13 @@ const ergebnis = await seite.evaluate(({ LAEUFE, STRATEGIE }) => {
     const schnitt = l.deck.reduce((s, c) => s + P.grundwucht(c), 0) / l.deck.length;
     const w = angebote.find(a => a.art === 'wappen');
     if (w && STRATEGIE !== 'karten') return w;
+    // Ausmustern nimmt jetzt einen Schub. Es lohnt, solange die Karten, die
+    // gehen, deutlich unter dem Schnitt liegen - und das Deck es vertraegt.
     const weg = angebote.find(a => a.art === 'entfernen');
-    if (weg && P.grundwucht(weg.karte) < schnitt * 0.75 && l.deck.length > P.KERN.handGroesse + 3) return weg;
+    if (weg && weg.karten.length) {
+      const wegSchnitt = weg.karten.reduce((s, c) => s + P.grundwucht(c), 0) / weg.karten.length;
+      if (wegSchnitt < schnitt * 0.8 && l.deck.length > P.KERN.handGroesse + weg.karten.length) return weg;
+    }
     const karten = angebote.filter(a => a.art === 'karte')
       .sort((a, b) => P.grundwucht(b.einheit) - P.grundwucht(a.einheit));
     if (karten.length && P.grundwucht(karten[0].einheit) > schnitt) return karten[0];

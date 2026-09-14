@@ -303,7 +303,6 @@
   .pill.schaden { background: #f6d5d2; }
   .pill.leben   { background: #d5ecda; }
   .pill.hoehe   { background: #faeec4; }
-  .pill.platz   { background: #e6d9f2; }
   .pill.durch   { background: #f7e0cc; }
 
   kbd { font-family: inherit; font-size: 11px; background: var(--panel-2); border: 1px solid var(--frame);
@@ -781,7 +780,15 @@ const KERN = {
     ersetzen: 1,              // Einheit auf einen besetzten Turm
     tauschen: 1,              // eine Handkarte gegen eine neue
   },
-  turmFaktor: 1.25,           // Turmtyp passt zur Gattung
+  /*
+   * Der Turmtyp ist mit dem vollen Blatt die eigentliche Fortschrittsachse.
+   * Vorher war er eine Nebensache: ein Deck aus zwoelf Karten hatte selten
+   * die passende Gattung zur Hand. Mit allen 52 Karten liegt immer ein
+   * Bogenschuetze fuer den Schuetzenturm bereit - der Ausbau wirkt also
+   * verlaesslich, und das macht ihn zur Achse, die den Akt traegt.
+   * Fuenf passende Tuerme sind 1,4^5, also gut das Fuenffache.
+   */
+  turmFaktor: 1.4,            // Turmtyp passt zur Gattung
   signalMaxTiefe: 8,          // Schutz gegen sich selbst ausloesende Ketten
   formation: {
     schuetzenlinie: { ab: 3 },
@@ -806,7 +813,7 @@ const KERN = {
     loewe: 3,                 // Rang des mittleren Turms mal drei
     wolf: 0.6,                // je leerem Turm
     schlange: 2,              // so viele Tauesche je Runde sind frei
-    drache: { jeder: 2, faktor: 2.5 },
+    drache: { jeder: 1, faktor: 2 },
   },
 };
 
@@ -891,15 +898,20 @@ function verbessereEinheit(karte, um = 2) {
 }
 
 /*
- * Das Startdeck. Zwölf Karten, alle vier Gattungen, überwiegend niedrige
- * Ränge - genug, um Formationen zu treffen, zu wenig, um eine zu erzwingen.
+ * Das Startdeck ist das ganze Blatt: alle 52 Karten, vier Gattungen mal
+ * dreizehn Ränge.
+ *
+ * Das dreht die Richtung des Spiels um. Vorher wuchs ein Deck aus zwölf
+ * mageren Karten nach oben; jetzt liegt alles von Anfang an da, und der Lauf
+ * besteht darin, es zu VERSCHMÄLERN - die Bauernschützen auszumustern, damit
+ * die Marschälle öfter kommen. Ein Deck aus 52 Karten zieht sieben davon, und
+ * welche sieben das sind, entscheidet die Zusammensetzung.
+ *
+ * Damit ist Ausmustern kein Trostpreis mehr, sondern die schärfste Belohnung
+ * im Spiel, und eine hinzugefügte Karte die schwächste. Die Preise und
+ * Angebote in LAUF tragen dem Rechnung.
  */
-const START_DECK = [
-  'bogen-2', 'bogen-3', 'bogen-4',
-  'armbrust-2', 'armbrust-4', 'armbrust-5',
-  'artillerie-2', 'artillerie-3', 'artillerie-5',
-  'kanonier-2', 'kanonier-3', 'kanonier-4',
-];
+const START_DECK = EINHEITEN_POOL.map(k => k.id);
 
 // ---------- Turmtypen ----------
 /*
@@ -909,10 +921,10 @@ const START_DECK = [
  */
 const TURMTYPEN = {
   wachturm:      { id: 'wachturm',      name: 'Wachturm',      modell: 'wachturm',   text: 'Keine Sonderregel.' },
-  schuetzenturm: { id: 'schuetzenturm', name: 'Schützenturm',  modell: 'turmwache',  gattung: 'bogen',      faktor: KERN.turmFaktor, text: 'Bogenschützen +25 % Wucht.' },
-  ballistenturm: { id: 'ballistenturm', name: 'Ballistenturm', modell: 'steinturm',  gattung: 'armbrust',   faktor: KERN.turmFaktor, text: 'Armbrustschützen +25 % Wucht.' },
-  geschuetzturm: { id: 'geschuetzturm', name: 'Geschützturm',  modell: 'doppelturm', gattung: 'artillerie', faktor: KERN.turmFaktor, text: 'Artillerie +25 % Wucht.' },
-  pulverturm:    { id: 'pulverturm',    name: 'Pulverturm',    modell: 'bergfried',  gattung: 'kanonier',   faktor: KERN.turmFaktor, text: 'Kanoniere +25 % Wucht.' },
+  schuetzenturm: { id: 'schuetzenturm', name: 'Schützenturm',  modell: 'turmwache',  gattung: 'bogen',      faktor: KERN.turmFaktor, text: 'Bogenschützen +40 % Wucht.' },
+  ballistenturm: { id: 'ballistenturm', name: 'Ballistenturm', modell: 'steinturm',  gattung: 'armbrust',   faktor: KERN.turmFaktor, text: 'Armbrustschützen +40 % Wucht.' },
+  geschuetzturm: { id: 'geschuetzturm', name: 'Geschützturm',  modell: 'doppelturm', gattung: 'artillerie', faktor: KERN.turmFaktor, text: 'Artillerie +40 % Wucht.' },
+  pulverturm:    { id: 'pulverturm',    name: 'Pulverturm',    modell: 'bergfried',  gattung: 'kanonier',   faktor: KERN.turmFaktor, text: 'Kanoniere +40 % Wucht.' },
 };
 const TURM_START = ['wachturm', 'wachturm', 'wachturm', 'wachturm', 'wachturm'];
 
@@ -942,12 +954,16 @@ function turmFaktor(turm) {
  * bringt. Die Tabelle liegt darunter - anfangs bei knapp der Haelfte, zuletzt
  * bei drei Vierteln. Wer sie aendert, misst vorher nach.
  *
- * Die erste Fassung stand bei 150 bis 60000 und war damit reine Behauptung:
- * das Deck waechst ueber einen Akt etwa auf das Doppelte, nicht auf das
- * Vierhundertfache. Ein Gegner, den niemand umwerfen kann, ist kein Gegner.
+ * Mit dem vollen Blatt aus 52 Karten liegt die Wucht von Anfang an hoch und
+ * steigt ueber den Akt kaum: gemessen 3270 im ersten Kampf und 3260 im
+ * siebten. Der Grund steht in SPIELBESCHREIBUNG.md - die Rangachse ist ab
+ * Kampf eins fast ausgereizt, und alles, was nur EINEN Turm vervielfacht,
+ * verduennt sich auf ein Fuenftel und wird von den Formationen geschlagen.
+ * Die Tabelle traegt deshalb den Spannungsbogen allein: von gut vierzig
+ * Prozent der mittleren Wucht bis knapp darueber beim Belagerungsmeister.
  */
-const FEIND_STAERKE = [300, 340, 470, 520, 700, 880, 1150, 1400, 1700, 2050];
-const FEIND_BOSS_FAKTOR = 1.25;   // was der Belagerungsmeister auf seinen Platz drauflegt
+const FEIND_STAERKE = [1300, 1600, 1900, 2100, 2350, 2600, 2850, 3100, 3400, 3700];
+const FEIND_BOSS_FAKTOR = 1.22;    // was der Belagerungsmeister auf seinen Platz drauflegt
 
 const FEIND_VORLAGEN = [
   { id: 'raeuber',   name: 'Räuberhorde',      figuren: 8, typ: 'spaeher' },
@@ -1005,7 +1021,7 @@ const WAPPEN = {
   },
   drache: {
     id: 'drache', name: 'Wappen des Drachen',
-    text: 'Jeder zweite Nachschuss einer Runde zählt zweieinhalbfach.',
+    text: 'Jeder Nachschuss zählt doppelt.',
     retriggerFaktor: (nummer) => (nummer % KERN.wappen.drache.jeder === 0 ? KERN.wappen.drache.faktor : 1),
   },
 };
@@ -1598,6 +1614,14 @@ const LAUF = {
   preise: { karte: 45, wappen: 130, ausbau: 95, entfernen: 60, schliff: 75 },
   belohnung: { auswahl: 3, wappenAb: 2 },
   /*
+   * Wie viele Karten eine Ausmusterung nimmt. Mit einem Blatt aus 52 Karten
+   * ist eine einzelne Karte kein Angebot, sondern ein Rundungsfehler: sie
+   * hebt den Schnitt des Decks um zwei Hundertstel. In Schueben wird daraus
+   * das, was das Verschmaelern sein soll - die Bauernschuetzen gehen, damit
+   * die Marschaelle oefter kommen.
+   */
+  ausmustern: { belohnung: 4, haendler: 3 },
+  /*
    * Der Rang, den eine Belohnungskarte im Schnitt hat: `ab` beim ersten
    * Kampf, dann `je` Rang je weiterem. Ueber acht Kaempfe reicht das von
    * Rang 3 bis an die Spitze - der Grund, warum ein Deck ueberhaupt waechst.
@@ -1615,7 +1639,7 @@ const LAUF = {
 
 const KNOTEN_ARTEN = {
   kampf:    { id: 'kampf',    name: 'Angriff',      zeichen: '⚔' },
-  elite:    { id: 'elite',    name: 'Sturmtrupp',   zeichen: '☠', zuschlag: 1.3 },
+  elite:    { id: 'elite',    name: 'Sturmtrupp',   zeichen: '☠', zuschlag: 1.18 },
   boss:     { id: 'boss',     name: 'Belagerung',   zeichen: '♛' },
   haendler: { id: 'haendler', name: 'Händler',      zeichen: '⚖' },
   ereignis: { id: 'ereignis', name: 'Begegnung',    zeichen: '❖' },
@@ -1715,25 +1739,30 @@ function werteKampfAus(kampf = derKampf) {
  */
 function baueBelohnung(knoten) {
   const nr = knoten.kampfNr || 1;
-  const angebote = [angebotKarte(nr)];       // eine Einheit steht immer da
   /*
-   * Die uebrigen Plaetze aus dem, was gerade etwas bewirken kann. Das
-   * Ausmustern gehoert ausdruecklich dazu und nicht nur zum Haendler: ein
-   * Startdeck aus zwoelf niedrigen Raengen wird sonst nie eines aus hohen.
-   * Gemessen ist das der Unterschied zwischen einem Deck, das ueber den Akt
-   * um die Haelfte staerker wird, und einem, das sich verdreifacht.
+   * Drei Plaetze, vier Bewerber - aus jeder Achse einer, und einer bleibt
+   * jedes Mal draussen. Das ist der Grund, warum die Wahl eine ist: Ausbau,
+   * Ausmustern und Wappen sind die drei Achsen, an denen ein Lauf mit vollem
+   * Blatt ueberhaupt noch waechst, und man bekommt nie alle drei zugleich.
+   *
+   * Vorher stand hier fest "erst eine Karte, dann Ausbau, dann Ausmustern" -
+   * damit war die dritte Reihe voll, bevor das Wappen an der Reihe war, und
+   * der Bot kam ueber einen ganzen Akt auf 0,3 Wappen. Ein Angebot, das nie
+   * erscheint, ist kein Angebot.
    */
-  const rest = [
-    (knoten.nr >= LAUF.belohnung.wappenAb ? angebotWappen() : null),
+  const bewerber = [
     angebotAusbau(),
-    (derLauf.deck.length > KERN.handGroesse + 2 ? angebotAusmustern() : null),
+    (derLauf.deck.length > KERN.handGroesse + 4 ? angebotAusmustern() : null),
+    (knoten.nr >= LAUF.belohnung.wappenAb ? angebotWappen() : null),
     angebotKarte(nr),
   ].filter(Boolean);
-  while (angebote.length < LAUF.belohnung.auswahl && rest.length) {
-    angebote.push(rest.splice(Math.floor(Math.random() * Math.min(2, rest.length)), 1)[0]);
+  for (let i = bewerber.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bewerber[i], bewerber[j]] = [bewerber[j], bewerber[i]];
   }
+  const angebote = bewerber.slice(0, LAUF.belohnung.auswahl);
   while (angebote.length < LAUF.belohnung.auswahl) angebote.push(angebotKarte(nr));
-  return { angebote: angebote.slice(0, LAUF.belohnung.auswahl) };
+  return { angebote };
 }
 
 /*
@@ -1741,11 +1770,22 @@ function baueBelohnung(knoten) {
  * im Deck. Eine Auswahl waere hier eine zweite Entscheidung in einer
  * Entscheidung, und die schwaechste Karte ist ohnehin fast immer die richtige.
  */
-function angebotAusmustern() {
-  const schwach = derLauf.deck.slice().sort((a, b) => grundwucht(a) - grundwucht(b))[0];
-  if (!schwach) return null;
-  return { art: 'entfernen', karte: schwach, name: schwach.name + ' ausmustern',
-    text: 'Die schwächste Karte verlässt das Deck. Ein dünnes Deck zieht öfter, was man will.' };
+function angebotAusmustern(zahl = LAUF.ausmustern.belohnung) {
+  const schwach = schwaechsteKarten(zahl);
+  if (!schwach.length) return null;
+  const namen = schwach.length > 2
+    ? schwach.length + ' schwächste Karten'
+    : schwach.map(k => k.name).join(' und ');
+  return { art: 'entfernen', karten: schwach, name: namen + ' ausmustern',
+    text: schwach.map(k => k.rang + ' ' + k.name).join(', ') +
+      ' verlassen das Deck. Ein dünnes Deck zieht öfter, was man will.' };
+}
+
+/** Die n schwaechsten Karten des Decks - das Ziel jeder Ausmusterung. */
+function schwaechsteKarten(n) {
+  return derLauf.deck.slice()
+    .sort((a, b) => grundwucht(a) - grundwucht(b))
+    .slice(0, Math.max(0, Math.min(n, derLauf.deck.length - KERN.handGroesse)));
 }
 
 /*
@@ -1815,7 +1855,11 @@ function nimmAngebot(angebot) {
   if (angebot.art === 'karte') { derLauf.deck.push(angebot.einheit); return { ok: true }; }
   if (angebot.art === 'wappen') return fuegeWappenHinzu(angebot.wappen);
   if (angebot.art === 'ausbau') return baueTurmAus(angebot.turm, angebot.typ);
-  if (angebot.art === 'entfernen' && angebot.karte) return entferneKarte(angebot.karte.uid);
+  if (angebot.art === 'entfernen' && angebot.karten) {
+    let n = 0;
+    for (const k of angebot.karten) if (entferneKarte(k.uid).ok) n++;
+    return n ? { ok: true, zahl: n } : { ok: false, grund: 'Das Deck wäre zu dünn.' };
+  }
   if (angebot.art === 'sold') { derLauf.sold += angebot.sold; return { ok: true }; }
   return { ok: false, grund: 'Unbekanntes Angebot.' };
 }
@@ -1868,8 +1912,8 @@ function oeffneHaendler() {
   if (w) posten.push({ ...w, preis: LAUF.preise.wappen });
   const aus = angebotAusbau();
   if (aus) posten.push({ ...aus, preis: LAUF.preise.ausbau });
-  posten.push({ art: 'entfernen', name: 'Eine Karte ausmustern',
-    text: 'Entfernt eine Karte dauerhaft aus dem Deck.', preis: LAUF.preise.entfernen });
+  const weg = angebotAusmustern(LAUF.ausmustern.haendler);
+  if (weg) posten.push({ ...weg, name: 'Ausmustern', preis: LAUF.preise.entfernen });
   posten.push({ art: 'schliff', name: 'Eine Karte schleifen',
     text: '+' + LAUF.schliff + ' Wucht, dauerhaft.', preis: LAUF.preise.schliff });
   derLauf.haendler = { posten, gekauft: [] };
@@ -2061,7 +2105,15 @@ if (typeof window !== 'undefined') {
  * Die Breite bleibt bei 20. Sie ist der Anmarschweg, und an dem haengt die
  * ganze Schwierigkeit: jede Spalte mehr ist ein Zug mehr unter Beschuss.
  */
-const COLS = 20, ROWS = 19;
+/*
+ * Zwanzig Zeilen, nicht neunzehn. Das ist keine Kleinigkeit, sondern die
+ * Bedingung fuer eine symmetrische Anlage: fuenf Tuerme von je zwei Zeilen
+ * Tiefe brauchen 2*Rand + 4*Luecke + 10 Zeilen, und das geht nur bei gerader
+ * Zeilenzahl ganzzahlig auf. Bei neunzehn Zeilen stand der mittlere Turm
+ * immer eine halbe Zeile neben der Achse, und die Anlage sah aus, als waere
+ * sie beim Bauen verrutscht.
+ */
+const COLS = 20, ROWS = 20;
 
 /**
  * Alle Karten des Spiels. Jede ist im Lauf kaufbar, es gibt keinen gesperrten
@@ -2314,7 +2366,14 @@ for (const karte of CARD_POOL) {
 // Tor, das zwei Schlaege nicht ueberlebt, macht jeden Durchbruch endgueltig.
 // Die Burg steht mittig an der Rueckseite - abgeleitet, damit sie bei einer
 // anderen Zeilenzahl nicht aus der Achse faellt.
-const CASTLE = { col: 0, row: Math.round((ROWS - 5) / 2), w: 2, h: 5, maxHp: 50 };
+/*
+ * Die Burg ist fuenf Zeilen tief, das Feld zwanzig - mittig liegt sie also auf
+ * Zeile 7,5. Der Bauplatz muss ganzzahlig sein (Felder sind Felder), gemalt
+ * wird sie aber auf der halben Zeile: `zeichenRow`. Sonst stuende sie eine
+ * halbe Zeile neben der Achse, auf der die Tuerme sitzen.
+ */
+const CASTLE = { col: 0, row: (ROWS - 5 - 1) / 2, w: 2, h: 5, maxHp: 50,
+  zeichenRow: (ROWS - 5) / 2 };
 
 /**
  * Gegnertypen. `move` ist die Strecke pro Runde, `reach` die eigene
@@ -2481,7 +2540,18 @@ let state = {
 
 
 
-function setMessage(t) { document.getElementById('message').textContent = t; }
+/*
+ * Die Meldungszeile. Sie hing frueher an einem eigenen Streifen ueber der
+ * Bruestung; den gibt es nicht mehr, und die Zeile von Parapex steht
+ * stattdessen unter den Turmtafeln. Ohne diese Weiche stuerzte der Musikknopf
+ * ab, weil er in ein Element schrieb, das mit der alten Oberflaeche gegangen
+ * ist.
+ */
+function setMessage(t) {
+  if (typeof pkSage === 'function' && document.getElementById('pk-meldung')) { pkSage(t); return; }
+  const el = document.getElementById('message');
+  if (el) el.textContent = t;
+}
 
 /** Setzt einen Gegner eines Typs an den rechten Rand. */
 
@@ -2499,9 +2569,6 @@ function setMessage(t) { document.getElementById('message').textContent = t; }
 function cellInsideRect(col, row, r) {
   return col >= r.col && col < r.col + r.w && row >= r.row && row < r.row + r.h;
 }
-function rectsOverlap(a, b) {
-  return a.col < b.col + b.w && a.col + a.w > b.col && a.row < b.row + b.h && a.row + a.h > b.row;
-}
 /*
  * Ein Turm gehoert in den Wall, aber nicht auf einen vorgegebenen Punkt.
  * Vorher gab es dafuer Basteien - 2x2-Podeste mit einer gelben Marke darueber.
@@ -2512,16 +2579,6 @@ function rectsOverlap(a, b) {
  * an seine halbe Breite - das sah nach Bruch aus, nicht nach Mauerwerk. Weil
  * der Wall zwei Felder dick ist, geht das ueberall an ihm entlang.
  */
-function isValidTowerPlacement(col, row, w, h) {
-  if (col < 0 || row < 0 || col + w > COLS || row + h > ROWS) return false;
-  const rect = { col, row, w, h };
-  if (rectsOverlap(rect, CASTLE)) return false;
-  for (const t of state.towers) if (rectsOverlap(rect, t)) return false;
-  for (let c = col; c < col + w; c++) for (let r = row; r < row + h; r++) {
-    if (!istWall(c, r)) return false;
-  }
-  return true;
-}
 
 
 
@@ -4501,152 +4558,53 @@ function wallOderBau(c, r) {
  * Grundspalte und Torzeile - so sieht keine Station aus
  * wie die davor, aber innerhalb einer Station steht alles fest.
  */
-function baueWall(runde) {
+/*
+ * Die Anlage. Sie wird nicht mehr gewuerfelt, sondern gezeichnet.
+ *
+ * Frueher zog jeder Feldzug eine eigene Wallform - gerade, Erker, Bug, Bucht -
+ * mit einem Torhaus in der Mitte. Das war richtig, solange Gegner durch das
+ * Tor mussten und Tuerme irgendwo am Wall Platz finden sollten: die Form war
+ * eine taktische Aussage. In Parapex laeuft niemand mehr, es gibt kein Tor,
+ * und es gibt genau fuenf Stellungen. Damit ist die Form keine Aussage mehr,
+ * sondern nur noch Bild - und ein Bild, das bei jedem Laden anders verrutscht
+ * ist, sieht nicht wild aus, sondern unfertig.
+ *
+ * Also: EINE Anlage, spiegelsymmetrisch zur Mittelachse des Feldes.
+ *
+ *   ein gerader Riegel, zwei Felder dick, quer ueber das Feld
+ *   fuenf Turmplaetze darauf, gleichmaessig verteilt und gespiegelt
+ *   zwei Flanken, die nach hinten zur Burg laufen
+ *   hinten die Burg selbst, die den Hof schliesst
+ *
+ * Das Ergebnis ist ein U. Verteidigt wird eine Seite, und man sieht es.
+ */
+const WALL_DICK = 2;            // zwei Felder, damit ein 2x2-Turm buendig sitzt
+const WALL_SPALTE = 7;          // wo der Riegel steht
+const TURM_ZEILEN = [1, 5, 9, 13, 17];   // die fuenf Stellungen, gespiegelt zur Achse
+
+function baueWall() {
   const wall = new Map();
-  /*
-   * Zwei Zeilen ober- und unterhalb des Spielfelds sind erlaubt. Sie sind nie
-   * begehbar (`blockiert` und `feldKosten` pruefen vorher `imFeld`) und
-   * aendern am Spiel nichts.
-   */
-  const setz = (c, r, extra) => {
-    if (c < 0 || c >= COLS || r < -2 || r > ROWS + 1) return;
+  const setz = (c, r) => {
+    if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return;
     if (cellInsideRect(c, r, CASTLE)) return;
-    wall.set(wkey(c, r), { col: c, row: r, hp: WALL_HP, maxHp: WALL_HP, wachsen: WALL_WACHSEN, ...(extra || {}) });
+    wall.set(wkey(c, r), { col: c, row: r, hp: WALL_HP, maxHp: WALL_HP, wachsen: WALL_WACHSEN });
   };
 
-  /*
-   * Alle vier Formen sind spiegelsymmetrisch zur Mittelzeile des Feldes. Eine
-   * Burg ist ein gebautes Ding, keine gewachsene Landschaft - eine Anlage, die
-   * oben anders aussieht als unten, wirkt nicht wild, sondern verunglueckt.
-   *
-   * 'knick' war genau das: die untere Haelfte sprang zwei Spalten vor, die
-   * obere nicht. Gemessen ueber 200 Layouts war kein einziges davon
-   * symmetrisch. An seine Stelle tritt 'erker' - zwei gleiche Vorspruenge auf
-   * Viertel- und Dreiviertelhoehe.
-   */
-  const formen = ['gerade', 'erker', 'bug', 'bucht'];
-  const form = formen[Math.floor(Math.random() * formen.length)];
-  /*
-   * Grundspalte 6..8. Bei 4..6 stand der Wall der Burg auf den Fuessen und das
-   * Torhaus klebte an ihr. Weiter vorn war er schon einmal (6..9), und das kam
-   * teuer: weil Tuerme nur an den Wall duerfen, wandert mit ihm die ganze
-   * Verteidigungslinie, und der Anmarsch unter Beschuss wird kuerzer.
-   * Ausgeglichen wird das jetzt dadurch, dass ueberall am Wall gebaut werden
-   * darf statt nur auf sechs Podesten.
-   */
-  const basis = 6 + Math.floor(Math.random() * 3);
-  const mitte = (ROWS - 1) / 2;
-  /*
-   * Das Torhaus ist drei Zeilen hoch und sitzt fest auf der Mittelachse: bei
-   * fuenfzehn Zeilen sind das die Zeilen 6, 7 und 8 um die Mitte 7. Vorher
-   * wuerfelte die Torzeile zwischen 5 und 7, und in zwei von drei Faellen lag
-   * das Tor damit ausserhalb der Achse - und mit ihm die Glaettung ringsum,
-   * die den Wall dort begradigt. Ein Tor gehoert in die Mitte.
-   */
-  const torZeile = Math.round(mitte) - 1;
-
-  // Fuer jede Zeile die Spalte, in der der Wall steht.
-  const spalte = [];
-  for (let r = 0; r < ROWS; r++) {
-    const naehe = 1 - Math.abs(r - mitte) / mitte;      // 1 in der Mitte, 0 am Rand
-    let c = basis;
-    if (form === 'bug') c = basis + Math.round(naehe * 3);        // Mitte nach Osten: Barbakane
-    else if (form === 'bucht') c = basis - Math.round(naehe * 2); // Mitte nach Westen: Trichter
-    else if (form === 'erker') {
-      // Zwei gleiche Vorspruenge, auf Viertel- und Dreiviertelhoehe
-      const abstand = Math.abs(Math.abs(r - mitte) - mitte * 0.55);
-      c = basis + (abstand < 1.4 ? 2 : 0);
-    }
-    spalte.push(Math.max(3, Math.min(COLS - 7, c)));
-  }
+  // Der Riegel: ueber die ganze Hoehe, zwei Felder dick.
+  for (let r = 0; r < ROWS; r++) for (let d = 0; d < WALL_DICK; d++) setz(WALL_SPALTE + d, r);
 
   /*
-   * Um das Tor herum wird die Linie glattgezogen. Wechselte der Wall genau an
-   * der Oeffnung die Spalte, lagen die beiden Torfelder in verschiedenen
-   * Spalten - und an dieser Stufe kam ein Diagonalschritt am Tor vorbei ins
-   * Innere. Gemessen leckten so 46 von 200 Layouts. Vier Zeilen in einer
-   * Flucht, und der Riegel ist dicht.
-   */
-  const torSpalte = spalte[torZeile];
-  // Eine Zeile ueber und eine unter dem Torhaus - symmetrisch, sonst kippt
-  // die ganze Anlage wieder aus der Achse.
-  for (let r = torZeile - 1; r <= torZeile + 3; r++) {
-    if (r >= 0 && r < ROWS) spalte[r] = torSpalte;
-  }
-
-  /*
-   * Das Torhaus steht quer im Wall und ist drei Zeilen hoch; die mittlere ist
-   * die Durchfahrt. Frueher lag hier eine Luecke im Wall und das Torhaus
-   * daneben - das war kein Tor, sondern ein fehlendes Mauerstueck mit einem
-   * Turm in der Naehe.
-   */
-  const thZeilen = [torZeile, torZeile + 1, torZeile + 2].filter(r => r >= 0 && r < ROWS);
-  const istTor = (r) => thZeilen.includes(r);
-
-  /*
-   * Der Wall ist ZWEI Felder dick. Mit einem Feld hingen Tuerme und Torhaus,
-   * beide zwei Felder breit, zur Haelfte darueber hinaus: hinten traf die
-   * Mauer nur auf die halbe Gebaeudebreite, und es entstand ein Versatz, der
-   * nach Bruch aussah statt nach Mauerwerk. Zwei Felder dick heisst, dass ein
-   * Bauwerk vollstaendig im Wall sitzt und buendig abschliesst - so wie es
-   * aussehen soll.
-   */
-  const WALL_DICK = 2;
-
-  // Die Linie ziehen und die Spaltenwechsel waagerecht schliessen, sonst
-  // bleibt zwischen zwei Zeilen eine diagonale Luecke offen.
-  for (let r = 0; r < ROWS; r++) {
-    if (!istTor(r)) for (let d = 0; d < WALL_DICK; d++) setz(spalte[r] + d, r);
-    if (r + 1 < ROWS) {
-      const von = Math.min(spalte[r], spalte[r + 1]);
-      const bis = Math.max(spalte[r], spalte[r + 1]) + WALL_DICK - 1;
-      for (let c = von; c <= bis; c++) {
-        if (!istTor(r)) setz(c, r);
-        if (!istTor(r + 1)) setz(c, r + 1);
-      }
-    }
-  }
-
-  // Es fuellt genau die beiden Spalten des Walls, also sitzt es buendig
-  // darin. Die Durchfahrt ist die mittlere Zeile, beide Felder tief.
-  const thSpalte = torSpalte;
-  const torhaus = { col: thSpalte, row: torZeile, w: 2, h: 3 };
-  const durchfahrt = [
-    { col: thSpalte, row: torZeile + 1 },
-    { col: thSpalte + 1, row: torZeile + 1 },
-  ];
-  for (let c = torhaus.col; c < torhaus.col + torhaus.w; c++) {
-    for (let r = torhaus.row; r < torhaus.row + torhaus.h; r++) wall.delete(wkey(c, r));
-  }
-
-  /*
-   * Die Flanken. Sie liegen auf den aeussersten Zeilen des Spielfelds - und
-   * das ist Absicht: dort soll gebaut werden koennen. Genau darum hat das
-   * Raster vier Zeilen mehr bekommen; gekaempft wird nach wie vor auf
-   * fuenfzehn, die vier gehen an die Flanken.
-   *
-   * Sie sind zugleich der Abschluss des Riegels. Frueher lief der oben und
-   * unten aus dem Bild heraus, damit er nicht in der Luft endete; jetzt
-   * treffen sich Riegel und Flanke in einer Ecke, und die Anlage ist ein
-   * geschlossenes Viereck.
+   * Die Flanken laufen auf den aeussersten Zeilen nach Westen bis an die Burg.
+   * Sie sind ebenso dick wie der Riegel und treffen ihn in der Ecke - so ist
+   * die Anlage geschlossen und endet nicht in der Luft.
    */
   for (let d = 0; d < WALL_DICK; d++) {
     for (const r of [d, ROWS - 1 - d]) {
-      for (let c = 0; c <= spalte[r] + WALL_DICK - 1; c++) setz(c, r);
+      for (let c = 0; c <= WALL_SPALTE + WALL_DICK - 1; c++) setz(c, r);
     }
   }
 
-  /*
-   * Hinten steht nichts. Es gab dort eine Rueckwand, und sie war eine zweite
-   * Wand vor derselben Wand: die Burg steht mit ihrer Westseite in derselben
-   * Flucht und schliesst selbst ab. Von der Rueckseite kommt ohnehin nie
-   * jemand - alles, was schlaegt, geht zum Torhaus.
-   *
-   * Die Anlage ist damit ein U: Riegel vorn, zwei Flanken zurueck, hinten die
-   * Burg. Das ist auch das ehrlichere Bild - verteidigt wird eine Seite.
-   */
-
-  return { wall, torhaus, durchfahrt, form, tor: durchfahrt };
+  return { wall, tuerme: TURM_ZEILEN.map(r => ({ col: WALL_SPALTE, row: r, w: 2, h: 2 })) };
 }
 
 /**
@@ -4663,30 +4621,14 @@ function baueWall(runde) {
  * zwischen zwei Stationen wird sie danach wieder hergerichtet.
  */
 function legeAnlageAn() {
-  state.anlage = baueWall(1);
+  state.anlage = baueWall();
   state.wall = new Map();
-  state.tor = state.anlage.tor;
-  state.wallForm = state.anlage.form;
   state.towers = [];
   richteAnlageHer();
 }
 
 /** Das Torhaus als fertiger Turm. Es laeuft absichtlich durch `state.towers`:
  *  damit gilt fuer es alles, was fuer Tuerme gilt - zielen, Zinnen, Plakette. */
-function macheTorhaus() {
-  const th = state.anlage.torhaus;
-  return {
-    id: state.nextTowerId++, name: 'Torhaus', col: th.col, row: th.row, w: th.w, h: th.h,
-    hp: 22, maxHp: 22, rangeBonus: 2, zinnen: 0,
-    modell: 'torhaus',
-    // Ein Platz. Das Torhaus ist die Einfahrt, nicht die Kaserne.
-    slots: [null],
-    // Durch diese Felder laeuft die Einfahrt: sie gehoeren zum Bauwerk,
-    // sperren aber nicht. Sonst waere das Torhaus eine Mauer mit Dach.
-    durchfahrt: state.anlage.durchfahrt,
-    bauZeit: BAU_DAUER, rueckstoss: 0, torhaus: true,
-  };
-}
 
 // Was ein Turm zwischen zwei Stationen an Lebenspunkten wiederbekommt.
 // Nicht alles: eine schwere Station soll man dem Turm noch ansehen.
@@ -4713,7 +4655,6 @@ function richteAnlageHer() {
     if (jetzt) { jetzt.hp = jetzt.maxHp; jetzt.riss = 0; }
     else state.wall.set(k, { ...plan, hp: WALL_HP, maxHp: WALL_HP, wachsen: 0, riss: 0 });
   }
-  if (!state.towers.some(t => t.torhaus)) state.towers.push(macheTorhaus());
   for (const t of state.towers) {
     t.zinnen = 0;
     t.attackedKey = null;
@@ -4823,10 +4764,6 @@ function drawWallFeld(m) {
  * Die Einfahrt: eine ausgefahrene Piste im Boden des Torhauses. Sie liegt im
  * Gebaeude, nicht daneben - darum kein Pfosten, kein Rahmen, nur der Weg.
  */
-function drawTor(t) {
-  fillDiamond(t.col, t.row, 'rgba(40,29,16,0.6)');
-  drawBlock(t.col + 0.1, t.row + 0.1, 0.8, 0.8, 2, { oben: '#8a7048', links: '#4a3a22', rechts: '#6b5535' });
-}
 
 /*
  * Die von Hand gesetzten Paletten STEIN, STEIN_HELL, BURG und HOLZ standen
@@ -5800,13 +5737,14 @@ function drawCastle() {
   const C = CASTLE;
   const HOCH = 92;   // wie hoch die Burg samt Dach und Fahne aufragt
 
-  drawBauSchatten(C.col, C.row, C.w, C.h, 30);
+  const zr = C.zeichenRow === undefined ? C.row : C.zeichenRow;
+  drawBauSchatten(C.col, zr, C.w, C.h, 30);
   // Die Burg laeuft ueber dieselbe Engine wie die Tuerme: gleiches Licht,
   // gleiche Stoffe, gleiche Silhouettensprache.
-  zeichneModell('burg', C.col, C.row, 1);
+  zeichneModell('burg', C.col, zr, 1);
 
-  const kx = isoX(C.col + 1, C.row + 1.2);
-  const ky = isoY(C.col + 1, C.row + 1.2) - HOCH;
+  const kx = isoX(C.col + 1, zr + 1.2);
+  const ky = isoY(C.col + 1, zr + 1.2) - HOCH;
   if (state.castleHp < C.maxHp) drawHpBar(kx, ky, 46, state.castleHp, C.maxHp, '#c0392b');
 
   const links = isoX(C.col, C.row + C.h) - TW / 2;
@@ -7833,52 +7771,17 @@ let pkZiehen = null;        // laufendes Ziehen mit der Maus
  */
 function pkBaueStellungen() {
   legeAnlageAn();
-  // Das Torhaus gehört zum alten Spiel: es war der Engpass, durch den alles
-  // laufen musste. Hier läuft niemand mehr.
   state.towers = [];
   /*
-   * Erst alle Reihen sammeln, in denen ueberhaupt eine Stellung auf dem Wall
-   * Platz hat, und darin jeweils die oestlichste Spalte - die liegt dem Feind
-   * am naechsten. Der Wall hat eine Luecke in der Mitte; die faellt hier von
-   * selbst heraus, weil dort nichts gueltig ist.
+   * Die fuenf Plaetze stehen fest und kommen aus der Anlage. Frueher wurden
+   * sie gesucht: jede Zeile durchgehen, die oestlichste gueltige Spalte
+   * nehmen, dann fuenf davon moeglichst gleichmaessig auswaehlen. Das fand
+   * bei drei Zeilen Mindestabstand nur vier Plaetze, verteilte sie ungleich
+   * und legte sie bei jedem Laden woandershin. Eine Burg ist ein gebautes
+   * Ding - ihre Tuerme stehen, wo der Baumeister sie hingestellt hat.
    */
-  const frei = [];
-  for (let row = 1; row + 2 <= ROWS - 1; row++) {
-    for (let col = COLS - 3; col >= 2; col--) {
-      if (isValidTowerPlacement(col, row, 2, 2)) { frei.push({ col, row }); break; }
-    }
-  }
-  /*
-   * Fuenf davon, moeglichst gleichmaessig verteilt. Der Mindestabstand wird
-   * von oben her gelockert: lieber fuenf Tuerme eng als vier mit Luft. Zwei
-   * Reihen Abstand ist die Untergrenze - darunter wuerden sich die 2x2-Bloecke
-   * ueberlappen.
-   */
-  const waehle = (abstand) => {
-    const raus = [];
-    for (let i = 0; i < KERN.tuerme; i++) {
-      const wunsch = Math.round((i + 0.5) * frei.length / KERN.tuerme - 0.5);
-      let platz = null;
-      for (let d = 0; d < frei.length && !platz; d++) {
-        for (const j of [wunsch + d, wunsch - d]) {
-          const k = frei[j];
-          if (!k || raus.some(g => Math.abs(g.row - k.row) < abstand)) continue;
-          platz = k; break;
-        }
-      }
-      if (platz) raus.push(platz);
-    }
-    return raus;
-  };
-  let gewaehlt = [];
-  for (let abstand = 4; abstand >= 2; abstand--) {
-    const versuch = waehle(abstand);
-    if (versuch.length > gewaehlt.length) gewaehlt = versuch;
-    if (gewaehlt.length >= KERN.tuerme) break;
-  }
-  gewaehlt.sort((a, b) => a.row - b.row);
-  return gewaehlt.map((p, i) => ({
-    id: i + 1, name: 'Turm ' + (i + 1), col: p.col, row: p.row, w: 2, h: 2,
+  return state.anlage.tuerme.map((p, i) => ({
+    id: i + 1, name: 'Turm ' + (i + 1), col: p.col, row: p.row, w: p.w, h: p.h,
     modell: TURMTYPEN[TURM_START[i]] ? TURMTYPEN[TURM_START[i]].modell : 'wachturm',
     bauZeit: BAU_DAUER, rueckstoss: 0, imWall: true,
   }));
@@ -7929,7 +7832,6 @@ function pkZeichne() {
   drawGround();
   drawVoegel();
   drawWolken();
-  for (const t of state.tor) drawTor(t);
 
   const dinge = [];
   for (const m of state.wall.values()) dinge.push({ art: 'wall', ref: m, rect: { col: m.col, row: m.row, w: 1, h: 1 } });
