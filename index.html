@@ -8114,7 +8114,7 @@ const PK_CSS = `
 
 function pkBaueOberflaeche() {
   const stil = document.createElement('style');
-  stil.textContent = PK_CSS + PK_LAUF_CSS;
+  stil.textContent = PK_CSS + PK_LAUF_CSS + PX_CSS;
   document.head.appendChild(stil);
 
   const wurzel = document.createElement('div');
@@ -8854,13 +8854,167 @@ function pkWeiter() {
   pkBetreteKnoten();
 }
 
+// ---------- Werkzeuge ----------
+/*
+ * Was man beim Spielen braucht, um zu verstehen, warum eine Zahl so ist.
+ *
+ * Erreichbar über die Tastatur (Strg+D) und über `window.PX` in der Konsole
+ * des Browsers. Beides greift auf denselben Kern zu, den auch die
+ * Prüfskripte anfassen - hier wird nichts nachgebaut, nur gezeigt.
+ *
+ * Das Werkzeug DARF den Zustand ändern (Station setzen, Wappen geben, Gegner
+ * umwerfen). Das ist der Punkt: eine Formation an Station 9 zu prüfen, ohne
+ * neunmal zu gewinnen, ist der Unterschied zwischen einer Stunde und einer
+ * Minute. Es ist absichtlich nicht versteckt - wer schummeln will, kann das
+ * ohnehin in der Konsole.
+ */
+const PX_CSS = `
+#px { position: absolute; left: 10px; top: 52px; z-index: 60; width: 320px; max-height: 76vh;
+  overflow-y: auto; background: rgba(12,9,6,0.95); border: 1px solid #6b5535; border-radius: 6px;
+  padding: 10px 12px; font: 11px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: #d8cbab; }
+#px h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #f3d283; }
+#px h4 { margin: 10px 0 4px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #a8977a;
+  border-top: 1px solid rgba(255,255,255,0.08); padding-top: 7px; }
+#px .px-zeile { display: flex; justify-content: space-between; gap: 8px; }
+#px .px-zeile b { color: #f3d283; font-weight: 600; }
+#px .px-knoepfe { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+#px button { font: inherit; font-size: 10px; color: #e8dcc0; background: #31261a;
+  border: 1px solid #5a4527; border-radius: 3px; padding: 3px 6px; cursor: pointer; }
+#px button:hover { background: #47351d; border-color: var(--gold, #d9a435); }
+#px .px-hin { color: #8d8270; font-style: italic; }
+`;
+
+let pxOffen = false;
+
+function pxSchalte() {
+  pxOffen = !pxOffen;
+  const alt = document.getElementById('px');
+  if (alt) alt.remove();
+  if (pxOffen) pxZeichne();
+}
+
+function pxZeichne() {
+  if (!pxOffen) return;
+  const k = derKampf, l = derLauf;
+  const alt = document.getElementById('px');
+  const el = alt || document.createElement('div');
+  el.id = 'px';
+  const zeile = (was, wert) => '<div class="px-zeile"><span>' + was + '</span><b>' + wert + '</b></div>';
+
+  let html = '<h3>Werkzeug <span class="px-hin">Strg+D</span></h3>';
+  if (l) {
+    const kn = derKnoten();
+    html += zeile('Station', l.station + '/' + l.stationen + '  ' + (kn ? kn.art : '—')) +
+      zeile('Kampf Nr.', (kn && kn.kampfNr) || '—') +
+      zeile('Sold', l.sold) +
+      zeile('Deck', l.deck.length + ' Karten, Rang ⌀ ' +
+        (l.deck.reduce((s, c) => s + grundwucht(c), 0) / l.deck.length).toFixed(1)) +
+      zeile('Wappen', l.wappen.length ? l.wappen.join(', ') : '—') +
+      zeile('Türme', l.turmTypen.map(t => t.slice(0, 4)).join(' '));
+  }
+  if (k) {
+    const ab = berechneWucht(k.tuerme, k.wappen);
+    html += '<h4>Kampf</h4>' +
+      zeile('Runde', k.runde + '/' + k.rundenMax) +
+      zeile('Tatendrang', k.tatendrang + '/' + k.tatendrangMax) +
+      zeile('Gegner', k.feind.hp.toLocaleString('de-DE') + ' / ' + k.feind.maxHp.toLocaleString('de-DE')) +
+      zeile('Zug · Hand · Ablage', k.zug.length + ' · ' + k.hand.length + ' · ' + k.ablage.length) +
+      zeile('Salve jetzt', ab.wucht.toLocaleString('de-DE')) +
+      zeile('davon Grundwucht', ab.grund);
+    html += '<h4>Wuchtkette</h4>';
+    for (const s of ab.schritte) {
+      html += zeile(s.name, s.art === 'grund' ? Math.round(s.wucht)
+        : (s.art === 'nachschuss' ? '↻' + s.wert : '×' + s.wert));
+    }
+    if (!ab.schritte.length) html += '<div class="px-hin">keine Türme besetzt</div>';
+  }
+  html += '<h4>Eingreifen</h4><div class="px-knoepfe">' +
+    '<button data-tu="drang">+5 Tatendrang</button>' +
+    '<button data-tu="sold">+200 Sold</button>' +
+    '<button data-tu="karte">Gute Karte</button>' +
+    '<button data-tu="wappen">Wappen dazu</button>' +
+    '<button data-tu="ausbau">Turm ausbauen</button>' +
+    '<button data-tu="sieg">Gegner umwerfen</button>' +
+    '<button data-tu="weiter">Station überspringen</button>' +
+    '<button data-tu="neu">Neuer Lauf</button>' +
+    '</div>' +
+    '<div class="px-hin" style="margin-top:6px">In der Konsole: PX.lauf(), PX.kampf(), ' +
+    'PX.station(9), PX.wappen("drache"), PX.karte("kanonier-13")</div>';
+  el.innerHTML = html;
+  if (!alt) document.getElementById('pk').appendChild(el);
+  el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => pxTu(b.dataset.tu)));
+}
+
+function pxTu(was) {
+  const k = derKampf, l = derLauf;
+  if (was === 'drang' && k) k.tatendrang += KERN.tatendrang;
+  else if (was === 'sold' && l) l.sold += 200;
+  else if (was === 'karte' && l) PX.karte();
+  else if (was === 'wappen' && l) { const a = angebotWappen(); if (a) fuegeWappenHinzu(a.wappen); }
+  else if (was === 'ausbau' && l) { const a = angebotAusbau(); if (a) baueTurmAus(a.turm, a.typ); }
+  else if (was === 'sieg' && k) { trefferAufFeind(k.feind.hp, 'Werkzeug'); pkRundeBeenden(); }
+  else if (was === 'weiter') pkWeiter();
+  else if (was === 'neu') { neuerLauf(); pkBetreteKnoten(); }
+  pkRender();
+  pkRenderLauf();
+  pxZeichne();
+}
+
+/* Der Griff aus der Konsole. */
+const PX = {
+  lauf: () => derLauf,
+  kampf: () => derKampf,
+  kern: KERN,
+  /** Direkt an eine Station springen - mit einem Deck, das dorthin passt. */
+  station(nr) {
+    neuerLauf();
+    while (derLauf.station < nr) {
+      const kn = derKnoten();
+      if (kn.kampfNr) for (let i = 0; i < 2; i++) this.karte(null, kn.kampfNr);
+      verlasseKnoten();
+    }
+    derLauf.sold = 300;
+    pkBetreteKnoten();
+    return derLauf;
+  },
+  /** Eine Karte ins Deck. Ohne Angabe eine, die zur Station passt. */
+  karte(id, nr) {
+    if (!derLauf) return null;
+    const e = id ? neueEinheit(id) : angebotKarte(nr || (derKnoten() || {}).kampfNr || 1).einheit;
+    if (e) derLauf.deck.push(e);
+    return e;
+  },
+  wappen(id) { return fuegeWappenHinzu(id); },
+  turm(i, typ) { return baueTurmAus(i, typ); },
+  /** Was diese Aufstellung wiegt, ohne sie zu spielen. */
+  probe(gattungen) {
+    const tuerme = gattungen.map((g, i) => ({
+      nr: i + 1, typ: 'wachturm',
+      einheit: typeof g === 'string' ? neueEinheit(g) : g,
+    }));
+    return berechneWucht(tuerme, derLauf ? derLauf.wappen : []);
+  },
+  /** Alle Formationen mit ihrem Text - zum Nachschlagen. */
+  formationen: () => FORMATIONEN.map(f => f.id + ': ' + f.text),
+  werkzeug: pxSchalte,
+};
+if (typeof window !== 'undefined') window.PX = PX;
+
+window.addEventListener('keydown', (evt) => {
+  if (evt.key === 'd' && (evt.ctrlKey || evt.metaKey)) { evt.preventDefault(); pxSchalte(); }
+});
+
 let pkZuletzt = 0;
+let pxZuletzt = 0;
 function pkTakt(jetzt) {
   const dt = Math.min(0.05, (jetzt - pkZuletzt) / 1000 || 0);
   pkZuletzt = jetzt;
   animZeit += dt;
   updateAnimations(dt);
   pkZeichne();
+  // Das Werkzeug zeigt lebende Zahlen - aber nicht sechzigmal je Sekunde.
+  if (pxOffen && (pxZuletzt += dt) > 0.25) { pxZuletzt = 0; pxZeichne(); }
   requestAnimationFrame(pkTakt);
 }
 
