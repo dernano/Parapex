@@ -8523,6 +8523,42 @@ function starteParapex() {
  */
 
 const PK_LAUF_CSS = `
+/*
+ * Schmale Fenster. Das Spiel ist quer gedacht - eine isometrische Burg wird
+ * im Hochformat nie gross -, aber es darf nicht brechen. Die beiden Reihen,
+ * die zu breit werden koennen, bekommen ihren eigenen Schieber; die Seite
+ * selbst schiebt nie zur Seite.
+ */
+html, body { max-width: 100%; overflow-x: hidden; }
+#pk .pk-tuerme, #pk .pk-hand { overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: thin; padding-bottom: 2px; }
+#pk .pk-turm { min-width: 128px; }
+#pk .pk-karte { flex: none; }
+
+@media (max-width: 720px) {
+  /*
+   * Hochkant bleibt vom Bild ein breiter Streifen uebrig - eine isometrische
+   * Burg wird im Hochformat nun einmal nicht gross. Damit der Rest nicht als
+   * schwarze Luecke dasteht, rueckt das Brett in die Mitte des Raums ueber der
+   * Leiste; der Platz verteilt sich dann auf beide Seiten statt sich unten zu
+   * sammeln.
+   */
+  body { min-height: 100vh; justify-content: center; padding-bottom: 214px; box-sizing: border-box; }
+  #pk .pk-kopf { flex-wrap: wrap; gap: 6px 10px; padding: 6px 10px; }
+  #pk .pk-feind { flex: 1 1 100%; order: -1; }
+  #pk .pk-lauf { font-size: 11px; gap: 8px; }
+  #pk .pk-wappen div { width: 26px; height: 26px; font-size: 12px; }
+  #pk .pk-unten { padding: 5px 8px 8px; gap: 5px; }
+  #pk .pk-turm { min-width: 112px; padding: 4px 6px; min-height: 76px; }
+  #pk .pk-karte { width: 72px; height: 94px; }
+  #pk .pk-hand { min-height: 100px; }
+  #pk .pk-karte-rang { font-size: 18px; }
+  #pk .pk-karte-bild { font-size: 20px; }
+  #pk .pk-leiste { flex-wrap: wrap; gap: 6px; }
+  #pk .pk-angebot { width: 100%; max-width: 280px; }
+  #pk .pk-tafel-inhalt { padding: 14px 14px 16px; }
+}
+
 #knopfreihe { position: absolute; right: 10px; bottom: 8px; z-index: 40; display: flex; gap: 5px; }
 #knopfreihe .icon-btn { opacity: 0.55; transition: opacity .12s; }
 #knopfreihe .icon-btn:hover { opacity: 1; }
