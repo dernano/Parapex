@@ -1425,9 +1425,18 @@ const KERN = {
     koenigshuegel:  { faktor: 2 },
     geschlosseneFront: { faktor: 1.5 },
   },
+  /*
+   * Die Wappen. Ihre Werte sind gemessen gegen die Frage: ist ein Wappen so
+   * viel wert wie die beste Karte, die statt seiner im Angebot laege? In der
+   * ersten Fassung war es das nicht - der Bot, der nie ein Wappen nahm, kam
+   * in der Haelfte der Laeufe durch, der, der immer eines nahm, in einem
+   * Siebtel. Ein regelbrechendes Wappen darf keine Falle sein.
+   */
   wappen: {
-    wolf: 0.25,               // je leerem Turm
-    drache: { jeder: 3, faktor: 2 },
+    loewe: 3,                 // Rang des mittleren Turms mal drei
+    wolf: 0.6,                // je leerem Turm
+    schlange: 2,              // so viele Tauesche je Runde sind frei
+    drache: { jeder: 2, faktor: 2.5 },
   },
 };
 
@@ -1555,8 +1564,20 @@ function turmFaktor(turm) {
  * Sie sind noch nicht ausgeführt, aber der Gegner trägt sie schon, damit
  * Bosse später Entscheidungen erzeugen können statt nur mehr Stärke.
  */
-const FEIND_STAERKE = [150, 250, 450, 800, 1400, 2500, 5000, 10000, 25000, 60000];
-const FEIND_STAERKE_BOSS = 150000;
+/*
+ * Die Staerke des n-ten KAMPFES - nicht der n-ten Station. Diese Zahlen sind
+ * gemessen, nicht gesetzt: `scripts/kurve.mjs` laesst den Bot gegen einen
+ * Gegner spielen, der nicht faellt, und zaehlt mit, wie viel Wucht ein
+ * vernuenftig gespieltes Deck am n-ten Kampf ueber fuenf Runden zusammen-
+ * bringt. Die Tabelle liegt darunter - anfangs bei knapp der Haelfte, zuletzt
+ * bei drei Vierteln. Wer sie aendert, misst vorher nach.
+ *
+ * Die erste Fassung stand bei 150 bis 60000 und war damit reine Behauptung:
+ * das Deck waechst ueber einen Akt etwa auf das Doppelte, nicht auf das
+ * Vierhundertfache. Ein Gegner, den niemand umwerfen kann, ist kein Gegner.
+ */
+const FEIND_STAERKE = [300, 380, 480, 600, 700, 850, 1000, 1200, 1450, 1750];
+const FEIND_BOSS_FAKTOR = 1.15;   // was der Belagerungsmeister auf seinen Platz drauflegt
 
 const FEIND_VORLAGEN = [
   { id: 'raeuber',   name: 'Räuberhorde',      figuren: 8, typ: 'spaeher' },
@@ -1565,17 +1586,16 @@ const FEIND_VORLAGEN = [
   { id: 'belagerer', name: 'Belagerungspark',  figuren: 4, typ: 'ritter' },
 ];
 
-function feindStaerke(station, boss) {
-  if (boss) return FEIND_STAERKE_BOSS;
-  const i = Math.max(1, Math.min(FEIND_STAERKE.length, station)) - 1;
-  return FEIND_STAERKE[i];
+function feindStaerke(kampfNr, boss) {
+  const i = Math.max(1, Math.min(FEIND_STAERKE.length, kampfNr)) - 1;
+  return Math.round(FEIND_STAERKE[i] * (boss ? FEIND_BOSS_FAKTOR : 1));
 }
 
-function baueFeind(station, { boss = false, vorlage = null, zuschlag = 1 } = {}) {
+function baueFeind(kampfNr, { boss = false, vorlage = null, zuschlag = 1 } = {}) {
   const v = vorlage
     ? FEIND_VORLAGEN.find(f => f.id === vorlage) || FEIND_VORLAGEN[0]
-    : FEIND_VORLAGEN[Math.min(FEIND_VORLAGEN.length - 1, Math.floor((station - 1) / 3))];
-  const hp = Math.round(feindStaerke(station, boss) * zuschlag);
+    : FEIND_VORLAGEN[Math.min(FEIND_VORLAGEN.length - 1, Math.floor((kampfNr - 1) / 2))];
+  const hp = Math.round(feindStaerke(kampfNr, boss) * zuschlag);
   return { id: v.id, name: boss ? 'Belagerungsmeister' : v.name, figuren: v.figuren, typ: v.typ,
     hp, maxHp: hp, regeln: [] };
 }
@@ -1590,8 +1610,8 @@ function baueFeind(station, { boss = false, vorlage = null, zuschlag = 1 } = {})
 const WAPPEN = {
   loewe: {
     id: 'loewe', name: 'Wappen des Löwen',
-    text: 'Der mittlere Turm zählt seinen Rang doppelt.',
-    rangFaktor: (turm, i) => (i === 2 ? 2 : 1),
+    text: 'Der mittlere Turm zählt seinen Rang dreifach.',
+    rangFaktor: (turm, i) => (i === Math.floor(KERN.tuerme / 2) ? KERN.wappen.loewe : 1),
   },
   doppeladler: {
     id: 'doppeladler', name: 'Wappen des Doppeladlers',
@@ -1600,7 +1620,7 @@ const WAPPEN = {
   },
   wolf: {
     id: 'wolf', name: 'Wappen des Wolfs',
-    text: 'Je leerem Turm +25 % Gesamtwucht.',
+    text: 'Je leerem Turm +60 % Gesamtwucht.',
     gesamtFaktor: (ctx) => 1 + KERN.wappen.wolf * ctx.tuerme.filter(t => !t.einheit).length,
   },
   eber: {
@@ -1610,12 +1630,12 @@ const WAPPEN = {
   },
   schlange: {
     id: 'schlange', name: 'Wappen der Schlange',
-    text: 'Der erste Kartentausch jeder Runde kostet nichts.',
-    tauschRabatt: (kampf) => (kampf.tauschInRunde === 0 ? KERN.kosten.tauschen : 0),
+    text: 'Die ersten zwei Kartentausche jeder Runde kosten nichts.',
+    tauschRabatt: (kampf) => (kampf.tauschInRunde < KERN.wappen.schlange ? KERN.kosten.tauschen : 0),
   },
   drache: {
     id: 'drache', name: 'Wappen des Drachen',
-    text: 'Jeder dritte Nachschuss einer Runde zählt doppelt.',
+    text: 'Jeder zweite Nachschuss einer Runde zählt zweieinhalbfach.',
     retriggerFaktor: (nummer) => (nummer % KERN.wappen.drache.jeder === 0 ? KERN.wappen.drache.faktor : 1),
   },
 };
@@ -2207,6 +2227,12 @@ const LAUF = {
   },
   preise: { karte: 45, wappen: 130, ausbau: 95, entfernen: 60, schliff: 75 },
   belohnung: { auswahl: 3, wappenAb: 2 },
+  /*
+   * Der Rang, den eine Belohnungskarte im Schnitt hat: `ab` beim ersten
+   * Kampf, dann `je` Rang je weiterem. Ueber acht Kaempfe reicht das von
+   * Rang 3 bis an die Spitze - der Grund, warum ein Deck ueberhaupt waechst.
+   */
+  rangKurve: { ab: 2, je: 1.4 },
   schliff: 2,                 // was ein Schliff an Wucht bringt
   /*
    * Das Muster eines Akts. Elf Knoten: acht Kaempfe (davon zwei Elite und ein
@@ -2219,7 +2245,7 @@ const LAUF = {
 
 const KNOTEN_ARTEN = {
   kampf:    { id: 'kampf',    name: 'Angriff',      zeichen: '⚔' },
-  elite:    { id: 'elite',    name: 'Sturmtrupp',   zeichen: '☠', zuschlag: 1.6 },
+  elite:    { id: 'elite',    name: 'Sturmtrupp',   zeichen: '☠', zuschlag: 1.3 },
   boss:     { id: 'boss',     name: 'Belagerung',   zeichen: '♛' },
   haendler: { id: 'haendler', name: 'Händler',      zeichen: '⚖' },
   ereignis: { id: 'ereignis', name: 'Begegnung',    zeichen: '❖' },
@@ -2232,11 +2258,23 @@ function neuerLauf({ stationen = LAUF.stationen, muster = LAUF.muster } = {}) {
   derLauf = {
     station: 1,
     stationen,
-    knoten: Array.from({ length: stationen }, (_, i) => ({
-      nr: i + 1,
-      art: muster[i] || 'kampf',
-      erledigt: false,
-    })),
+    /*
+     * Jeder Knoten kennt seine Nummer IM AKT und, wenn er ein Kampf ist,
+     * seine Nummer UNTER DEN KAEMPFEN. Das ist nicht dasselbe: an Station 5
+     * steht der dritte Kampf, weil dazwischen ein Haendler und eine Begegnung
+     * liegen. Die Staerke des Gegners haengt am dritten Kampf, nicht an der
+     * fuenften Station - sonst springt sie ueber die Knoten ohne Kampf hinweg
+     * und der Spieler faellt in ein Loch, das nur die Tabelle kennt.
+     */
+    knoten: (() => {
+      let kampfNr = 0;
+      return Array.from({ length: stationen }, (_, i) => {
+        const art = muster[i] || 'kampf';
+        const kampf = KNOTEN_KAMPF.includes(art);
+        if (kampf) kampfNr++;
+        return { nr: i + 1, art, kampfNr: kampf ? kampfNr : 0, erledigt: false };
+      });
+    })(),
     deck: START_DECK.map(id => neueEinheit(id)),
     wappen: [],
     turmTypen: TURM_START.slice(),
@@ -2264,7 +2302,7 @@ function beginneKampfAmKnoten(stellungen = null) {
   if (!kn) return null;
   if (!KNOTEN_KAMPF.includes(kn.art)) return null;
   const boss = kn.art === 'boss';
-  const feind = baueFeind(kn.nr, { boss, zuschlag: KNOTEN_ARTEN[kn.art].zuschlag || 1 });
+  const feind = baueFeind(kn.kampfNr, { boss, zuschlag: KNOTEN_ARTEN[kn.art].zuschlag || 1 });
   if (kn.art === 'elite') feind.name = 'Sturmtrupp';
   return neuerKampf({
     feind,
@@ -2306,14 +2344,38 @@ function werteKampfAus(kampf = derKampf) {
  * Ausbau macht einen Turm schärfer, ein Wappen bricht eine Regel.
  */
 function baueBelohnung(knoten) {
-  const angebote = [];
-  angebote.push(angebotKarte(knoten.nr));
-  const aus = angebotAusbau();
-  if (aus) angebote.push(aus);
-  const wap = (knoten.nr >= LAUF.belohnung.wappenAb || knoten.art !== 'kampf') ? angebotWappen() : null;
-  if (wap) angebote.push(wap);
-  while (angebote.length < LAUF.belohnung.auswahl) angebote.push(angebotKarte(knoten.nr));
+  const nr = knoten.kampfNr || 1;
+  const angebote = [angebotKarte(nr)];       // eine Einheit steht immer da
+  /*
+   * Die uebrigen Plaetze aus dem, was gerade etwas bewirken kann. Das
+   * Ausmustern gehoert ausdruecklich dazu und nicht nur zum Haendler: ein
+   * Startdeck aus zwoelf niedrigen Raengen wird sonst nie eines aus hohen.
+   * Gemessen ist das der Unterschied zwischen einem Deck, das ueber den Akt
+   * um die Haelfte staerker wird, und einem, das sich verdreifacht.
+   */
+  const rest = [
+    (knoten.nr >= LAUF.belohnung.wappenAb ? angebotWappen() : null),
+    angebotAusbau(),
+    (derLauf.deck.length > KERN.handGroesse + 2 ? angebotAusmustern() : null),
+    angebotKarte(nr),
+  ].filter(Boolean);
+  while (angebote.length < LAUF.belohnung.auswahl && rest.length) {
+    angebote.push(rest.splice(Math.floor(Math.random() * Math.min(2, rest.length)), 1)[0]);
+  }
+  while (angebote.length < LAUF.belohnung.auswahl) angebote.push(angebotKarte(nr));
   return { angebote: angebote.slice(0, LAUF.belohnung.auswahl) };
+}
+
+/*
+ * Ausmustern als Belohnung. Das Ziel steht schon fest: die schwaechste Karte
+ * im Deck. Eine Auswahl waere hier eine zweite Entscheidung in einer
+ * Entscheidung, und die schwaechste Karte ist ohnehin fast immer die richtige.
+ */
+function angebotAusmustern() {
+  const schwach = derLauf.deck.slice().sort((a, b) => grundwucht(a) - grundwucht(b))[0];
+  if (!schwach) return null;
+  return { art: 'entfernen', karte: schwach, name: schwach.name + ' ausmustern',
+    text: 'Die schwächste Karte verlässt das Deck. Ein dünnes Deck zieht öfter, was man will.' };
 }
 
 /*
@@ -2321,10 +2383,25 @@ function baueBelohnung(knoten) {
  * Fortschrittskurve: an Station 2 liegen Ränge um 3, an Station 10 um 11.
  * Ohne das müsste der Spieler zwölf Runden lang mit Bauernschützen spielen.
  */
-function belohnungsRang(station) {
-  const mitte = Math.min(13, 1 + station);
+function belohnungsRang(kampfNr) {
+  const mitte = Math.min(13, Math.round(LAUF.rangKurve.ab + LAUF.rangKurve.je * kampfNr));
   const streu = Math.floor(Math.random() * 5) - 2;    // -2 .. +2
   return Math.max(1, Math.min(13, mitte + streu));
+}
+
+/*
+ * Der Kampf, auf den sich eine Belohnung bezieht: der letzte gespielte. An
+ * einem Haendler oder in einer Begegnung ist das der Kampf davor - dort soll
+ * nicht schlechtere Ware liegen, nur weil zwischendurch nicht gekaempft wurde.
+ */
+function kampfNrJetzt() {
+  if (!derLauf) return 1;
+  let letzte = 1;
+  for (const kn of derLauf.knoten) {
+    if (kn.kampfNr) letzte = kn.kampfNr;
+    if (kn.nr >= derLauf.station) break;
+  }
+  return letzte;
 }
 
 function angebotKarte(station) {
@@ -2368,6 +2445,7 @@ function nimmAngebot(angebot) {
   if (angebot.art === 'karte') { derLauf.deck.push(angebot.einheit); return { ok: true }; }
   if (angebot.art === 'wappen') return fuegeWappenHinzu(angebot.wappen);
   if (angebot.art === 'ausbau') return baueTurmAus(angebot.turm, angebot.typ);
+  if (angebot.art === 'entfernen' && angebot.karte) return entferneKarte(angebot.karte.uid);
   if (angebot.art === 'sold') { derLauf.sold += angebot.sold; return { ok: true }; }
   return { ok: false, grund: 'Unbekanntes Angebot.' };
 }
@@ -2410,10 +2488,10 @@ function schleifeKarte(uid) {
  */
 function oeffneHaendler() {
   if (!derLauf) return null;
-  const station = derLauf.station;
+  const nr = kampfNrJetzt();
   const posten = [];
   for (let i = 0; i < 3; i++) {
-    const a = angebotKarte(station);
+    const a = angebotKarte(nr);
     posten.push({ ...a, preis: Math.round(LAUF.preise.karte * (0.6 + a.einheit.rang / 10)) });
   }
   const w = angebotWappen();
@@ -2481,7 +2559,7 @@ const BEGEGNUNGEN = [
         wirkung: () => {
           derLauf.sold -= 60;
           const k = neueEinheit(GATTUNG_LISTE[Math.floor(Math.random() * 4)] + '-' +
-            Math.min(13, belohnungsRang(derLauf.station) + 2));
+            Math.min(13, belohnungsRang(kampfNrJetzt()) + 2));
           derLauf.deck.push(k);
           return k.name + ' tritt ein.';
         } },
@@ -2534,7 +2612,7 @@ const BEGEGNUNGEN = [
     wahlen: [
       { text: 'Aushorchen (+100 Sold)', wirkung: () => { derLauf.sold += 100; return '100 Sold.'; } },
       { text: 'Laufen lassen und zwei Karten ziehen', wirkung: () => {
-        const neu = [angebotKarte(derLauf.station), angebotKarte(derLauf.station)];
+        const neu = [angebotKarte(kampfNrJetzt()), angebotKarte(kampfNrJetzt())];
         neu.forEach(a => derLauf.deck.push(a.einheit));
         return neu.map(a => a.name).join(' und ') + ' schliessen sich an.';
       } },
@@ -13109,7 +13187,7 @@ const PK_CSS = `
 
 function pkBaueOberflaeche() {
   const stil = document.createElement('style');
-  stil.textContent = PK_CSS;
+  stil.textContent = PK_CSS + PK_LAUF_CSS;
   document.head.appendChild(stil);
 
   const wurzel = document.createElement('div');
@@ -13121,6 +13199,7 @@ function pkBaueOberflaeche() {
         <div class="pk-balken"><i id="pk-feind-balken"></i><b id="pk-feind-zahl"></b></div>
       </div>
       <div class="pk-runde" id="pk-runde">RUNDE <b>1</b> / 5</div>
+      <div class="pk-lauf" id="pk-lauf"></div>
       <div class="pk-wappen" id="pk-wappen"></div>
     </div>
     <div class="pk-mitte"></div>
@@ -13425,51 +13504,59 @@ function pkZeigeAufschluesselung(abrechnung) {
   setTimeout(() => kasten.remove(), 6000);
 }
 
+/*
+ * Der Kampf ist entschieden. Die Tafel zeigt die letzte Wucht, dann uebernimmt
+ * der Lauf: Sieg heisst Sold und drei Angebote, Niederlage heisst - bei einem
+ * Leben - das Ende.
+ */
 function pkZeigeEnde(abrechnung) {
   const k = derKampf;
   const sieg = k.ende === 'sieg';
   klang(sieg ? 'sieg' : 'burg');
-  const tafel = document.createElement('div');
-  tafel.className = 'pk-tafel';
-  const schritte = (abrechnung || pkLetzteSalve || { schritte: [] }).schritte
-    .map(s => '<div class="pk-schritt"><span>' + s.name + '</span><b>' +
-      (s.art === 'grund' ? '' : (s.art === 'nachschuss' ? '↻ ' + s.wert : '×' + s.wert)) + '</b></div>').join('');
-  tafel.innerHTML = `
-    <div class="pk-tafel-inhalt">
-      <h2>${sieg ? 'Der Angriff ist gebrochen' : 'Der Sturm kommt durch'}</h2>
-      <p>${sieg
-        ? k.feind.name + ' ist vernichtet — in Runde ' + k.runde + ' von ' + k.rundenMax + '.'
-        : k.feind.name + ' steht noch mit ' + k.feind.hp.toLocaleString('de-DE') + ' Stärke. Fünf Runden waren zu wenig.'}</p>
-      <div class="pk-schritte">${schritte}</div>
-      <button class="pk-knopf haupt" id="pk-nochmal">Noch ein Kampf</button>
-    </div>`;
-  document.getElementById('pk').appendChild(tafel);
-  document.getElementById('pk-nochmal').addEventListener('click', () => {
-    tafel.remove();
-    pkStarteKampf(sieg ? (pkStation + 1) : pkStation);
-  });
+  const erg = werteKampfAus(k);
+  pkRenderLauf();
+  if (!sieg) {
+    const schritte = (abrechnung || pkLetzteSalve || { schritte: [] }).schritte
+      .map(s => '<div class="pk-schritt"><span>' + s.name + '</span><b>' +
+        (s.art === 'grund' ? '' : (s.art === 'nachschuss' ? '↻ ' + s.wert : '×' + s.wert)) + '</b></div>').join('');
+    pkTafel(
+      '<h2>Der Sturm kommt durch</h2>' +
+      '<p class="pk-vor">' + k.feind.name + ' steht noch mit ' + k.feind.hp.toLocaleString('de-DE') +
+        ' Stärke. Fünf Runden waren zu wenig.</p>' +
+      '<div class="pk-schritte">' + schritte + '</div>' +
+      '<div class="pk-tafel-fuss"><button class="pk-knopf haupt" id="pk-weiter">Weiter</button></div>')
+      .querySelector('#pk-weiter').addEventListener('click',
+        () => (derLauf.ende ? pkZeigeLaufEnde() : pkWeiter()));
+    return;
+  }
+  pkZeigeBelohnung(erg);
 }
 
 // ---------- Aufbau ----------
 let pkStation = 1;
 
-function pkStarteKampf(station = 1) {
-  pkStation = Math.max(1, station);
+/*
+ * Einen Kampf beginnen. Was er mitbekommt - Deck, Wappen, Turmtypen - kommt
+ * vollständig aus dem Lauf; die Anzeige steuert nur die Stellungen bei, weil
+ * sie weiss, wo auf dem Wall Platz ist.
+ */
+function pkStarteKampf() {
+  const kn = derKnoten();
+  pkStation = kn ? kn.nr : 1;
   const stellungen = pkBaueStellungen();
-  const feind = baueFeind(pkStation);
-  // Der erste Kampf ist der aus der Spezifikation: 300 Stärke, damit der Loop
-  // in einem Zug zu durchschauen ist.
-  if (pkStation === 1) { feind.hp = 300; feind.maxHp = 300; feind.name = 'Räuberhorde'; }
-  pkStelleFeindAuf(feind);
-  const deck = START_DECK.map(id => neueEinheit(id));
-  neuerKampf({ feind, deck, wappen: pkWappenFuer(pkStation), stellungen });
-  state.towers = derKampf.tuerme;
+  const k = beginneKampfAmKnoten(stellungen);
+  if (!k) return;
+  pkStelleFeindAuf(k.feind);
+  state.towers = k.tuerme;
   pkGewaehlt = null;
   pkUeberTurm = null;
   pkLetzteSalve = null;
   pkRender();
-  pkSage('Fünf Runden. Setze Einheiten auf die Türme — benachbarte Gattungen und Ränge bilden Formationen.');
-  zeigeBanner(feind.name, feind.maxHp.toLocaleString('de-DE') + ' Stärke · fünf Runden');
+  pkRenderLauf();
+  pkSage(kn.nr === 1
+    ? 'Fünf Runden. Setze Einheiten auf die Türme — benachbarte Gattungen und Ränge bilden Formationen.'
+    : KNOTEN_ARTEN[kn.art].name + ' · fünf Runden, dann entscheidet die Summe.');
+  zeigeBanner(k.feind.name, k.feind.maxHp.toLocaleString('de-DE') + ' Stärke · fünf Runden');
 }
 
 /** Zum Ausprobieren: ab Station 2 kommt je ein Wappen dazu. */
@@ -13491,8 +13578,352 @@ function starteParapex() {
     .forEach(el => el.classList.add('hidden'));
   pkAktiv = true;
   pkBaueOberflaeche();
-  pkStarteKampf(1);
+  neuerLauf();
+  pkBetreteKnoten();
   requestAnimationFrame(pkTakt);
+}
+
+// ============================================================
+//  P A R A P E X  —  D E R   L A U F   A L S   O B E R F L Ä C H E
+// ============================================================
+/*
+ * Zwischen den Kämpfen liegt der eigentliche Deckbuilder: was man nach einem
+ * Sieg nimmt, was man beim Händler kauft, was man in einer Begegnung wählt.
+ * Alle vier Bildschirme - Belohnung, Händler, Begegnung, Laufende - teilen
+ * sich eine Tafel und einen Knopf. Das ist Absicht: sie sind dieselbe Geste
+ * (ansehen, wählen, weiter), und sie sollen sich auch so anfühlen.
+ *
+ * Der Kern entscheidet, was angeboten wird. Hier wird nur gezeigt und
+ * weitergereicht - jede Prüfung ("reicht der Sold?", "ist noch ein Wappenplatz
+ * frei?") steht im Lauf und wird hier nur abgefragt.
+ */
+
+const PK_LAUF_CSS = `
+#pk .pk-lauf { display: flex; align-items: center; gap: 12px; font-size: 12px;
+  letter-spacing: 0.06em; white-space: nowrap; }
+#pk .pk-lauf b { color: #f3d283; font-size: 16px; font-variant-numeric: tabular-nums; }
+#pk .pk-sold { color: #e8c464; }
+#pk .pk-weg { display: flex; gap: 3px; align-items: center; }
+#pk .pk-weg i { width: 9px; height: 9px; border-radius: 2px; background: #3a2c1a;
+  border: 1px solid #6b5535; display: block; transform: rotate(45deg); }
+#pk .pk-weg i.hier { background: #f3d283; transform: rotate(45deg) scale(1.5); }
+#pk .pk-weg i.durch { background: #7a6540; }
+#pk .pk-weg i.boss { border-radius: 50%; width: 11px; height: 11px; transform: none; border-color: #c4483c; }
+#pk .pk-weg i.boss.hier { transform: scale(1.4); }
+
+#pk .pk-tafel-inhalt.breit { width: min(860px, 94vw); }
+#pk .pk-tafel p.pk-vor { color: #c9b998; font-size: 13px; line-height: 1.5; margin: 0 0 14px; }
+#pk .pk-angebote { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 4px 0 14px; }
+#pk .pk-angebot { width: 210px; border: 2px solid #4a3a22; border-radius: 6px; cursor: pointer;
+  background: linear-gradient(180deg, #2d2317, #1c150d); padding: 12px 12px 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  transition: border-color .12s, transform .12s; }
+#pk .pk-angebot:hover:not(.aus) { border-color: var(--gold, #d9a435); transform: translateY(-4px); }
+#pk .pk-angebot.aus { opacity: 0.42; cursor: not-allowed; }
+#pk .pk-angebot-art { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #a8977a; }
+#pk .pk-angebot-name { font-size: 13.5px; font-weight: 700; color: #f3d283; line-height: 1.2; }
+#pk .pk-angebot-text { font-size: 11px; color: #c9b998; line-height: 1.35; flex: 1; }
+#pk .pk-angebot-preis { font-size: 13px; font-weight: 700; color: #e8c464; font-variant-numeric: tabular-nums; }
+#pk .pk-angebot-preis.zuviel { color: #c4483c; }
+#pk .pk-siegel { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 22px; border: 2px solid #6b5535; background: #241a11; }
+
+#pk .pk-deck { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+  max-height: 46vh; overflow-y: auto; padding: 4px; }
+#pk .pk-deck .pk-karte { cursor: pointer; box-shadow: 0 3px 0 #241a11; }
+#pk .pk-deck .pk-karte:hover { transform: translateY(-6px); }
+#pk .pk-karte .pk-schliff { position: absolute; top: 2px; right: 3px; font-size: 9px; color: #7a5a1c; }
+#pk .pk-karte { position: relative; }
+
+#pk .pk-wahlen { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 4px; }
+#pk button.pk-wahl { font-family: inherit; text-align: left; font-size: 13px; color: #efe5cd;
+  background: linear-gradient(180deg, #37291a, #241a11); border: 2px solid #4a3a22;
+  border-radius: 5px; padding: 11px 14px; cursor: pointer; transition: border-color .12s; }
+#pk button.pk-wahl:hover { border-color: var(--gold, #d9a435); }
+#pk .pk-folge { font-size: 12.5px; color: #9fd08a; min-height: 18px; margin: 10px 0 2px; }
+#pk .pk-tafel-fuss { display: flex; gap: 10px; justify-content: center; align-items: center;
+  margin-top: 12px; flex-wrap: wrap; }
+#pk .pk-abrechnung { display: flex; gap: 18px; justify-content: center; font-size: 12px;
+  color: #c9b998; margin: 8px 0 2px; }
+#pk .pk-abrechnung b { color: #f3d283; }
+`;
+
+/*
+ * Eine Tafel. `inhalt` ist der Rumpf, `fuss` die Knöpfe darunter. Es liegt
+ * immer nur eine offen - wer eine neue zeigt, räumt die alte weg, sonst
+ * stapeln sich unsichtbare Schichten über dem Spiel.
+ */
+let pkOffeneTafel = null;
+function pkTafel(inhalt, { breit = false } = {}) {
+  pkRaeumeTafel();
+  pkRaeumeAufschluss();
+  const t = document.createElement('div');
+  t.className = 'pk-tafel';
+  t.innerHTML = '<div class="pk-tafel-inhalt' + (breit ? ' breit' : '') + '">' + inhalt + '</div>';
+  document.getElementById('pk').appendChild(t);
+  pkOffeneTafel = t;
+  return t;
+}
+function pkRaeumeTafel() {
+  if (pkOffeneTafel) pkOffeneTafel.remove();
+  pkOffeneTafel = null;
+}
+
+/*
+ * Eine Tafel raeumt auch die Wucht-Aufschluesselung weg. Sie gehoert zur
+ * letzten Salve, und die ist vorbei, sobald eine Entscheidung ansteht -
+ * stehen bleibt sie sonst noch sechs Sekunden neben einem Haendler und
+ * behauptet, irgendwas sei gerade getroffen worden.
+ */
+function pkRaeumeAufschluss() {
+  const a = document.getElementById('pk-aufschluss');
+  if (a) a.remove();
+}
+
+/** Eine Karte, wie sie auf der Hand aussieht - nur ohne Ziehen. */
+function pkKartenHtml(karte) {
+  const g = GATTUNGEN[karte.gattung];
+  return '<div class="pk-karte" style="border-color:' + g.farbe + '" data-uid="' + karte.uid + '">' +
+    (karte.stufe ? '<span class="pk-schliff">' + '✦'.repeat(Math.min(3, karte.stufe)) + '</span>' : '') +
+    '<div class="pk-karte-kopf"><span class="pk-karte-rang">' + karte.rang + '</span>' +
+    '<span class="pk-karte-zeichen" style="background:' + g.hell + '"></span></div>' +
+    '<div class="pk-karte-bild">' + g.zeichen + '</div>' +
+    '<div class="pk-karte-name">' + karte.name + '</div>' +
+    '<div class="pk-karte-fuss" style="color:' + g.farbe + '">' + g.kurz +
+    (karte.wuchtBonus ? ' +' + karte.wuchtBonus : '') + '</div></div>';
+}
+
+const PK_ANGEBOT_ZEICHEN = { karte: '🂠', wappen: '⚜', ausbau: '🏰', entfernen: '🗑', schliff: '✦', sold: '💰' };
+const PK_ANGEBOT_ART = { karte: 'Einheit', wappen: 'Wappen', ausbau: 'Ausbau',
+  entfernen: 'Dienst', schliff: 'Dienst', sold: 'Sold' };
+
+function pkAngebotHtml(a, i, { preis = false, aus = false } = {}) {
+  return '<div class="pk-angebot' + (aus ? ' aus' : '') + '" data-i="' + i + '">' +
+    (a.art === 'karte'
+      ? pkKartenHtml(a.einheit)
+      : '<div class="pk-siegel">' + (PK_ANGEBOT_ZEICHEN[a.art] || '?') + '</div>') +
+    '<div class="pk-angebot-art">' + (PK_ANGEBOT_ART[a.art] || a.art) + '</div>' +
+    '<div class="pk-angebot-name">' + a.name + '</div>' +
+    '<div class="pk-angebot-text">' + (a.text || '') + '</div>' +
+    (preis ? '<div class="pk-angebot-preis' + (aus ? ' zuviel' : '') + '">' + a.preis + ' Sold</div>' : '') +
+    '</div>';
+}
+
+// ---------- Der Kopf während des Laufs ----------
+/*
+ * Station, Sold und der Weg als Kette von Rauten. Der Weg ist nicht nur
+ * Zierrat: er sagt, wie weit es noch bis zum Boss ist, und das entscheidet,
+ * ob man beim Händler spart oder alles ausgibt.
+ */
+function pkRenderLauf() {
+  const l = derLauf;
+  const el = document.getElementById('pk-lauf');
+  if (!el || !l) return;
+  /*
+   * Ausserhalb eines Kampfes steht im Kopf kein Gegner mehr. Ein Balken, der
+   * "0 / 380 Staerke" zeigt, waehrend man beim Haendler steht, sagt nichts -
+   * er sagt nur, was vorhin war.
+   */
+  const kn = derKnoten();
+  const imKampf = derKampf && !derKampf.ende && kn && KNOTEN_KAMPF.includes(kn.art);
+  const kopf = document.querySelector('#pk .pk-feind');
+  const runde = document.getElementById('pk-runde');
+  if (kopf) kopf.style.visibility = imKampf ? '' : 'hidden';
+  if (runde && !imKampf && kn) {
+    runde.innerHTML = KNOTEN_ARTEN[kn.art].zeichen + ' ' + KNOTEN_ARTEN[kn.art].name.toUpperCase();
+    runde.classList.remove('sturm');
+  }
+  const weg = l.knoten.map(kn =>
+    '<i class="' + (kn.nr === l.station ? 'hier ' : (kn.nr < l.station ? 'durch ' : '')) +
+    (kn.art === 'boss' ? 'boss' : '') + '" title="' + kn.nr + '. ' + KNOTEN_ARTEN[kn.art].name + '"></i>').join('');
+  el.innerHTML = '<span class="pk-weg">' + weg + '</span>' +
+    '<span>STATION <b>' + l.station + '</b>/' + l.stationen + '</span>' +
+    '<span class="pk-sold">SOLD <b>' + l.sold + '</b></span>';
+}
+
+// ---------- Belohnung ----------
+function pkZeigeBelohnung(erg) {
+  const l = derLauf;
+  const ang = erg.belohnung.angebote;
+  const kn = derKnoten();
+  const t = pkTafel(
+    '<h2>' + (kn.art === 'boss' ? 'Die Belagerung ist gebrochen' : 'Der Angriff ist gebrochen') + '</h2>' +
+    '<div class="pk-abrechnung">' +
+      '<span>Runden gebraucht <b>' + derKampf.runde + '</b></span>' +
+      '<span>Sold <b>+' + erg.sold + '</b></span>' +
+      '<span>Deck <b>' + l.deck.length + '</b> Karten</span>' +
+    '</div>' +
+    '<p class="pk-vor">Eine Belohnung, nicht drei. Was du hier stehen lässt, kommt nicht wieder.</p>' +
+    '<div class="pk-angebote">' + ang.map((a, i) => pkAngebotHtml(a, i)).join('') + '</div>' +
+    '<div class="pk-tafel-fuss">' +
+      '<button class="pk-knopf" id="pk-deck-ansehen">Deck ansehen</button>' +
+      '<button class="pk-knopf" id="pk-nichts">Nichts nehmen</button>' +
+    '</div>', { breit: true });
+
+  t.querySelectorAll('.pk-angebot').forEach(el => el.addEventListener('click', () => {
+    const a = ang[+el.dataset.i];
+    const r = nimmAngebot(a);
+    if (!r.ok) { pkSage(r.grund); return; }
+    klang('karte');
+    pkSage(a.name + ' genommen.');
+    pkWeiter();
+  }));
+  t.querySelector('#pk-nichts').addEventListener('click', pkWeiter);
+  t.querySelector('#pk-deck-ansehen').addEventListener('click', () => pkZeigeDeck(() => pkZeigeBelohnung(erg)));
+}
+
+// ---------- Deck ansehen ----------
+function pkZeigeDeck(zurueck, { waehlbar = false, titel = 'Dein Deck', hinweis = '', aufWahl = null } = {}) {
+  const l = derLauf;
+  const nach = [...l.deck].sort((a, b) =>
+    a.gattung === b.gattung ? a.rang - b.rang : GATTUNG_LISTE.indexOf(a.gattung) - GATTUNG_LISTE.indexOf(b.gattung));
+  const t = pkTafel(
+    '<h2>' + titel + '</h2>' +
+    '<p class="pk-vor">' + (hinweis || l.deck.length + ' Karten. Sieben davon liegen zu Rundenbeginn auf der Hand.') + '</p>' +
+    '<div class="pk-deck">' + nach.map(pkKartenHtml).join('') + '</div>' +
+    '<div class="pk-tafel-fuss"><button class="pk-knopf haupt" id="pk-zurueck">Zurück</button></div>',
+    { breit: true });
+  if (waehlbar) {
+    t.querySelectorAll('.pk-karte').forEach(el => el.addEventListener('click', () => {
+      const karte = l.deck.find(c => c.uid === el.dataset.uid);
+      if (karte && aufWahl) aufWahl(karte);
+    }));
+  }
+  t.querySelector('#pk-zurueck').addEventListener('click', zurueck);
+}
+
+// ---------- Händler ----------
+function pkZeigeHaendler() {
+  const l = derLauf;
+  const h = l.haendler || oeffneHaendler();
+  const auf = () => {
+    const t = pkTafel(
+      '<h2>Der Händler</h2>' +
+      '<p class="pk-vor">Er zieht dem Heer hinterher und verkauft, was es braucht. ' +
+        'Du hast <b class="pk-sold">' + l.sold + ' Sold</b>.</p>' +
+      '<div class="pk-angebote">' + h.posten.map((p, i) =>
+        pkAngebotHtml(p, i, { preis: true, aus: h.gekauft.includes(i) || l.sold < p.preis })).join('') + '</div>' +
+      '<div class="pk-folge" id="pk-folge"></div>' +
+      '<div class="pk-tafel-fuss">' +
+        '<button class="pk-knopf" id="pk-deck-ansehen">Deck ansehen</button>' +
+        '<button class="pk-knopf haupt" id="pk-weiter">Weiterziehen</button>' +
+      '</div>', { breit: true });
+
+    t.querySelectorAll('.pk-angebot').forEach(el => el.addEventListener('click', () => {
+      const i = +el.dataset.i;
+      const p = h.posten[i];
+      if (h.gekauft.includes(i) || l.sold < p.preis) return;
+      // Ausmustern und Schleifen brauchen ein Ziel - erst die Karte, dann der Kauf.
+      if (p.art === 'entfernen' || p.art === 'schliff') {
+        pkZeigeDeck(auf, {
+          waehlbar: true,
+          titel: p.art === 'entfernen' ? 'Welche Karte geht?' : 'Welche Karte wird geschliffen?',
+          hinweis: p.art === 'entfernen'
+            ? 'Sie ist dann aus dem Deck. Ein dünnes Deck zieht öfter, was man will.'
+            : '+' + LAUF.schliff + ' Wucht, für den Rest des Laufs.',
+          aufWahl: (karte) => {
+            const r = kaufe(i, karte);
+            if (!r.ok) { auf(); pkFolge(r.grund); return; }
+            klang('karte');
+            auf();
+            pkFolge(karte.name + (p.art === 'entfernen' ? ' ausgemustert.' : ' geschliffen.'));
+          },
+        });
+        return;
+      }
+      const r = kaufe(i);
+      if (!r.ok) { pkFolge(r.grund); return; }
+      klang('bau');
+      auf();
+      pkFolge(p.name + ' gekauft. Noch ' + l.sold + ' Sold.');
+      pkRenderLauf();
+    }));
+    t.querySelector('#pk-weiter').addEventListener('click', pkWeiter);
+    t.querySelector('#pk-deck-ansehen').addEventListener('click', () => pkZeigeDeck(auf));
+    pkRenderLauf();
+  };
+  auf();
+}
+
+function pkFolge(text) {
+  const el = document.getElementById('pk-folge');
+  if (el) el.textContent = text;
+}
+
+// ---------- Begegnung ----------
+function pkZeigeBegegnung() {
+  const e = ziehBegegnung();
+  const t = pkTafel(
+    '<h2>' + e.titel + '</h2>' +
+    '<p class="pk-vor">' + e.text + '</p>' +
+    '<div class="pk-wahlen">' + e.wahlen.map((w, i) =>
+      '<button class="pk-wahl" data-i="' + i + '">' + w.text + '</button>').join('') + '</div>');
+
+  t.querySelectorAll('.pk-wahl').forEach(el => el.addEventListener('click', () => {
+    const r = waehleInBegegnung(e, +el.dataset.i);
+    klang('karte');
+    // Die Folge stehen lassen, bis der Spieler weiterzieht: sonst ist die
+    // Entscheidung vorbei, bevor man gelesen hat, was sie bewirkt hat.
+    pkTafel(
+      '<h2>' + e.titel + '</h2>' +
+      '<p class="pk-vor">' + e.text + '</p>' +
+      '<div class="pk-folge">' + (r.folge || '') + '</div>' +
+      '<div class="pk-tafel-fuss"><button class="pk-knopf haupt" id="pk-weiter">Weiterziehen</button></div>')
+      .querySelector('#pk-weiter').addEventListener('click', pkWeiter);
+    pkRenderLauf();
+  }));
+}
+
+// ---------- Das Ende eines Laufs ----------
+function pkZeigeLaufEnde() {
+  const l = derLauf;
+  const sieg = l.ende === 'sieg';
+  klang(sieg ? 'sieg' : 'burg');
+  const siege = l.verlauf.filter(v => v.sieg).length;
+  const t = pkTafel(
+    '<h2>' + (sieg ? 'Der Akt ist gehalten' : 'Die Burg ist gefallen') + '</h2>' +
+    '<p class="pk-vor">' + (sieg
+      ? 'Elf Stationen, der Belagerungsmeister zuletzt. Die Mauern stehen noch.'
+      : 'An Station ' + l.station + ' von ' + l.stationen + ' kam der Sturm durch.') + '</p>' +
+    '<div class="pk-abrechnung">' +
+      '<span>Gewonnene Kämpfe <b>' + siege + '</b></span>' +
+      '<span>Deck <b>' + l.deck.length + '</b></span>' +
+      '<span>Wappen <b>' + l.wappen.length + '</b></span>' +
+      '<span>Sold <b>' + l.sold + '</b></span>' +
+    '</div>' +
+    '<div class="pk-tafel-fuss">' +
+      '<button class="pk-knopf" id="pk-deck-ansehen">Deck ansehen</button>' +
+      '<button class="pk-knopf haupt" id="pk-neu">Neuer Lauf</button>' +
+    '</div>', { breit: true });
+  t.querySelector('#pk-neu').addEventListener('click', () => { neuerLauf(); pkBetreteKnoten(); });
+  t.querySelector('#pk-deck-ansehen').addEventListener('click', () => pkZeigeDeck(pkZeigeLaufEnde));
+}
+
+// ---------- Der Ablauf ----------
+/*
+ * Ein Knoten nach dem anderen. `pkBetreteKnoten` fragt den Lauf, was ansteht,
+ * und startet den passenden Bildschirm; `pkWeiter` hakt ab und geht zum
+ * nächsten. Die Reihenfolge steht im Kern, nicht hier - diese beiden
+ * Funktionen sind der einzige Ort, an dem die Anzeige den Lauf vorwärts
+ * bewegt, und das soll so bleiben.
+ */
+function pkBetreteKnoten() {
+  pkRaeumeTafel();
+  const l = derLauf;
+  if (!l || l.ende) { pkZeigeLaufEnde(); return; }
+  const kn = derKnoten();
+  pkRenderLauf();
+  if (KNOTEN_KAMPF.includes(kn.art)) { pkStarteKampf(); return; }
+  if (kn.art === 'haendler') { pkZeigeHaendler(); return; }
+  pkZeigeBegegnung();
+}
+
+function pkWeiter() {
+  pkRaeumeTafel();
+  const r = verlasseKnoten();
+  pkRenderLauf();
+  if (r && r.ende) { pkZeigeLaufEnde(); return; }
+  pkBetreteKnoten();
 }
 
 let pkZuletzt = 0;

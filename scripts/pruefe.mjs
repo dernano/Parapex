@@ -341,19 +341,24 @@ const ergebnis = await seite.evaluate(() => {
     return mit.some(f => f.id === 'schuetzenlinie') ? true : 'mit Wappen nicht erkannt';
   });
   pruefe('Wappen des Wolfs zahlt für leere Türme', () => {
+    // Nicht auf eine Zahl prüfen, sondern auf die Regel: der Zuschlag ist eine
+    // Stellschraube in KERN und darf sich ändern, ohne dass die Prüfung bricht.
+    const leer = 4;
     const ohne = P.berechneWucht(burg('bogen-8', null, null, null, null)).wucht;
     const mit = P.berechneWucht(burg('bogen-8', null, null, null, null), ['wolf']).wucht;
-    // vier leere Türme: +100 %
     if (mit <= ohne) return 'kein Unterschied';
-    return gleich(mit, 16, 'Wucht mit Wolf');
+    return gleich(mit, Math.round(ohne * (1 + P.KERN.wappen.wolf * leer)), 'Wucht mit Wolf');
   });
-  pruefe('Wappen der Schlange macht den ersten Tausch frei', () => {
+  pruefe('Wappen der Schlange macht die ersten Tausche frei', () => {
+    const frei = P.KERN.wappen.schlange;
     const k = P.neuerKampf({ feind: P.baueFeind(1), deck: P.START_DECK.map(id => P.neueEinheit(id)), wappen: ['schlange'] });
     const vorher = k.tatendrang;
+    for (let i = 0; i < frei; i++) {
+      P.tauscheHandkarte(k.hand[0]);
+      if (k.tatendrang !== vorher) return 'Tausch ' + (i + 1) + ' kostete etwas';
+    }
     P.tauscheHandkarte(k.hand[0]);
-    if (k.tatendrang !== vorher) return 'der erste Tausch kostete ' + (vorher - k.tatendrang);
-    P.tauscheHandkarte(k.hand[0]);
-    return gleich(k.tatendrang, vorher - 1, 'nach dem zweiten Tausch');
+    return gleich(k.tatendrang, vorher - 1, 'nach dem Tausch danach');
   });
   pruefe('Wappen des Ebers lässt die ersetzte Einheit feuern', () => {
     const k = P.neuerKampf({ feind: P.baueFeind(6), deck: P.START_DECK.map(id => P.neueEinheit(id)), wappen: ['eber'] });
