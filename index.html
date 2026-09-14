@@ -1968,17 +1968,24 @@ function berechneWucht(tuerme, wappen = []) {
  */
 let derKampf = null;
 
-function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START } = {}) {
+function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null } = {}) {
   leereSignale();
+  /*
+   * `stellungen` sind die Turmobjekte, die die Anzeige ohnehin schon hat -
+   * mit Feld, Modell und allem, was zum Zeichnen gehört. Der Kern hängt seine
+   * eigenen Felder daran, statt eigene Objekte zu bauen: so gibt es EIN
+   * Turmobjekt und nicht zwei, die auseinanderlaufen können.
+   */
+  const tuerme = (stellungen || Array.from({ length: KERN.tuerme }, () => ({})))
+    .slice(0, KERN.tuerme)
+    .map((t, i) => Object.assign(t, { nr: i + 1, typ: t.typ || turmTypen[i] || 'wachturm', einheit: null }));
   const k = {
     runde: 1,
     rundenMax: KERN.runden,
     tatendrang: KERN.tatendrang,
     tatendrangMax: KERN.tatendrang,
     tauschInRunde: 0,
-    tuerme: Array.from({ length: KERN.tuerme }, (_, i) => ({
-      nr: i + 1, typ: turmTypen[i] || 'wachturm', einheit: null,
-    })),
+    tuerme,
     zug: (deck || START_DECK.map(id => neueEinheit(id))).slice(),
     hand: [],
     ablage: [],
@@ -12323,6 +12330,9 @@ function zeigeFrist() {
 }
 
 function renderAll() {
+  // Laeuft der neue Kampf, gehoert die Anzeige ihm. Ein nachtraeglich geladenes
+  // Kartenbild darf die alte Oberflaeche nicht wiederbeleben.
+  if (pkAktiv) return;
   document.getElementById('run-val').textContent = state.feldzug;
   document.getElementById('feldzug-wort').classList.toggle('hidden', state.feldzug <= 1);
   document.getElementById('round-val').textContent = state.runde;
@@ -12380,8 +12390,15 @@ function renderAll() {
 }
 
 // ---------- Bildschleife ----------
+/*
+ * Sobald die neue Kampfschleife laeuft, haelt die alte an. Zwei Schleifen auf
+ * derselben Leinwand hiessen: doppelte Zeit in den Anzeigen und ein Bild, das
+ * sich mit sich selbst streitet.
+ */
+let pkAktiv = false;
 let letzteZeit = 0;
 function frame(t) {
+  if (pkAktiv) return;
   const dt = letzteZeit ? Math.min(0.05, (t - letzteZeit) / 1000) : 0;
   letzteZeit = t;
   updateAnimations(dt);
@@ -12414,6 +12431,679 @@ window.addEventListener('resize', () => {
 });
 
 neuerFeldzug(1);
+
+/* ============================================================
+ *  P A R A P E X  —  K A M P F O B E R F L Ä C H E
+ * ============================================================
+ *
+ * Die Anzeige zum Kern. Sie rechnet nichts: sie liest `derKampf`, ruft
+ * `berechneWucht` und `vorschau` und malt, was zurückkommt. Jede Regel steht
+ * oben im Kern - wer hier eine Zahl sucht, sucht an der falschen Stelle.
+ *
+ * Aufbau des Bildes, von oben nach unten:
+ *
+ *   Gegner mit Stärkebalken · Runde X/5 · Wappen
+ *   die isometrische Burg (Kulisse, aus dem alten Spiel übernommen)
+ *   fünf Turmtafeln - das sind die Ablageziele
+ *   die aktiven Formationen und die Wucht, die daraus folgt
+ *   Hand, Tatendrang, Tauschen, Runde beenden
+ *
+ * Die Burg im Bild und die Tafeln zeigen dasselbe. Das ist Absicht: das Bild
+ * trägt die Stimmung, die Tafeln tragen die Entscheidung. Auf einer Turmkrone
+ * von dreißig Bildpunkten stehen keine fünf Angaben.
+ */
+
+const PK_FIGUR = {
+  bogen: () => FIG_BOGEN,
+  armbrust: () => FIG_ARMBRUST,
+  artillerie: () => FIG_SCHLEUDER,
+  kanonier: () => FIG_FACKEL,
+};
+
+let pkGewaehlt = null;      // Karte in der Hand, die angefasst ist
+let pkUeberTurm = null;     // Turm, über dem sie gerade hängt
+let pkLetzteSalve = null;   // Aufschlüsselung der letzten Salve, für die Tafel
+let pkMeldung = '';
+let pkZiehen = null;        // laufendes Ziehen mit der Maus
+
+// ---------- Stellungen auf dem Wall ----------
+/*
+ * Fünf Türme, von oben nach unten durchnummeriert. Sie stehen auf dem Riegel,
+ * der Mauer, die quer über das Feld läuft - dieselbe Anlage wie vorher, nur
+ * dass jetzt genau fünf Stellungen darauf liegen und keine beliebig vielen.
+ */
+function pkBaueStellungen() {
+  legeAnlageAn();
+  // Das Torhaus gehört zum alten Spiel: es war der Engpass, durch den alles
+  // laufen musste. Hier läuft niemand mehr.
+  state.towers = [];
+  /*
+   * Erst alle Reihen sammeln, in denen ueberhaupt eine Stellung auf dem Wall
+   * Platz hat, und darin jeweils die oestlichste Spalte - die liegt dem Feind
+   * am naechsten. Der Wall hat eine Luecke in der Mitte; die faellt hier von
+   * selbst heraus, weil dort nichts gueltig ist.
+   */
+  const frei = [];
+  for (let row = 1; row + 2 <= ROWS - 1; row++) {
+    for (let col = COLS - 3; col >= 2; col--) {
+      if (isValidTowerPlacement(col, row, 2, 2)) { frei.push({ col, row }); break; }
+    }
+  }
+  /*
+   * Fuenf davon, moeglichst gleichmaessig verteilt. Der Mindestabstand wird
+   * von oben her gelockert: lieber fuenf Tuerme eng als vier mit Luft. Zwei
+   * Reihen Abstand ist die Untergrenze - darunter wuerden sich die 2x2-Bloecke
+   * ueberlappen.
+   */
+  const waehle = (abstand) => {
+    const raus = [];
+    for (let i = 0; i < KERN.tuerme; i++) {
+      const wunsch = Math.round((i + 0.5) * frei.length / KERN.tuerme - 0.5);
+      let platz = null;
+      for (let d = 0; d < frei.length && !platz; d++) {
+        for (const j of [wunsch + d, wunsch - d]) {
+          const k = frei[j];
+          if (!k || raus.some(g => Math.abs(g.row - k.row) < abstand)) continue;
+          platz = k; break;
+        }
+      }
+      if (platz) raus.push(platz);
+    }
+    return raus;
+  };
+  let gewaehlt = [];
+  for (let abstand = 4; abstand >= 2; abstand--) {
+    const versuch = waehle(abstand);
+    if (versuch.length > gewaehlt.length) gewaehlt = versuch;
+    if (gewaehlt.length >= KERN.tuerme) break;
+  }
+  gewaehlt.sort((a, b) => a.row - b.row);
+  return gewaehlt.map((p, i) => ({
+    id: i + 1, name: 'Turm ' + (i + 1), col: p.col, row: p.row, w: 2, h: 2,
+    modell: TURMTYPEN[TURM_START[i]] ? TURMTYPEN[TURM_START[i]].modell : 'wachturm',
+    bauZeit: BAU_DAUER, rueckstoss: 0, imWall: true,
+  }));
+}
+
+/** Die Gegner als Kulisse: sie stehen da, sie handeln nicht. */
+function pkStelleFeindAuf(feind) {
+  state.enemies = [];
+  const n = Math.max(1, feind.figuren || 6);
+  for (let i = 0; i < n; i++) {
+    const reihe = Math.floor(i / 3), inReihe = i % 3;
+    state.enemies.push({
+      id: 'kulisse' + i, typ: feind.typ || 'spaeher', name: feind.name,
+      col: COLS - 2 + reihe * 0.9, row: Math.round(ROWS / 2) - 3 + inReihe * 3 + reihe,
+      hp: 1, maxHp: 1, dmg: 0, kulisse: true,
+    });
+    const e = state.enemies[state.enemies.length - 1];
+    e.vx = e.col; e.vy = e.row;
+  }
+}
+
+// ---------- Zeichnen ----------
+/*
+ * Ein eigener Zeichenweg statt des alten `draw`: der hing an Gegnerzügen,
+ * Reichweitenringen und Befehlskarten, von denen es keine mehr gibt. Die
+ * Bausteine darunter sind dieselben - Boden, Wall, Burg, Modelle, Figuren.
+ */
+function pkZeichne() {
+  ctx.setTransform(SKALA, 0, 0, SKALA, 0, 0);
+  ctx.clearRect(0, 0, SZENE_B, SZENE_H);
+  drawGround();
+  const dinge = [];
+  for (const m of state.wall.values()) dinge.push({ art: 'wall', ref: m, rect: { col: m.col, row: m.row, w: 1, h: 1 } });
+  dinge.push({ art: 'burg', ref: CASTLE, rect: CASTLE });
+  for (const t of (derKampf ? derKampf.tuerme : [])) dinge.push({ art: 'turm', ref: t, rect: t });
+  for (const e of state.enemies) dinge.push({ art: 'feind', ref: e, rect: gegnerRect(e) });
+  for (const d of DEKO) dinge.push({ art: 'deko', ref: d, rect: { col: d.col, row: d.row, w: 0.6, h: 0.6 } });
+  for (const o of zeichenReihenfolge(dinge)) {
+    if (o.art === 'wall') drawWallFeld(o.ref);
+    else if (o.art === 'burg') drawCastle();
+    else if (o.art === 'turm') pkZeichneTurm(o.ref);
+    else if (o.art === 'feind') pkZeichneFeind(o.ref);
+    else if (o.art === 'deko') drawDeko(o.ref);
+  }
+  drawStaub();
+  drawZahlen();
+  drawProjektile();
+  drawBruestung();
+  drawVignette();
+}
+
+function pkZeichneTurm(t) {
+  const H = MODELL_HOEHE[t.modell || 'wachturm'] + WALL_HOEHE - (t.rueckstoss || 0) * 4;
+  drawBauSchatten(t.col, t.row, t.w, t.h, H * 0.8);
+  drawBlock(t.col, t.row, t.w, t.h, WALL_HOEHE, STOFF.stein.f);
+  zeichneModell(t.modell || 'wachturm', t.col, t.row, 1, Math.round(WALL_HOEHE));
+  const cx = isoX(t.col + t.w / 2, t.row + t.h / 2);
+  const cy = isoY(t.col + t.w / 2, t.row + t.h / 2) - H;
+
+  // Die angefasste Stellung bekommt einen Schein, damit klar ist, wohin die
+  // Karte fällt.
+  if (pkUeberTurm === t.nr - 1 && pkGewaehlt) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.18;
+    zeichneModell(t.modell || 'wachturm', t.col, t.row, 1, Math.round(WALL_HOEHE));
+    ctx.restore();
+  }
+
+  if (t.einheit) {
+    const figur = (PK_FIGUR[t.einheit.gattung] || PK_FIGUR.bogen)();
+    zeichneBatallion(figur, figur, cx, cy + 4, 3);
+    drawBanner(cx + 22, cy - 2, GATTUNGEN[t.einheit.gattung].farbe);
+    drawBadge(cx, cy - 30, String(t.einheit.rang), GATTUNGEN[t.einheit.gattung].hell, '#1a1208');
+  }
+  // Die Nummer steht am Fuß: sie ist die Sprache, in der die Formationen reden.
+  drawBadge(isoX(t.col + t.w / 2, t.row + t.h / 2),
+    isoY(t.col + t.w / 2, t.row + t.h / 2) + TH / 2 - 2,
+    String(t.nr), '#e8dcc0', '#4a3a22');
+}
+
+function pkZeichneFeind(e) {
+  const typ = ENEMY_TYPES[e.typ] || ENEMY_TYPES.spaeher;
+  const x = isoX(e.vx, e.vy), y = isoY(e.vx, e.vy) + TH / 2;
+  drawShadow(x, y, 7);
+  drawSprite(gegnerFigur(e.typ), x, y, typ.scale, ctx, { ...PAL, ...typ.pal });
+}
+
+// ---------- Die Oberfläche ----------
+const PK_CSS = `
+#pk { position: absolute; inset: 0; display: flex; flex-direction: column;
+  font-family: var(--anzeige, "Trebuchet MS", system-ui, sans-serif); color: #efe5cd;
+  pointer-events: none; z-index: 20; }
+#pk > * { pointer-events: auto; }
+#pk .pk-kopf { display: flex; align-items: center; gap: 14px; padding: 8px 14px;
+  background: linear-gradient(180deg, rgba(16,12,8,0.94), rgba(16,12,8,0.72)); }
+#pk .pk-feind { flex: 1; min-width: 0; }
+#pk .pk-feind-name { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: #f3d283; }
+#pk .pk-balken { position: relative; height: 16px; margin-top: 3px; border-radius: 3px;
+  background: #2a1a12; border: 1px solid #12100a; overflow: hidden; }
+#pk .pk-balken i { position: absolute; inset: 0 auto 0 0; display: block;
+  background: linear-gradient(180deg, #c4483c, #7d2534); transition: width .35s ease-out; }
+#pk .pk-balken b { position: relative; display: block; text-align: center; font-size: 11px;
+  line-height: 16px; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000; }
+#pk .pk-runde { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; white-space: nowrap; }
+#pk .pk-runde b { font-size: 20px; color: #f3d283; }
+#pk .pk-runde.sturm { color: #ff9a5c; }
+#pk .pk-wappen { display: flex; gap: 5px; }
+#pk .pk-wappen div { width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 50%; border: 2px solid #6b5535; background: #241a11; font-size: 15px; }
+#pk .pk-wappen div.leer { opacity: 0.3; border-style: dashed; }
+#pk .pk-mitte { flex: 1; }
+#pk .pk-unten { background: linear-gradient(0deg, rgba(14,10,7,0.97), rgba(14,10,7,0.86));
+  padding: 6px 12px 10px; display: flex; flex-direction: column; gap: 7px; }
+#pk .pk-tuerme { display: flex; gap: 8px; justify-content: center; }
+#pk .pk-turm { flex: 1 1 0; max-width: 190px; min-height: 92px; border-radius: 5px;
+  border: 2px solid #4a3a22; background: linear-gradient(180deg, #2d2317, #1c150d);
+  padding: 5px 7px; display: flex; flex-direction: column; gap: 2px; cursor: pointer;
+  transition: border-color .12s, transform .12s; }
+#pk .pk-turm:hover, #pk .pk-turm.ziel { border-color: var(--gold, #d9a435); transform: translateY(-3px); }
+#pk .pk-turm.aktiv { box-shadow: 0 0 0 2px rgba(217,164,53,0.5) inset; }
+#pk .pk-turm-kopf { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #a8977a; }
+#pk .pk-turm-kopf b { font-size: 15px; color: #f3d283; }
+#pk .pk-einheit { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+#pk .pk-rang { width: 26px; height: 26px; flex: none; border-radius: 4px; display: grid;
+  place-items: center; font-size: 15px; font-weight: 700; color: #14110c; }
+#pk .pk-einheit-name { font-size: 11px; line-height: 1.15; }
+#pk .pk-einheit-gattung { font-size: 9.5px; color: #a8977a; }
+#pk .pk-leer { font-size: 11px; color: #6d6252; font-style: italic; padding: 7px 0; }
+#pk .pk-wucht { font-size: 11px; color: #9fd08a; font-variant-numeric: tabular-nums; }
+#pk .pk-formationen { display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  min-height: 24px; justify-content: center; }
+#pk .pk-form { font-size: 10.5px; padding: 2px 7px 3px; border-radius: 3px;
+  background: linear-gradient(180deg, #f3d283, #c79a37); color: #2a1c06; font-weight: 700;
+  letter-spacing: 0.04em; border: 1px solid #7a5a1c; }
+#pk .pk-form.still { background: none; color: #6d6252; border-color: transparent; font-weight: 400; font-style: italic; }
+#pk .pk-summe { font-size: 13px; font-weight: 700; color: #f3d283; font-variant-numeric: tabular-nums; }
+#pk .pk-summe span { color: #9fd08a; }
+#pk .pk-hand { display: flex; gap: 6px; justify-content: center; align-items: flex-end;
+  min-height: 118px; }
+#pk .pk-karte { width: 88px; height: 112px; border-radius: 5px; border: 2px solid #14110c;
+  background: linear-gradient(180deg, #f6efdc, #e2d5b6); color: #14110c; cursor: grab;
+  display: flex; flex-direction: column; padding: 4px 5px; user-select: none;
+  transition: transform .12s, box-shadow .12s; box-shadow: 0 4px 0 #241a11; }
+#pk .pk-karte:hover { transform: translateY(-8px); box-shadow: 0 8px 0 #241a11; }
+#pk .pk-karte.gewaehlt { transform: translateY(-12px); box-shadow: 0 0 0 3px var(--gold, #d9a435), 0 10px 0 #241a11; }
+#pk .pk-karte.zieht { opacity: 0.35; }
+#pk .pk-karte-kopf { display: flex; justify-content: space-between; align-items: center; }
+#pk .pk-karte-rang { font-size: 21px; font-weight: 700; line-height: 1; }
+#pk .pk-karte-zeichen { width: 15px; height: 15px; border-radius: 50%; }
+#pk .pk-karte-bild { flex: 1; display: grid; place-items: center; font-size: 26px; }
+#pk .pk-karte-name { font-size: 8.5px; line-height: 1.15; text-align: center; min-height: 20px; }
+#pk .pk-karte-fuss { font-size: 8px; text-align: center; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #6b5a3a; }
+#pk .pk-leiste { display: flex; align-items: center; gap: 12px; justify-content: center; }
+#pk .pk-drang { display: flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0.06em; }
+#pk .pk-drang i { width: 13px; height: 13px; border-radius: 50%; background: #3a2c1a;
+  border: 1px solid #6b5535; display: block; }
+#pk .pk-drang i.voll { background: linear-gradient(180deg, #f3d283, #c79a37); border-color: #7a5a1c; }
+#pk button.pk-knopf { font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+  color: #f3e6cc; background: linear-gradient(180deg, #5a4527, #3a2c18); border: 2px solid #22190f;
+  border-radius: 5px; padding: 7px 14px; cursor: pointer; box-shadow: 0 3px 0 #1a1208; }
+#pk button.pk-knopf:hover:not(:disabled) { background: linear-gradient(180deg, #6d5430, #47351d); }
+#pk button.pk-knopf:disabled { opacity: 0.4; cursor: not-allowed; }
+#pk button.pk-knopf.haupt { background: linear-gradient(180deg, #8a5c12, #5a3c0a); border-color: #3a2606; }
+#pk .pk-meldung { text-align: center; font-size: 11.5px; color: #c9b998; min-height: 15px; }
+#pk .pk-tafel { position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(10,7,4,0.82); z-index: 30; }
+#pk .pk-tafel-inhalt { width: min(460px, 86vw); border: 2px solid #6b5535; border-radius: 8px;
+  background: linear-gradient(180deg, #2d2317, #1a1309); padding: 18px 20px; text-align: center; }
+#pk .pk-tafel h2 { margin: 0 0 8px; font-size: 22px; color: #f3d283; letter-spacing: 0.04em; }
+#pk .pk-schritte { text-align: left; margin: 10px 0; font-size: 12px; }
+#pk .pk-schritt { display: flex; justify-content: space-between; padding: 2px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06); font-variant-numeric: tabular-nums; }
+#pk .pk-schritt b { color: #f3d283; }
+#pk .pk-schritt.ende { border-bottom: none; font-size: 15px; font-weight: 700; padding-top: 6px; }
+#pk .pk-flug { position: fixed; z-index: 90; pointer-events: none; opacity: 0.7; transform: scale(0.6); }
+`;
+
+function pkBaueOberflaeche() {
+  const stil = document.createElement('style');
+  stil.textContent = PK_CSS;
+  document.head.appendChild(stil);
+
+  const wurzel = document.createElement('div');
+  wurzel.id = 'pk';
+  wurzel.innerHTML = `
+    <div class="pk-kopf">
+      <div class="pk-feind">
+        <div class="pk-feind-name" id="pk-feind-name">—</div>
+        <div class="pk-balken"><i id="pk-feind-balken"></i><b id="pk-feind-zahl"></b></div>
+      </div>
+      <div class="pk-runde" id="pk-runde">RUNDE <b>1</b> / 5</div>
+      <div class="pk-wappen" id="pk-wappen"></div>
+    </div>
+    <div class="pk-mitte"></div>
+    <div class="pk-unten">
+      <div class="pk-tuerme" id="pk-tuerme"></div>
+      <div class="pk-formationen" id="pk-formationen"></div>
+      <div class="pk-meldung" id="pk-meldung"></div>
+      <div class="pk-hand" id="pk-hand"></div>
+      <div class="pk-leiste">
+        <div class="pk-drang" id="pk-drang"></div>
+        <button class="pk-knopf" id="pk-tausch">Karte austauschen</button>
+        <button class="pk-knopf haupt" id="pk-ende">Runde beenden</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wurzel);
+
+  document.getElementById('pk-tausch').addEventListener('click', () => {
+    if (!pkGewaehlt) { pkSage('Wähle zuerst eine Karte auf der Hand.'); return; }
+    const r = tauscheHandkarte(pkGewaehlt);
+    if (!r.ok) { pkSage(r.grund); return; }
+    klang('karte');
+    pkSage('Getauscht: ' + (r.neu ? r.neu.name + ' nachgezogen' : 'der Stapel ist leer') +
+      (r.kosten ? '' : ' — die Schlange zahlt den ersten Tausch'));
+    pkGewaehlt = null;
+    pkRender();
+  });
+  document.getElementById('pk-ende').addEventListener('click', pkRundeBeenden);
+}
+
+function pkSage(text) { pkMeldung = text; const el = document.getElementById('pk-meldung'); if (el) el.textContent = text; }
+
+// ---------- Anzeige ----------
+function pkRender() {
+  const k = derKampf;
+  if (!k) return;
+  document.getElementById('pk-feind-name').textContent = k.feind.name;
+  document.getElementById('pk-feind-balken').style.width =
+    Math.max(0, 100 * k.feind.hp / k.feind.maxHp) + '%';
+  document.getElementById('pk-feind-zahl').textContent =
+    k.feind.hp.toLocaleString('de-DE') + ' / ' + k.feind.maxHp.toLocaleString('de-DE') + ' Stärke';
+  const runde = document.getElementById('pk-runde');
+  runde.innerHTML = 'RUNDE <b>' + k.runde + '</b> / ' + k.rundenMax + (k.runde === k.rundenMax ? ' — STURM' : '');
+  runde.classList.toggle('sturm', k.runde === k.rundenMax);
+
+  const wappen = document.getElementById('pk-wappen');
+  wappen.innerHTML = '';
+  for (let i = 0; i < WAPPEN_PLAETZE; i++) {
+    const w = k.wappen[i] ? WAPPEN[k.wappen[i]] : null;
+    const d = document.createElement('div');
+    if (w) { d.textContent = '⚜'; d.title = w.name + ' — ' + w.text; }
+    else { d.className = 'leer'; d.title = 'Leerer Wappenplatz'; }
+    wappen.appendChild(d);
+  }
+
+  pkRenderTuerme();
+  pkRenderFormationen();
+  pkRenderHand();
+
+  const drang = document.getElementById('pk-drang');
+  drang.innerHTML = 'TATENDRANG ';
+  for (let i = 0; i < k.tatendrangMax; i++) {
+    const p = document.createElement('i');
+    if (i < k.tatendrang) p.className = 'voll';
+    drang.appendChild(p);
+  }
+  const tausch = document.getElementById('pk-tausch');
+  const kosten = tauschKosten();
+  tausch.disabled = !pkGewaehlt || kosten > k.tatendrang || Boolean(k.ende);
+  tausch.textContent = 'Austauschen' + (kosten ? ' (−' + kosten + ' Tatendrang)' : ' (frei)');
+  document.getElementById('pk-ende').disabled = Boolean(k.ende);
+}
+
+function pkRenderTuerme() {
+  const k = derKampf;
+  const feld = document.getElementById('pk-tuerme');
+  feld.innerHTML = '';
+  // Für die Wucht je Turm: einmal rechnen, dann nur noch ablesen.
+  const rechnung = berechneWucht(k.tuerme, k.wappen);
+  k.tuerme.forEach((t, i) => {
+    const typ = TURMTYPEN[t.typ] || TURMTYPEN.wachturm;
+    const el = document.createElement('div');
+    el.className = 'pk-turm' + (pkUeberTurm === i ? ' ziel' : '') + (t.einheit ? ' aktiv' : '');
+    el.title = typ.name + ' — ' + typ.text;
+    const posten = rechnung.posten.find(p => p.turm === i);
+    const kopf = document.createElement('div');
+    kopf.className = 'pk-turm-kopf';
+    kopf.innerHTML = '<span>' + typ.name + '</span><b>' + t.nr + '</b>';
+    el.appendChild(kopf);
+
+    if (t.einheit) {
+      const g = GATTUNGEN[t.einheit.gattung];
+      const zeile = document.createElement('div');
+      zeile.className = 'pk-einheit';
+      zeile.innerHTML =
+        '<span class="pk-rang" style="background:' + g.hell + '">' + t.einheit.rang + '</span>' +
+        '<span><span class="pk-einheit-name">' + t.einheit.name + '</span><br>' +
+        '<span class="pk-einheit-gattung">' + g.kurz + '</span></span>';
+      el.appendChild(zeile);
+      const w = document.createElement('div');
+      w.className = 'pk-wucht';
+      const schuesse = posten && posten.schuesse > 1 ? ' × ' + posten.schuesse + ' Schüsse' : '';
+      w.textContent = posten ? '⚔ ' + Math.round(posten.wucht * posten.schuesse) + schuesse : '';
+      el.appendChild(w);
+    } else {
+      const leer = document.createElement('div');
+      leer.className = 'pk-leer';
+      leer.textContent = 'unbesetzt';
+      el.appendChild(leer);
+    }
+
+    el.addEventListener('pointerenter', () => { if (pkGewaehlt) { pkUeberTurm = i; pkRenderFormationen(); el.classList.add('ziel'); } });
+    el.addEventListener('pointerleave', () => { if (pkUeberTurm === i) { pkUeberTurm = null; pkRenderFormationen(); el.classList.remove('ziel'); } });
+    el.addEventListener('click', () => pkSetze(i));
+    feld.appendChild(el);
+  });
+}
+
+/*
+ * Die Formationsleiste. Hängt eine Karte am Zeiger und steht sie über einem
+ * Turm, zeigt sie die Aufstellung, die daraus WÜRDE - sonst die, die gilt.
+ * Der Spieler soll Kombinationen sehen, statt sie im Kopf auszurechnen.
+ */
+function pkRenderFormationen() {
+  const k = derKampf;
+  const leiste = document.getElementById('pk-formationen');
+  const probe = pkGewaehlt && pkUeberTurm !== null;
+  const rechnung = probe ? vorschau(pkUeberTurm, pkGewaehlt) : berechneWucht(k.tuerme, k.wappen);
+  leiste.innerHTML = '';
+  const gesehen = new Set();
+  for (const f of rechnung.formationen) {
+    if (gesehen.has(f.id)) continue;
+    gesehen.add(f.id);
+    const b = document.createElement('span');
+    b.className = 'pk-form';
+    const zahl = f.proTurm > 1 ? ' ×' + f.proTurm : (f.gesamt > 1 ? ' ×' + f.gesamt : ' ↻');
+    b.textContent = f.name + zahl;
+    b.title = f.text;
+    leiste.appendChild(b);
+  }
+  if (!gesehen.size) {
+    const b = document.createElement('span');
+    b.className = 'pk-form still';
+    b.textContent = 'keine Formation';
+    leiste.appendChild(b);
+  }
+  const summe = document.createElement('span');
+  summe.className = 'pk-summe';
+  summe.innerHTML = (probe ? 'Salve wäre ' : 'Salve ') + '<span>' +
+    rechnung.wucht.toLocaleString('de-DE') + '</span> Wucht';
+  leiste.appendChild(summe);
+}
+
+function pkRenderHand() {
+  const k = derKampf;
+  const hand = document.getElementById('pk-hand');
+  hand.innerHTML = '';
+  for (const karte of k.hand) {
+    const g = GATTUNGEN[karte.gattung];
+    const el = document.createElement('div');
+    el.className = 'pk-karte' + (pkGewaehlt && pkGewaehlt.uid === karte.uid ? ' gewaehlt' : '') +
+      (pkZiehen && pkZiehen.karte.uid === karte.uid ? ' zieht' : '');
+    el.style.borderColor = g.farbe;
+    el.innerHTML =
+      '<div class="pk-karte-kopf"><span class="pk-karte-rang">' + karte.rang + '</span>' +
+      '<span class="pk-karte-zeichen" style="background:' + g.hell + '"></span></div>' +
+      '<div class="pk-karte-bild">' + g.zeichen + '</div>' +
+      '<div class="pk-karte-name">' + karte.name + '</div>' +
+      '<div class="pk-karte-fuss" style="color:' + g.farbe + '">' + g.kurz + '</div>';
+    el.addEventListener('click', () => {
+      pkGewaehlt = pkGewaehlt && pkGewaehlt.uid === karte.uid ? null : karte;
+      klang('karte');
+      pkSage(pkGewaehlt ? 'Jetzt einen Turm wählen — oder austauschen.' : '');
+      pkRender();
+    });
+    pkZiehbar(el, karte);
+    hand.appendChild(el);
+  }
+}
+
+/** Ziehen mit der Maus: Karte greifen, auf eine Turmtafel fallen lassen. */
+function pkZiehbar(el, karte) {
+  el.addEventListener('pointerdown', (evt) => {
+    if (evt.button > 0 || !derKampf || derKampf.ende) return;
+    const von = { x: evt.clientX, y: evt.clientY };
+    let los = false;
+    const bewegt = (e2) => {
+      if (!los && Math.hypot(e2.clientX - von.x, e2.clientY - von.y) > 11) {
+        los = true;
+        pkGewaehlt = karte;
+        const klon = el.cloneNode(true);
+        klon.className = 'pk-karte pk-flug';
+        document.body.appendChild(klon);
+        pkZiehen = { karte, klon };
+        pkRender();
+      }
+      if (!los) return;
+      pkZiehen.klon.style.left = (e2.clientX - 44) + 'px';
+      pkZiehen.klon.style.top = (e2.clientY - 56) + 'px';
+      const unter = document.elementFromPoint(e2.clientX, e2.clientY);
+      const tafel = unter && unter.closest ? unter.closest('.pk-turm') : null;
+      const tuerme = [...document.querySelectorAll('.pk-turm')];
+      const neu = tafel ? tuerme.indexOf(tafel) : null;
+      if (neu !== pkUeberTurm) {
+        pkUeberTurm = neu === -1 ? null : neu;
+        pkRenderFormationen();
+        tuerme.forEach((t, i) => t.classList.toggle('ziel', i === pkUeberTurm));
+      }
+      e2.preventDefault();
+    };
+    const hoch = (e2) => {
+      window.removeEventListener('pointermove', bewegt);
+      window.removeEventListener('pointerup', hoch);
+      window.removeEventListener('pointercancel', hoch);
+      if (!los) return;
+      pkZiehen.klon.remove();
+      pkZiehen = null;
+      const ziel = pkUeberTurm;
+      pkUeberTurm = null;
+      if (ziel === null || ziel === undefined) { pkRender(); return; }
+      pkSetze(ziel);
+    };
+    window.addEventListener('pointermove', bewegt);
+    window.addEventListener('pointerup', hoch);
+    window.addEventListener('pointercancel', hoch);
+  });
+}
+
+/** Eine Karte auf einen Turm. Der Kern entscheidet, die Anzeige berichtet. */
+function pkSetze(index) {
+  if (!pkGewaehlt) { pkSage('Wähle zuerst eine Karte.'); return; }
+  const vorher = derKampf.feind.hp;
+  const r = setzeEinheit(index, pkGewaehlt);
+  if (!r.ok) { pkSage(r.grund); return; }
+  const schaden = vorher - derKampf.feind.hp;
+  klang('bau');
+  const turm = derKampf.tuerme[index];
+  staub(turm.col + 1, turm.row + 1, 8, '#e8d5a8');
+  if (schaden > 0) {
+    zeigeZahl(turm.col + 1, turm.row + 0.4, '-' + schaden, '#ffd166');
+    schussSalve(turm.col + 1, turm.row + 1, COLS - 2, Math.round(ROWS / 2), '#f0e2bd', 3, 0);
+  }
+  pkSage(turm.einheit.name + ' bezieht Stellung auf Turm ' + turm.nr +
+    (r.ersetzt ? ' und löst ' + r.ersetzt.name + ' ab' : '') + '. ' + schaden + ' Wucht.');
+  pkGewaehlt = null;
+  // Erst zeichnen, dann die Tafel: sonst steht auf dem Balken noch der Stand
+  // von vorhin, waehrend die Tafel schon vom Ende redet.
+  pkRender();
+  if (derKampf.ende) pkZeigeEnde();
+}
+
+/** Runde beenden: Salve, Abrechnung, dann die nächste Runde oder das Ende. */
+function pkRundeBeenden() {
+  const k = derKampf;
+  if (!k || k.ende) return;
+  const vorherHp = k.feind.hp;
+  const r = beendeRunde();
+  pkLetzteSalve = r.abrechnung;
+  const getroffen = vorherHp - k.feind.hp;
+  klang('sieg');
+  ruetteln(6);
+  schirmBlitz(0.2);
+  for (const t of k.tuerme) {
+    if (!t.einheit) continue;
+    schussSalve(t.col + 1, t.row + 1, COLS - 2, Math.round(ROWS / 2), '#f0e2bd', 3, 0);
+  }
+  zeigeZahl(COLS - 2, Math.round(ROWS / 2) - 1, '-' + getroffen.toLocaleString('de-DE'), '#ffd166');
+  pkGewaehlt = null;
+  pkUeberTurm = null;
+  pkSage('Salve: ' + getroffen.toLocaleString('de-DE') + ' Wucht.' +
+    (r.ende ? '' : ' Runde ' + k.runde + ' von ' + k.rundenMax + '.'));
+  pkRender();
+  if (r.ende) { pkZeigeEnde(r.abrechnung); return; }
+  pkZeigeAufschluesselung(r.abrechnung);
+}
+
+/*
+ * Die Aufschlüsselung. Sie ist der eigentliche Grund, warum die Wuchtkette ein
+ * Protokoll zurückgibt: der Spieler soll sehen, WO die Zahl herkommt - sonst
+ * ist eine vierstellige Salve nur eine Behauptung.
+ */
+function pkZeigeAufschluesselung(abrechnung) {
+  if (!abrechnung || !abrechnung.schritte.length) return;
+  const alt = document.getElementById('pk-aufschluss');
+  if (alt) alt.remove();
+  const kasten = document.createElement('div');
+  kasten.id = 'pk-aufschluss';
+  kasten.className = 'pk-schritte';
+  kasten.style.cssText = 'position:absolute;right:14px;bottom:200px;width:250px;z-index:25;' +
+    'background:rgba(20,15,9,0.92);border:1px solid #6b5535;border-radius:6px;padding:8px 10px;';
+  for (const s of abrechnung.schritte) {
+    const z = document.createElement('div');
+    z.className = 'pk-schritt';
+    const wert = s.art === 'grund' ? '' : (s.art === 'nachschuss' ? '↻ ' + s.wert : '×' + s.wert);
+    z.innerHTML = '<span>' + s.name + '</span><b>' + wert + '</b>';
+    kasten.appendChild(z);
+  }
+  const ende = document.createElement('div');
+  ende.className = 'pk-schritt ende';
+  ende.innerHTML = '<span>Wucht</span><b>' + abrechnung.wucht.toLocaleString('de-DE') + '</b>';
+  kasten.appendChild(ende);
+  document.getElementById('pk').appendChild(kasten);
+  setTimeout(() => kasten.remove(), 6000);
+}
+
+function pkZeigeEnde(abrechnung) {
+  const k = derKampf;
+  const sieg = k.ende === 'sieg';
+  klang(sieg ? 'sieg' : 'burg');
+  const tafel = document.createElement('div');
+  tafel.className = 'pk-tafel';
+  const schritte = (abrechnung || pkLetzteSalve || { schritte: [] }).schritte
+    .map(s => '<div class="pk-schritt"><span>' + s.name + '</span><b>' +
+      (s.art === 'grund' ? '' : (s.art === 'nachschuss' ? '↻ ' + s.wert : '×' + s.wert)) + '</b></div>').join('');
+  tafel.innerHTML = `
+    <div class="pk-tafel-inhalt">
+      <h2>${sieg ? 'Der Angriff ist gebrochen' : 'Der Sturm kommt durch'}</h2>
+      <p>${sieg
+        ? k.feind.name + ' ist vernichtet — in Runde ' + k.runde + ' von ' + k.rundenMax + '.'
+        : k.feind.name + ' steht noch mit ' + k.feind.hp.toLocaleString('de-DE') + ' Stärke. Fünf Runden waren zu wenig.'}</p>
+      <div class="pk-schritte">${schritte}</div>
+      <button class="pk-knopf haupt" id="pk-nochmal">Noch ein Kampf</button>
+    </div>`;
+  document.getElementById('pk').appendChild(tafel);
+  document.getElementById('pk-nochmal').addEventListener('click', () => {
+    tafel.remove();
+    pkStarteKampf(sieg ? (pkStation + 1) : pkStation);
+  });
+}
+
+// ---------- Aufbau ----------
+let pkStation = 1;
+
+function pkStarteKampf(station = 1) {
+  pkStation = Math.max(1, station);
+  const stellungen = pkBaueStellungen();
+  const feind = baueFeind(pkStation);
+  // Der erste Kampf ist der aus der Spezifikation: 300 Stärke, damit der Loop
+  // in einem Zug zu durchschauen ist.
+  if (pkStation === 1) { feind.hp = 300; feind.maxHp = 300; feind.name = 'Räuberhorde'; }
+  pkStelleFeindAuf(feind);
+  const deck = START_DECK.map(id => neueEinheit(id));
+  neuerKampf({ feind, deck, wappen: pkWappenFuer(pkStation), stellungen });
+  state.towers = derKampf.tuerme;
+  pkGewaehlt = null;
+  pkUeberTurm = null;
+  pkLetzteSalve = null;
+  pkRender();
+  pkSage('Fünf Runden. Setze Einheiten auf die Türme — benachbarte Gattungen und Ränge bilden Formationen.');
+  zeigeBanner(feind.name, feind.maxHp.toLocaleString('de-DE') + ' Stärke · fünf Runden');
+}
+
+/** Zum Ausprobieren: ab Station 2 kommt je ein Wappen dazu. */
+function pkWappenFuer(station) {
+  const reihe = ['doppeladler', 'wolf', 'schlange', 'eber', 'loewe'];
+  return reihe.slice(0, Math.max(0, Math.min(WAPPEN_PLAETZE, station - 1)));
+}
+
+/*
+ * Der Einstieg. Die alte Oberfläche wird beiseitegeräumt - sie gehört zum
+ * alten Kampf, der in Phase 11 verschwindet. Bis dahin liegt sie nur da.
+ */
+function starteParapex() {
+  for (const id of ['hud', 'tray', 'route', 'station', 'reward', 'schluss']) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  }
+  document.querySelectorAll('.hud, .hud-left, .wave, #tray, #route-panel, #station-panel')
+    .forEach(el => el.classList.add('hidden'));
+  pkAktiv = true;
+  pkBaueOberflaeche();
+  pkStarteKampf(1);
+  requestAnimationFrame(pkTakt);
+}
+
+let pkZuletzt = 0;
+function pkTakt(jetzt) {
+  const dt = Math.min(0.05, (jetzt - pkZuletzt) / 1000 || 0);
+  pkZuletzt = jetzt;
+  animZeit += dt;
+  updateAnimations(dt);
+  pkZeichne();
+  requestAnimationFrame(pkTakt);
+}
+
+if (typeof window !== 'undefined') {
+  window.PARAPEX_UI = { starteParapex, pkStarteKampf, pkRender, pkSetze, pkRundeBeenden,
+    gewaehlt: () => pkGewaehlt, station: () => pkStation };
+}
+
+starteParapex();
 
 </script>
 
