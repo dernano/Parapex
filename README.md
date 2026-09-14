@@ -1,21 +1,95 @@
-# Castle Master
+# Parapex
 
 > **Dieses Repository setzt [dernano/CastleMaster](https://github.com/dernano/CastleMaster)
-> fort.** Die vollständige Geschichte ist mitgewandert — 85 Commits vom ersten
-> Prototyp bis hierher; das alte Repository bleibt unverändert als Archiv
-> stehen. Von hier aus geht das Spiel in eine neue Richtung, und der Name des
-> Repositorys nimmt sie vorweg.
+> fort.** Die vollständige Geschichte ist mitgewandert — vom ersten Prototyp bis
+> hierher; das alte Repository bleibt unverändert als Archiv stehen. Der Stand
+> des alten Spiels liegt zusätzlich auf dem Zweig `stand/castle-master`.
 
-Ein rundenbasiertes Deckbuilding-Spiel im Browser, im Aufbau an Slay the Spire
-angelehnt. Du reitest eine Route aus elf Stationen entlang der Grenze. An
-jeder Kampfstation baust du an **derselben Burg** weiter — Türme auf den Wall,
-Männer auf die Türme — und hältst damit ein Aufgebot von Angreifern fern. Was
-du baust, steht auch an der nächsten Station; was fällt, fehlt dort.
-Dazwischen liegen Marketender, Lager und Begegnungen. Am Ende der Route wartet
-der Belagerungsmeister.
+Ein Deckbuilder-Roguelike im Browser. **Fünf Türme, fünf Runden, ein Gegner mit
+einer einzigen Zahl.** Auf jedem Turm steht genau eine Einheit; welche Einheiten
+nebeneinander stehen, ergibt Formationen, und Formationen überlappen und
+vervielfachen sich miteinander. Es gibt keine Verteidigung, keinen Gegnerzug und
+keine Obergrenze.
 
-Die Kartenfarben folgen dem doppeldeutschen Blatt. Die Darstellung ist eine
-isometrische Pixel-Ansicht, vollständig im Code gezeichnet.
+Ein Akt führt über elf Stationen zum Belagerungsmeister. Deck, Wappen und
+Turmtypen nimmt man mit; ein verlorener Kampf beendet den Akt.
+
+Die Darstellung ist eine isometrische Pixel-Ansicht, vollständig im Code
+gezeichnet — keine Bilddateien, keine Abhängigkeiten, eine einzige Datei.
+
+**Die Regeln im Einzelnen stehen in [`SPIELBESCHREIBUNG.md`](SPIELBESCHREIBUNG.md).**
+Dieses Dokument ist das Entwicklungstagebuch: warum etwas so ist, wie es ist.
+
+---
+
+> ### Hinweis zu allem, was unterhalb von „Der Umbau zu Parapex" steht
+>
+> Die Abschnitte danach beschreiben **Castle Master**, das Spiel, aus dem
+> Parapex hervorgegangen ist. Vieles davon gibt es nicht mehr — Befehlskarten,
+> Zinnen als Block, Gegnerzüge, die Frist, die verzweigte Route. Die Abschnitte
+> bleiben trotzdem stehen: die Begründungen darin gelten weiter, und die
+> Zeichenmaschine, die Bühne, der Wall, die Modelle, der Ton und die Werkstatt
+> sind unverändert im Einsatz. Wer wissen will, warum die Mauer zwei Felder dick
+> ist oder warum die Zinnen nur nach außen stehen, findet es dort.
+
+---
+
+## Der Umbau zu Parapex
+
+Castle Master war ein Spiel mit zu vielen Teilen. Karten für Gebäude, Einheiten,
+Fähigkeiten und Mächte; Befehlskarten, die zu jeder Einheit dazukamen; Zinnen
+als Block; eine Frist, nach der alles gemeinsam ins Tor rannte; Gegner mit
+Wegsuche, Absichten und eigenen Zügen. Jedes Teil war für sich begründet, und
+zusammen war es zäh: der Gegnerzug fraß die halbe Kampfzeit, und die
+Entscheidung, die man traf, verschwand zwischen zwanzig anderen.
+
+Parapex behält genau eine Frage und stellt sie fünfmal: **welche fünf Einheiten
+stehen wo?**
+
+Was dabei gelernt wurde, in der Reihenfolge, in der es wehtat:
+
+**Eine Gegnertabelle ohne Messung ist eine Behauptung.** Die erste lief von 150
+bis 60.000 Stärke. Gemessen wächst ein Deck über einen Akt etwa auf das
+Doppelte. Der Belagerungsmeister war damit nicht schwer, sondern unmöglich.
+`scripts/kurve.mjs` misst seitdem, was ein vernünftig gespieltes Deck am n-ten
+Kampf zusammenbringt, und die Tabelle liegt darunter — anfangs bei knapp der
+Hälfte, zuletzt bei drei Vierteln.
+
+**Ein regelbrechendes Wappen darf keine Falle sein.** Ein Bot, der nie ein
+Wappen nahm, kam in der Hälfte der Läufe durch; einer, der immer eines nahm, in
+einem Siebtel. Die Wappen waren hübsch und wirkungslos. Nachgezogen und
+nachgemessen: jetzt 45 % gegen 38 %.
+
+**Die Schwierigkeit war verkehrt herum.** Der erste Sturmtrupp an Station 6 war
+mit 58 % die schwerste Hürde des Akts, der Boss danach mit 87 % die leichteste.
+Das Deck bekommt die hohen Ränge erst um den sechsten Kampf herum — der
+Sturmtrupp traf davor, der Boss danach. Jetzt: Boss 59 %, und die meisten Läufe
+sterben an ihm oder kurz davor.
+
+**Ein Startdeck aus zwölf niedrigen Rängen wird nie eines aus hohen.** Nicht,
+solange die niedrigen bleiben. Ausmustern gibt es deshalb auch als Belohnung und
+nicht nur beim Händler.
+
+**In einer Datei gewinnt bei zwei gleichnamigen Funktionen die spätere —
+stillschweigend.** Zweimal hat der neue Kern eine Altlast gerufen, ohne
+abzustürzen; die Funktion war einfach die falsche. `scripts/pruefe.mjs` sucht
+diesen Fall seitdem selbst, vor dem Browser, in der Quelle.
+
+**Wer 4.500 Zeilen von Hand löscht, rät.** `scripts/erreichbar.mjs` sammelt alle
+Erklärungen ein, sieht nach, wer wen nennt, und markiert vom Einstieg aus, was
+erreichbar ist. Die Prüfung selbst musste dreimal nachgebessert werden, und
+jedes Mal war es dieselbe Art Fehler: sie las Text, wo Code steht. Namen in
+Kommentaren. Eigenschaftsnamen (`state.draw` hielt die Zeichenfunktion `draw` am
+Leben). Und der mittlere Zweig einer Bedingung — `boss ? FAKTOR : 1` sah aus wie
+ein Schlüssel, und schon galt eine benutzte Konstante als tot. Sie wurde
+geschnitten, und das ist aufgefallen, weil danach gemessen wurde.
+
+**Ein neuer Zeichenweg vergisst, was der alte tat.** Das Rütteln bei jeder
+Salve, der Schirmblitz und das Banner wurden ausgelöst und nie gezeichnet —
+drei Aufrufe ins Leere, wochenlang unbemerkt, weil nichts abstürzt, wenn ein
+Effekt einfach ausbleibt.
+
+---
 
 ## Starten
 
@@ -2413,28 +2487,44 @@ Vorhut, was zur Absicht passt: Sie ist die Prüfung des Feldzugs.
 
 ## Aufbau
 
-Alles steckt in `index.html`: Stil, Aufbau und Logik.
+Alles steckt in `index.html`: Stil, Aufbau und Logik. Rund 8.900 Zeilen, kein
+Build-Schritt, keine Abhängigkeiten zur Laufzeit.
 
-Spiellogik: `CARD_POOL` für die Karten, `STARTER_DECK` für das Startdeck,
-`ENEMY_TYPES` für die Gegner, `buildRoster` für das Aufgebot einer Station,
-`deployFromLager` für den Nachschub aus dem Lager, `baueRoute` für die Karte
-des Feldzugs, `legeAnlageAn` und `richteAnlageHer` für die Burg, die über den
-ganzen Feldzug stehen bleibt, `betreteKnoten` und `weiterAufDerRoute` für den Ablauf einer
-Station, `oeffneHaendler`, `oeffneRast` und `oeffneEreignis` für die Stationen
-ohne Kampf, `EREIGNISSE` für die Begegnungen, `schaerfeKarte` und
-`entferneKarte` fürs Deck, `zielArt`, `playCard` und `wirke` für das Ausspielen
-einer Karte, `wendeMachtAn` für anhaltende Wirkungen, `treffeGegner` als
-gemeinsamer Weg für allen Schaden, `pruefeMauer`, `raeumeGang` und `drawMauerstueck` für die
-Ringmauer, `endTurn` und `nimmBelohnung` für den Ablauf, `enemyPlan` für die Absicht eines Gegners,
-`resolveEnemyTurn` für den Gegnerzug sowie `towerReach` und `towerDamageAt` für
-Reichweite und Salve eines Turms.
+**Der Kern** (oben in der Datei) rechnet und sonst nichts — kein Dokument, kein
+Zeichenkontext, keine Browser-Ereignisse. Genau deshalb lässt er sich von außen
+prüfen. `KERN` trägt jede Balancezahl des Kampfes, `LAUF` jede des Akts.
+`EINHEITEN_POOL` sind die 52 Karten, `FORMATIONEN` die zehn Muster, `WAPPEN` die
+sechs Regelbrecher, `TURMTYPEN` die fünf Ausbaustufen. `berechneWucht` ist die
+Wuchtkette und gibt ihr Protokoll mit zurück; `vorschau` rechnet sie für eine
+hypothetische Aufstellung, daher die Live-Vorschau. `neuerKampf`, `setzeEinheit`,
+`tauscheHandkarte` und `beendeRunde` sind der ganze Kampf.
 
-Darstellung: `baueBuehne` rechnet Fenster und Einstellungen in Bühne, Auflösung
-und Bedienzoom um, `buehnenBild` legt Nebenleinwände in derselben Auflösung an,
-`EINST_TAFEL` und `renderEinst` bauen das Einstellungsmenü, `isoX` und `isoY`
-rechnen aufs Raster um, `cellFromPoint` ist die Umkehrung für Klicks, `zeichenReihenfolge` löst die Verdeckung topologisch auf,
-`drawBlock` und `drawMerlons` bauen Mauerwerk, `drawSprite` malt die
-Pixelfiguren, `drawBadge` die Plaketten und `paintCardArt` die Bilder auf den
-Karten.
+**Der Lauf** hält alles, was einen Kampf überdauert: `neuerLauf`, `derKnoten`,
+`beginneKampfAmKnoten`, `werteKampfAus`, `baueBelohnung`, `oeffneHaendler`,
+`kaufe`, `ziehBegegnung`, `verlasseKnoten`.
+
+**Die Oberfläche** (`pk*`) liest den Kern und malt, was zurückkommt. Sie rechnet
+nichts. `pkZeichne` ist der Zeichenweg, `pkRender` die Tafeln, `pkTafel` die
+gemeinsame Form für Belohnung, Händler, Begegnung und Laufende.
+
+**Die Zeichenmaschine** ist unverändert aus Castle Master: `baueBuehne` rechnet
+Fenster und Einstellungen in Bühne, Auflösung und Bedienzoom um, `isoX`/`isoY`
+rechnen aufs Raster um, `zeichenReihenfolge` löst die Verdeckung topologisch
+auf, `drawBlock` baut Mauerwerk, `drawSprite` malt die Pixelfiguren,
+`zeichneModell` die Bauwerke, `zeichneBogen` den gespannten Bogen.
+
+**Das Werkzeug** (`PX`, Strg+D) zeigt den Zustand und die Wuchtkette und darf
+eingreifen — `PX.station(9)` baut einen Lauf bis dorthin, mit passendem Deck.
+
+### Prüfen und messen
+
+```bash
+npm test                      # 61 Prüfungen im echten Browser
+node scripts/bot.mjs 60       # 60 Akte durchspielen, Gewinnquote je Station
+node scripts/kurve.mjs 40     # wie viel Wucht ein Deck am n-ten Kampf bringt
+node scripts/lauftest.mjs     # ein ganzer Akt über die Oberfläche, mit Klicks
+node scripts/erreichbar.mjs   # welche Erklärungen niemand mehr ruft
+node scripts/stil.mjs         # Stilregeln, die auf nichts greifen
+```
 
 `scripts/serve.js` ist ein statischer Dev-Server ohne Abhängigkeiten.
