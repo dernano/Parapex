@@ -10,7 +10,7 @@
  *
  * Es braucht keinen Server: die Seite wird als Datei geöffnet.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,6 +28,25 @@ if (!chromium) {
   process.exit(2);
 }
 const pfad = process.env.CHROMIUM_PFAD || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+/*
+ * Vor dem Browser: eine Prüfung, die keinen braucht. Das Spiel ist EINE Datei,
+ * und in einer Datei gewinnt bei zwei gleichnamigen `function`-Erklärungen die
+ * spaetere - stillschweigend. Zweimal ist der neue Kern so von Altlasten
+ * ueberschrieben worden, ohne dass etwas abstuerzte: die Funktion war einfach
+ * die falsche. Solange alter und neuer Code nebeneinander liegen, wird das
+ * hier gefunden statt im Spiel.
+ */
+const doppelt = [];
+{
+  const quelle = readFileSync(join(WURZEL, 'index.html'), 'utf8');
+  const gesehen = new Map();
+  for (const m of quelle.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm)) {
+    const zeile = quelle.slice(0, m.index).split('\n').length;
+    if (gesehen.has(m[1])) doppelt.push(m[1] + ' (Zeile ' + gesehen.get(m[1]) + ' und ' + zeile + ')');
+    else gesehen.set(m[1], zeile);
+  }
+}
+
 const browser = await chromium.launch(existsSync(pfad) ? { executablePath: pfad } : {});
 const seite = await browser.newPage();
 const fehlerAufDerSeite = [];
@@ -364,6 +383,221 @@ const ergebnis = await seite.evaluate(() => {
     return true;
   });
 
+  // ---------- Der Lauf ----------
+  pruefe('Ein neuer Lauf steht auf Station 1 mit dem Startdeck', () => {
+    const l = P.neuerLauf();
+    if (l.station !== 1) return 'Station ' + l.station;
+    if (l.deck.length !== P.START_DECK.length) return l.deck.length + ' Karten';
+    if (l.wappen.length) return 'schon Wappen';
+    if (l.turmTypen.length !== P.KERN.tuerme) return l.turmTypen.length + ' Turmtypen';
+    if (l.knoten.length !== l.stationen) return l.knoten.length + ' Knoten';
+    return true;
+  });
+
+  pruefe('Jeder Knoten hat eine bekannte Art, der letzte ist der Boss', () => {
+    const l = P.neuerLauf();
+    for (const k of l.knoten) if (!P.KNOTEN_ARTEN[k.art]) return 'Knoten ' + k.nr + ': ' + k.art;
+    if (l.knoten[l.knoten.length - 1].art !== 'boss') return 'letzter ist ' + l.knoten[l.knoten.length - 1].art;
+    return true;
+  });
+
+  pruefe('Ein Kampf aus dem Lauf bekommt Deck, Wappen und Turmtypen', () => {
+    const l = P.neuerLauf();
+    l.wappen = ['loewe'];
+    l.turmTypen[2] = 'pulverturm';
+    const k = P.beginneKampfAmKnoten();
+    if (!k) return 'kein Kampf';
+    if (k.zug.length + k.hand.length !== l.deck.length) return 'Deckgrösse stimmt nicht';
+    if (k.wappen[0] !== 'loewe') return 'Wappen fehlt';
+    if (k.tuerme[2].typ !== 'pulverturm') return 'Turmtyp fehlt';
+    return true;
+  });
+
+  pruefe('Der Kampf fasst das Deck des Laufs nicht an', () => {
+    const l = P.neuerLauf();
+    const vorher = l.deck.length;
+    const k = P.beginneKampfAmKnoten();
+    // Im Kampf eine Einheit setzen und ersetzen - im Lauf darf nichts passieren.
+    P.setzeEinheit(0, k.hand[0]);
+    P.setzeEinheit(0, k.hand[0]);
+    if (l.deck.length !== vorher) return 'Deck jetzt ' + l.deck.length;
+    if (l.deck.some(c => c.einsatz)) return 'Kampfspur im Deck';
+    return true;
+  });
+
+  pruefe('Ein Sieg bringt Sold und drei Angebote', () => {
+    const l = P.neuerLauf();
+    const k = P.beginneKampfAmKnoten();
+    k.feind.hp = 0; k.ende = 'sieg';
+    const r = P.werteKampfAus(k);
+    if (!r.sieg) return 'kein Sieg';
+    if (r.sold <= 0) return 'Sold ' + r.sold;
+    if (l.sold !== r.sold) return 'Lauf hat ' + l.sold;
+    if (r.belohnung.angebote.length !== P.LAUF.belohnung.auswahl) return r.belohnung.angebote.length + ' Angebote';
+    for (const a of r.belohnung.angebote) if (!a.name || !a.art) return 'Angebot ohne Namen';
+    return true;
+  });
+
+  pruefe('Wer früher gewinnt, bekommt mehr Sold', () => {
+    const bau = (runde) => {
+      const l = P.neuerLauf();
+      const k = P.beginneKampfAmKnoten();
+      k.runde = runde; k.feind.hp = 0; k.ende = 'sieg';
+      return P.werteKampfAus(k).sold;
+    };
+    const frueh = bau(2), spaet = bau(5);
+    if (!(frueh > spaet)) return 'Runde 2: ' + frueh + ', Runde 5: ' + spaet;
+    return true;
+  });
+
+  pruefe('Eine Niederlage beendet den Lauf', () => {
+    const l = P.neuerLauf();
+    const k = P.beginneKampfAmKnoten();
+    k.ende = 'niederlage';
+    const r = P.werteKampfAus(k);
+    if (r.sieg) return 'als Sieg gewertet';
+    if (l.ende !== 'niederlage') return 'Lauf läuft weiter: ' + l.ende;
+    return true;
+  });
+
+  pruefe('Ein Angebot annehmen verändert genau eine Achse', () => {
+    const l = P.neuerLauf();
+    const karten = l.deck.length, wappen = l.wappen.length;
+    P.nimmAngebot({ art: 'karte', einheit: P.neueEinheit('bogen-7') });
+    if (l.deck.length !== karten + 1) return 'Deck ' + l.deck.length;
+    if (l.wappen.length !== wappen) return 'Wappen mitverändert';
+    P.nimmAngebot({ art: 'wappen', wappen: 'drache' });
+    if (!l.wappen.includes('drache')) return 'Wappen nicht angenommen';
+    P.nimmAngebot({ art: 'ausbau', turm: 1, typ: 'schuetzenturm' });
+    if (l.turmTypen[1] !== 'schuetzenturm') return 'Turm nicht ausgebaut';
+    return true;
+  });
+
+  pruefe('Mehr als fünf Wappen gehen nicht', () => {
+    const l = P.neuerLauf();
+    for (const id of P.WAPPEN_LISTE) P.fuegeWappenHinzu(id);
+    if (l.wappen.length !== P.WAPPEN_PLAETZE) return l.wappen.length + ' Wappen';
+    // Dasselbe Wappen zweimal ebensowenig.
+    const r = P.fuegeWappenHinzu(l.wappen[0]);
+    if (r.ok) return 'doppelt angenommen';
+    return true;
+  });
+
+  pruefe('Ausmustern dünnt das Deck nicht unter die Handgrösse aus', () => {
+    const l = P.neuerLauf();
+    let versuche = 0;
+    while (P.entferneKarte(l.deck[0].uid).ok && versuche++ < 50) { /* weiter */ }
+    if (l.deck.length < P.KERN.handGroesse) return 'nur noch ' + l.deck.length;
+    return true;
+  });
+
+  pruefe('Schleifen hebt die Wucht, nicht den Rang', () => {
+    const l = P.neuerLauf();
+    const k = l.deck[0];
+    const rang = k.rang, wucht = P.grundwucht(k);
+    P.schleifeKarte(k.uid);
+    if (k.rang !== rang) return 'Rang geändert';
+    if (P.grundwucht(k) !== wucht + P.LAUF.schliff) return 'Wucht ' + P.grundwucht(k);
+    return true;
+  });
+
+  pruefe('Der Händler verkauft nichts ohne Sold', () => {
+    const l = P.neuerLauf();
+    l.sold = 0;
+    const h = P.oeffneHaendler();
+    if (!h.posten.length) return 'leerer Bestand';
+    const r = P.kaufe(0);
+    if (r.ok) return 'trotzdem verkauft';
+    return true;
+  });
+
+  pruefe('Ein Kauf zieht genau den Preis ab und gilt nur einmal', () => {
+    const l = P.neuerLauf();
+    l.sold = 1000;
+    const h = P.oeffneHaendler();
+    const i = h.posten.findIndex(p => p.art === 'karte');
+    const preis = h.posten[i].preis, karten = l.deck.length;
+    const r = P.kaufe(i);
+    if (!r.ok) return r.grund;
+    if (l.sold !== 1000 - preis) return 'Sold ' + l.sold;
+    if (l.deck.length !== karten + 1) return 'Deck ' + l.deck.length;
+    if (P.kaufe(i).ok) return 'zweimal gekauft';
+    return true;
+  });
+
+  pruefe('Ausmustern beim Händler braucht eine Karte', () => {
+    const l = P.neuerLauf();
+    l.sold = 1000;
+    const h = P.oeffneHaendler();
+    const i = h.posten.findIndex(p => p.art === 'entfernen');
+    if (P.kaufe(i).ok) return 'ohne Ziel verkauft';
+    if (l.sold !== 1000) return 'Sold trotzdem abgezogen: ' + l.sold;
+    const r = P.kaufe(i, l.deck[0]);
+    if (!r.ok) return r.grund;
+    return true;
+  });
+
+  pruefe('Jede Begegnung hat Titel, Text und mindestens zwei Wahlen', () => {
+    for (const e of P.BEGEGNUNGEN) {
+      if (!e.titel || !e.text) return e.id + ' ohne Text';
+      if (e.wahlen.length < 2) return e.id + ' hat ' + e.wahlen.length + ' Wahlen';
+      for (const w of e.wahlen) if (!w.text || typeof w.wirkung !== 'function') return e.id + ': kaputte Wahl';
+    }
+    return true;
+  });
+
+  pruefe('Eine Begegnung wirkt und meldet, was sie tat', () => {
+    P.neuerLauf();
+    for (let i = 0; i < 40; i++) {
+      const e = P.ziehBegegnung();
+      if (!e.wahlen.length) return e.id + ' hat keine mögliche Wahl';
+      const r = P.waehleInBegegnung(e, Math.floor(Math.random() * e.wahlen.length));
+      if (!r.ok) return r.grund;
+      if (typeof r.folge !== 'string' || !r.folge) return e.id + ' meldet nichts';
+    }
+    return true;
+  });
+
+  pruefe('Der Lauf zieht Knoten für Knoten bis zum Ende', () => {
+    const l = P.neuerLauf();
+    for (let i = 1; i < l.stationen; i++) {
+      const r = P.verlasseKnoten();
+      if (r.ende) return 'zu früh vorbei bei ' + i;
+      if (l.station !== i + 1) return 'Station ' + l.station;
+    }
+    const r = P.verlasseKnoten();
+    if (r.ende !== 'sieg') return 'Ende ist ' + r.ende;
+    return true;
+  });
+
+  pruefe('Ein Lauf lässt sich von Anfang bis Ende durchspielen', () => {
+    const l = P.neuerLauf();
+    let kaempfe = 0;
+    while (!l.ende) {
+      const kn = P.derKnoten();
+      if (['kampf', 'elite', 'boss'].includes(kn.art)) {
+        const k = P.beginneKampfAmKnoten();
+        if (!k) return 'kein Kampf an Knoten ' + kn.nr;
+        kaempfe++;
+        k.feind.hp = 0; k.ende = 'sieg';              // wir gewinnen ihn einfach
+        const r = P.werteKampfAus(k);
+        if (!r.sieg) return 'Sieg nicht gewertet an ' + kn.nr;
+        P.nimmAngebot(r.belohnung.angebote[0]);
+      } else if (kn.art === 'haendler') {
+        P.oeffneHaendler();
+      } else {
+        const e = P.ziehBegegnung();
+        P.waehleInBegegnung(e, 0);
+      }
+      P.verlasseKnoten();
+    }
+    if (l.ende !== 'sieg') return 'Ende ' + l.ende;
+    if (kaempfe !== l.knoten.filter(k => ['kampf', 'elite', 'boss'].includes(k.art)).length)
+      return kaempfe + ' Kämpfe';
+    if (l.deck.length <= P.START_DECK.length) return 'Deck ist nicht gewachsen';
+    return true;
+  });
+
   return raus;
 });
 
@@ -373,6 +607,10 @@ let schlecht = 0;
 for (const e of ergebnis) {
   if (!e.ok) schlecht++;
   console.log((e.ok ? '  ok   ' : '  FEHL ') + e.name + (e.ok ? '' : '  — ' + e.hinweis));
+}
+if (doppelt.length) {
+  schlecht += doppelt.length;
+  for (const d of doppelt) console.log('  FEHL Funktion doppelt erklärt — ' + d);
 }
 if (fehlerAufDerSeite.length) {
   schlecht += fehlerAufDerSeite.length;

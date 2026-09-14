@@ -2180,6 +2180,407 @@ function raeumeKampf() {
   leereSignale();
 }
 
+// ---------- Der Lauf ----------
+/*
+ * Ein Lauf ist die Kette aus Kämpfen, Händlern und Ereignissen, über die ein
+ * Deck wächst. Der Kampf weiss davon nichts: er bekommt Deck, Wappen und
+ * Turmtypen übergeben und gibt nur zurück, ob er gewonnen wurde. Alles, was
+ * über einen Kampf hinaus bestehen bleibt, liegt hier - und nur hier.
+ *
+ * Drei Achsen wachsen mit:
+ *
+ *   das DECK    - neue Karten, geschliffene Karten, entfernte Karten
+ *   die WAPPEN  - fünf Plätze, jedes bricht eine Regel
+ *   die TÜRME   - fünf Stellungen, ihr Typ ist die dritte Achse
+ *
+ * Absichtlich getrennt: das Deck ist die breite Achse, die Wappen die scharfe,
+ * die Türme die langsame. Wer alles in eine Gattung steckt, baut einen Turm,
+ * der einmal umfällt; wer breit baut, trifft keine Formation.
+ */
+const LAUF = {
+  stationen: 11,
+  leben: 1,                   // verlorene Kaempfe, die ein Lauf uebersteht
+  sold: {
+    start: 0,
+    kampf: 25, elite: 45, boss: 120,
+    jeRestrunde: 8,           // je Runde, die man nicht gebraucht hat
+  },
+  preise: { karte: 45, wappen: 130, ausbau: 95, entfernen: 60, schliff: 75 },
+  belohnung: { auswahl: 3, wappenAb: 2 },
+  schliff: 2,                 // was ein Schliff an Wucht bringt
+  /*
+   * Das Muster eines Akts. Elf Knoten: acht Kaempfe (davon zwei Elite und ein
+   * Boss), zwei Haendler, zwei Ereignisse. Der erste Haendler kommt spaet
+   * genug, dass man Sold hat, und frueh genug, dass er den Lauf noch dreht.
+   */
+  muster: ['kampf', 'kampf', 'ereignis', 'haendler', 'kampf', 'elite',
+    'ereignis', 'kampf', 'haendler', 'elite', 'boss'],
+};
+
+const KNOTEN_ARTEN = {
+  kampf:    { id: 'kampf',    name: 'Angriff',      zeichen: '⚔' },
+  elite:    { id: 'elite',    name: 'Sturmtrupp',   zeichen: '☠', zuschlag: 1.6 },
+  boss:     { id: 'boss',     name: 'Belagerung',   zeichen: '♛' },
+  haendler: { id: 'haendler', name: 'Händler',      zeichen: '⚖' },
+  ereignis: { id: 'ereignis', name: 'Begegnung',    zeichen: '❖' },
+};
+const KNOTEN_KAMPF = ['kampf', 'elite', 'boss'];
+
+let derLauf = null;
+
+function neuerLauf({ stationen = LAUF.stationen, muster = LAUF.muster } = {}) {
+  derLauf = {
+    station: 1,
+    stationen,
+    knoten: Array.from({ length: stationen }, (_, i) => ({
+      nr: i + 1,
+      art: muster[i] || 'kampf',
+      erledigt: false,
+    })),
+    deck: START_DECK.map(id => neueEinheit(id)),
+    wappen: [],
+    turmTypen: TURM_START.slice(),
+    sold: LAUF.sold.start,
+    leben: LAUF.leben,
+    ende: null,                 // null | 'sieg' | 'niederlage'
+    verlauf: [],                // was an jedem Knoten geschah
+  };
+  return derLauf;
+}
+
+/** Der Knoten, vor dem der Lauf gerade steht. */
+function derKnoten() {
+  return derLauf ? derLauf.knoten[derLauf.station - 1] || null : null;
+}
+
+/*
+ * Einen Kampf aus dem Lauf heraus beginnen. Der Lauf reicht durch, was er
+ * hat - der Kampf baut daraus seinen eigenen Zustand und fasst den Lauf nie
+ * an. Das Deck wird kopiert: was im Kampf ersetzt wird und in der Ablage
+ * landet, darf das Deck des Laufs nicht verändern.
+ */
+function beginneKampfAmKnoten(stellungen = null) {
+  const kn = derKnoten();
+  if (!kn) return null;
+  if (!KNOTEN_KAMPF.includes(kn.art)) return null;
+  const boss = kn.art === 'boss';
+  const feind = baueFeind(kn.nr, { boss, zuschlag: KNOTEN_ARTEN[kn.art].zuschlag || 1 });
+  if (kn.art === 'elite') feind.name = 'Sturmtrupp';
+  return neuerKampf({
+    feind,
+    deck: derLauf.deck.map(k => ({ ...k })),
+    wappen: derLauf.wappen.slice(),
+    turmTypen: derLauf.turmTypen.slice(),
+    stellungen,
+  });
+}
+
+/*
+ * Der Kampf ist entschieden. Hier - und nur hier - wird der Lauf fortgeschrieben:
+ * Sold, Leben, Station. Die Belohnung wird nur gebaut, nicht schon vergeben;
+ * welches der Angebote genommen wird, entscheidet der Spieler.
+ */
+function werteKampfAus(kampf = derKampf) {
+  const kn = derKnoten();
+  if (!derLauf || !kn || !kampf) return null;
+  const sieg = kampf.ende === 'sieg';
+  if (!sieg) {
+    derLauf.leben--;
+    if (derLauf.leben <= 0) derLauf.ende = 'niederlage';
+    derLauf.verlauf.push({ nr: kn.nr, art: kn.art, sieg: false });
+    return { sieg: false, sold: 0, belohnung: null, ende: derLauf.ende };
+  }
+  const restrunden = Math.max(0, kampf.rundenMax - kampf.runde);
+  const sold = (LAUF.sold[kn.art] || LAUF.sold.kampf) + restrunden * LAUF.sold.jeRestrunde;
+  derLauf.sold += sold;
+  kn.erledigt = true;
+  derLauf.verlauf.push({ nr: kn.nr, art: kn.art, sieg: true, sold, runden: kampf.runde });
+  const belohnung = baueBelohnung(kn);
+  if (kn.art === 'boss') derLauf.ende = 'sieg';
+  return { sieg: true, sold, restrunden, belohnung, ende: derLauf.ende };
+}
+
+/*
+ * Die Angebote nach einem Sieg. Drei Stück, jedes von einer anderen Achse,
+ * damit die Wahl wirklich eine ist: eine Karte macht das Deck breiter, ein
+ * Ausbau macht einen Turm schärfer, ein Wappen bricht eine Regel.
+ */
+function baueBelohnung(knoten) {
+  const angebote = [];
+  angebote.push(angebotKarte(knoten.nr));
+  const aus = angebotAusbau();
+  if (aus) angebote.push(aus);
+  const wap = (knoten.nr >= LAUF.belohnung.wappenAb || knoten.art !== 'kampf') ? angebotWappen() : null;
+  if (wap) angebote.push(wap);
+  while (angebote.length < LAUF.belohnung.auswahl) angebote.push(angebotKarte(knoten.nr));
+  return { angebote: angebote.slice(0, LAUF.belohnung.auswahl) };
+}
+
+/*
+ * Der Rang einer Belohnungskarte wächst mit der Station. Das ist die stille
+ * Fortschrittskurve: an Station 2 liegen Ränge um 3, an Station 10 um 11.
+ * Ohne das müsste der Spieler zwölf Runden lang mit Bauernschützen spielen.
+ */
+function belohnungsRang(station) {
+  const mitte = Math.min(13, 1 + station);
+  const streu = Math.floor(Math.random() * 5) - 2;    // -2 .. +2
+  return Math.max(1, Math.min(13, mitte + streu));
+}
+
+function angebotKarte(station) {
+  const g = GATTUNG_LISTE[Math.floor(Math.random() * GATTUNG_LISTE.length)];
+  const einheit = neueEinheit(g + '-' + belohnungsRang(station));
+  return { art: 'karte', einheit, name: einheit.name,
+    text: GATTUNGEN[g].name + ' · Rang ' + einheit.rang + ' — kommt ins Deck.' };
+}
+
+function angebotWappen() {
+  if (derLauf.wappen.length >= WAPPEN_PLAETZE) return null;
+  const offen = WAPPEN_LISTE.filter(id => !derLauf.wappen.includes(id));
+  if (!offen.length) return null;
+  const id = offen[Math.floor(Math.random() * offen.length)];
+  return { art: 'wappen', wappen: id, name: WAPPEN[id].name, text: WAPPEN[id].text };
+}
+
+/*
+ * Ein Ausbau trifft einen Turm, der noch Wachturm ist - und wenn es keinen
+ * mehr gibt, einen, dessen Typ sich noch ändern lässt. Ein zweites Mal
+ * denselben Typ auf denselben Turm zu legen, wäre ein leeres Angebot.
+ */
+function angebotAusbau() {
+  if (!derLauf) return null;
+  const roh = derLauf.turmTypen
+    .map((t, i) => ({ i, t }))
+    .filter(x => x.t === 'wachturm');
+  const ziel = (roh.length ? roh : derLauf.turmTypen.map((t, i) => ({ i, t })))
+    [Math.floor(Math.random() * (roh.length || derLauf.turmTypen.length))];
+  if (!ziel) return null;
+  const typen = Object.keys(TURMTYPEN).filter(t => t !== 'wachturm' && t !== ziel.t);
+  if (!typen.length) return null;
+  const typ = typen[Math.floor(Math.random() * typen.length)];
+  return { art: 'ausbau', turm: ziel.i, typ, name: TURMTYPEN[typ].name + ' auf Turm ' + (ziel.i + 1),
+    text: TURMTYPEN[typ].text };
+}
+
+/** Ein Angebot annehmen. Was hier hineingeht, bleibt für den ganzen Lauf. */
+function nimmAngebot(angebot) {
+  if (!derLauf || !angebot) return { ok: false, grund: 'Kein Angebot.' };
+  if (angebot.art === 'karte') { derLauf.deck.push(angebot.einheit); return { ok: true }; }
+  if (angebot.art === 'wappen') return fuegeWappenHinzu(angebot.wappen);
+  if (angebot.art === 'ausbau') return baueTurmAus(angebot.turm, angebot.typ);
+  if (angebot.art === 'sold') { derLauf.sold += angebot.sold; return { ok: true }; }
+  return { ok: false, grund: 'Unbekanntes Angebot.' };
+}
+
+function fuegeWappenHinzu(id) {
+  if (!WAPPEN[id]) return { ok: false, grund: 'Dieses Wappen gibt es nicht.' };
+  if (derLauf.wappen.includes(id)) return { ok: false, grund: 'Das Wappen hängt schon.' };
+  if (derLauf.wappen.length >= WAPPEN_PLAETZE) return { ok: false, grund: 'Alle fünf Plätze sind belegt.' };
+  derLauf.wappen.push(id);
+  return { ok: true };
+}
+
+function baueTurmAus(index, typ) {
+  if (!TURMTYPEN[typ]) return { ok: false, grund: 'Diesen Turmtyp gibt es nicht.' };
+  if (index < 0 || index >= derLauf.turmTypen.length) return { ok: false, grund: 'Diesen Turm gibt es nicht.' };
+  derLauf.turmTypen[index] = typ;
+  return { ok: true };
+}
+
+function entferneKarte(uid) {
+  const i = derLauf.deck.findIndex(k => k.uid === uid);
+  if (i < 0) return { ok: false, grund: 'Diese Karte ist nicht im Deck.' };
+  if (derLauf.deck.length <= KERN.handGroesse) return { ok: false, grund: 'Das Deck wäre zu dünn.' };
+  const [weg] = derLauf.deck.splice(i, 1);
+  return { ok: true, karte: weg };
+}
+
+function schleifeKarte(uid) {
+  const k = derLauf.deck.find(c => c.uid === uid);
+  if (!k) return { ok: false, grund: 'Diese Karte ist nicht im Deck.' };
+  verbessereEinheit(k, LAUF.schliff);
+  return { ok: true, karte: k };
+}
+
+// ---------- Der Händler ----------
+/*
+ * Der Händler ist der Ort, an dem Sold wieder zu Entscheidung wird. Sein
+ * Bestand wird einmal gebaut und bleibt dann stehen - wer nicht kauft, soll
+ * nicht neu würfeln dürfen, bis ihm etwas passt.
+ */
+function oeffneHaendler() {
+  if (!derLauf) return null;
+  const station = derLauf.station;
+  const posten = [];
+  for (let i = 0; i < 3; i++) {
+    const a = angebotKarte(station);
+    posten.push({ ...a, preis: Math.round(LAUF.preise.karte * (0.6 + a.einheit.rang / 10)) });
+  }
+  const w = angebotWappen();
+  if (w) posten.push({ ...w, preis: LAUF.preise.wappen });
+  const aus = angebotAusbau();
+  if (aus) posten.push({ ...aus, preis: LAUF.preise.ausbau });
+  posten.push({ art: 'entfernen', name: 'Eine Karte ausmustern',
+    text: 'Entfernt eine Karte dauerhaft aus dem Deck.', preis: LAUF.preise.entfernen });
+  posten.push({ art: 'schliff', name: 'Eine Karte schleifen',
+    text: '+' + LAUF.schliff + ' Wucht, dauerhaft.', preis: LAUF.preise.schliff });
+  derLauf.haendler = { posten, gekauft: [] };
+  return derLauf.haendler;
+}
+
+/*
+ * Kaufen. `wahl` ist die Karte, auf die sich der Posten bezieht, wenn er eine
+ * braucht - Ausmustern und Schleifen ohne Ziel wäre ein Kauf ins Leere.
+ */
+function kaufe(index, wahl = null) {
+  const h = derLauf && derLauf.haendler;
+  if (!h) return { ok: false, grund: 'Kein Händler offen.' };
+  const p = h.posten[index];
+  if (!p) return { ok: false, grund: 'Diesen Posten gibt es nicht.' };
+  if (h.gekauft.includes(index)) return { ok: false, grund: 'Schon gekauft.' };
+  if (derLauf.sold < p.preis) return { ok: false, grund: 'Nicht genug Sold.' };
+
+  let r;
+  if (p.art === 'entfernen') r = entferneKarte(wahl && wahl.uid);
+  else if (p.art === 'schliff') r = schleifeKarte(wahl && wahl.uid);
+  else r = nimmAngebot(p);
+  if (!r.ok) return r;
+
+  derLauf.sold -= p.preis;
+  h.gekauft.push(index);
+  return { ok: true, posten: p, sold: derLauf.sold };
+}
+
+// ---------- Begegnungen ----------
+/*
+ * Ereignisse sind der billigste Weg, einen Lauf ungleich zu machen: kein
+ * Kampf, aber eine Entscheidung mit Folgen. Sie stehen als Daten da, damit
+ * ein neues Ereignis eine Zeile ist und kein Eingriff.
+ *
+ * `bedingung` hält Ereignisse zurück, die gerade nichts bewirken könnten -
+ * ein Wappenangebot ohne freien Platz ist kein Ereignis, sondern ein Ärgernis.
+ */
+const BEGEGNUNGEN = [
+  {
+    id: 'waffenschmiede', titel: 'Die verlassene Waffenschmiede',
+    text: 'Zwischen kalten Essen liegt brauchbarer Stahl. Die Schmiede ist leer, der Amboss nicht.',
+    wahlen: [
+      { text: 'Zwei Karten schleifen', wirkung: () => {
+        const ziele = zufaelligeKarten(2);
+        ziele.forEach(k => verbessereEinheit(k, LAUF.schliff));
+        return ziele.length ? ziele.map(k => k.name).join(' und ') + ' geschliffen.' : 'Nichts zu schleifen.';
+      } },
+      { text: 'Den Stahl verkaufen (+70 Sold)', wirkung: () => { derLauf.sold += 70; return '70 Sold.'; } },
+    ],
+  },
+  {
+    id: 'soeldner', titel: 'Söldner am Wegrand',
+    text: 'Vier Mann ohne Herrn. Sie fragen nicht, wofür gekämpft wird, sondern wofür bezahlt.',
+    wahlen: [
+      { text: 'Anwerben (−60 Sold, starke Karte)', bedingung: () => derLauf.sold >= 60,
+        wirkung: () => {
+          derLauf.sold -= 60;
+          const k = neueEinheit(GATTUNG_LISTE[Math.floor(Math.random() * 4)] + '-' +
+            Math.min(13, belohnungsRang(derLauf.station) + 2));
+          derLauf.deck.push(k);
+          return k.name + ' tritt ein.';
+        } },
+      { text: 'Weiterziehen', wirkung: () => 'Sie sehen euch nach.' },
+    ],
+  },
+  {
+    id: 'kartenlager', titel: 'Der überfüllte Wehrgang',
+    text: 'Zu viele Hände, zu wenig Zinnen. Wer bleibt, steht im Weg.',
+    wahlen: [
+      { text: 'Die schwächste Karte ausmustern', bedingung: () => derLauf.deck.length > KERN.handGroesse,
+        wirkung: () => {
+          const schwach = derLauf.deck.slice().sort((a, b) => grundwucht(a) - grundwucht(b))[0];
+          entferneKarte(schwach.uid);
+          return schwach.name + ' geht.';
+        } },
+      { text: 'Alle behalten (+40 Sold aus dem Sold der Abgänger)', wirkung: () => { derLauf.sold += 40; return '40 Sold.'; } },
+    ],
+  },
+  {
+    id: 'banner', titel: 'Das alte Banner',
+    text: 'Im Gewölbe hängt ein Wappen, das hier niemand mehr führt. Staub, aber kein Rost.',
+    bedingung: () => derLauf.wappen.length < WAPPEN_PLAETZE && derLauf.wappen.length < WAPPEN_LISTE.length,
+    wahlen: [
+      { text: 'Aufhängen', wirkung: () => {
+        const a = angebotWappen();
+        if (!a) return 'Kein Platz mehr.';
+        fuegeWappenHinzu(a.wappen);
+        return a.name + ' hängt.';
+      } },
+      { text: 'Einschmelzen (+90 Sold)', wirkung: () => { derLauf.sold += 90; return '90 Sold.'; } },
+    ],
+  },
+  {
+    id: 'baumeister', titel: 'Der wandernde Baumeister',
+    text: 'Er misst eure Mauern mit den Augen und schüttelt den Kopf. Dann bietet er an zu bleiben.',
+    wahlen: [
+      { text: 'Einen Turm ausbauen lassen', wirkung: () => {
+        const a = angebotAusbau();
+        if (!a) return 'Er findet nichts zu tun.';
+        baueTurmAus(a.turm, a.typ);
+        return a.name + '.';
+      } },
+      { text: 'Ihn bezahlen und ziehen lassen (+50 Sold)', wirkung: () => { derLauf.sold += 50; return '50 Sold.'; } },
+    ],
+  },
+  {
+    id: 'spaeher', titel: 'Ein gefangener Späher',
+    text: 'Er weiss, wann der nächste Stoss kommt. Er weiss auch, was ein solches Wissen wert ist.',
+    wahlen: [
+      { text: 'Aushorchen (+100 Sold)', wirkung: () => { derLauf.sold += 100; return '100 Sold.'; } },
+      { text: 'Laufen lassen und zwei Karten ziehen', wirkung: () => {
+        const neu = [angebotKarte(derLauf.station), angebotKarte(derLauf.station)];
+        neu.forEach(a => derLauf.deck.push(a.einheit));
+        return neu.map(a => a.name).join(' und ') + ' schliessen sich an.';
+      } },
+    ],
+  },
+];
+
+function zufaelligeKarten(n) {
+  const kopie = derLauf.deck.slice();
+  const raus = [];
+  while (raus.length < n && kopie.length) {
+    raus.push(kopie.splice(Math.floor(Math.random() * kopie.length), 1)[0]);
+  }
+  return raus;
+}
+
+function ziehBegegnung() {
+  const moeglich = BEGEGNUNGEN.filter(e => !e.bedingung || e.bedingung());
+  const liste = moeglich.length ? moeglich : BEGEGNUNGEN;
+  const e = liste[Math.floor(Math.random() * liste.length)];
+  return {
+    ...e,
+    wahlen: e.wahlen.filter(w => !w.bedingung || w.bedingung()),
+  };
+}
+
+function waehleInBegegnung(ereignis, index) {
+  const w = ereignis && ereignis.wahlen[index];
+  if (!w) return { ok: false, grund: 'Diese Wahl gibt es nicht.' };
+  return { ok: true, folge: w.wirkung() };
+}
+
+/** Knoten abhaken und weiterziehen. Am letzten Knoten endet der Lauf. */
+function verlasseKnoten() {
+  if (!derLauf) return null;
+  const kn = derKnoten();
+  if (kn) kn.erledigt = true;
+  derLauf.haendler = null;
+  if (derLauf.station >= derLauf.stationen) {
+    if (!derLauf.ende) derLauf.ende = 'sieg';
+    return { ende: derLauf.ende };
+  }
+  derLauf.station++;
+  return { ende: null, station: derLauf.station, knoten: derKnoten() };
+}
+
 /* Für die Prüfskripte: der Kern ist von aussen ansprechbar. */
 if (typeof window !== 'undefined') {
   window.PARAPEX = {
@@ -2191,6 +2592,12 @@ if (typeof window !== 'undefined') {
     ziehe, zieheAuf, raeumeKampf, hoereSignal, sendeSignal,
     kampf: () => derKampf,
     ueberlauf: () => signalUeberlauf,
+    // Der Lauf: alles, was einen Kampf ueberdauert.
+    LAUF, KNOTEN_ARTEN, BEGEGNUNGEN, WAPPEN_PLAETZE, WAPPEN_LISTE, GATTUNG_LISTE,
+    neuerLauf, derKnoten, beginneKampfAmKnoten, werteKampfAus, baueBelohnung,
+    nimmAngebot, fuegeWappenHinzu, baueTurmAus, entferneKarte, schleifeKarte,
+    oeffneHaendler, kaufe, ziehBegegnung, waehleInBegegnung, verlasseKnoten,
+    lauf: () => derLauf,
   };
 }
 
@@ -10299,7 +10706,7 @@ function betreteKnoten(id) {
         (mann ? ', ' + mann + ' Mann darauf' : ', unbesetzt') + '. Baue weiter.'
       : 'Besetze das Torhaus und baue Türme an den Wall.'));
   } else if (k.typ === 'haendler') {
-    oeffneHaendler();
+    altOeffneHaendler();
   } else if (k.typ === 'lager') {
     oeffneRast();
   } else if (k.typ === 'ereignis') {
@@ -10480,7 +10887,7 @@ function protoVon(id) { return CARD_POOL.find(c => c.id === id) || CARD_POOL[0];
 function gibKarte(proto) { state.discard.push(neueKarte(proto)); return state.discard[state.discard.length - 1]; }
 
 /** Streicht ein bestimmtes Exemplar aus dem Deck. */
-function entferneKarte(card) {
+function altEntferneKarte(card) {
   for (const stapel of [state.draw, state.hand, state.discard]) {
     const i = stapel.findIndex(c => c.uid === card.uid);
     if (i >= 0) { stapel.splice(i, 1); return true; }
@@ -10594,7 +11001,7 @@ function schliesseStation() {
 }
 
 // ---------- Marketender ----------
-function oeffneHaendler() {
+function altOeffneHaendler() {
   const angebot = ziehKarten(5).map(proto => ({
     proto,
     preis: Math.max(15, Math.round(SELTENHEIT[proto.sel || 'gewoehnlich'].preis * (0.85 + Math.random() * 0.3))),
@@ -10673,7 +11080,7 @@ function oeffneDeckwahl(modus, preis, nachher, zurueck) {
       card: c,
       aktion: () => {
         if (preis) state.sold -= preis;
-        if (streichen) entferneKarte(c); else schaerfeKarte(c);
+        if (streichen) altEntferneKarte(c); else schaerfeKarte(c);
         klang('sieg');
         zeigeStation(nachher(streichen
           ? c.name + ' bleibt zurück.'
