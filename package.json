@@ -5,7 +5,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "node scripts/serve.js"
+    "start": "node scripts/serve.js",
+    "test": "node scripts/pruefe.mjs"
   },
   "engines": {
     "node": ">=18"

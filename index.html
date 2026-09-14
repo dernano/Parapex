@@ -1381,6 +1381,812 @@
 
 
 <script>
+/* ============================================================
+ *  P A R A P E X  —  K E R N
+ * ============================================================
+ *
+ * Der neue Kampf. Fünf Türme, fünf Runden, ein Gegner mit einem einzigen
+ * Stärkewert. Karten sind Einheiten, Einheiten stehen auf Türmen, die
+ * Stellung der Türme zueinander ergibt Formationen, Formationen vervielfachen
+ * die Wucht.
+ *
+ * Dieser Block hat KEINE Verbindung zur Anzeige. Er kennt kein Dokument,
+ * keinen Zeichenkontext und keine Ereignisse des Browsers - er rechnet nur.
+ * Die Oberfläche liest hinterher `derKampf` und die Rückgabe von
+ * `berechneWucht`. Das ist Absicht: nur so lässt sich der Kern von aussen
+ * prüfen (siehe `scripts/pruefe.mjs`), und nur so kann die Anzeige später
+ * ausgetauscht werden, ohne die Regeln anzufassen.
+ *
+ * Alles, was Balance ist, steht in KERN. Nichts davon gehört in den Code
+ * darunter; wer eine Zahl sucht, soll sie an einer Stelle finden.
+ */
+
+const KERN = {
+  tuerme: 5,                  // so viele Stellungen hat die Burg
+  runden: 5,                  // so viele Runden hat ein Kampf
+  tatendrang: 5,              // je Runde, wird voll aufgefuellt
+  handGroesse: 7,             // so viele Karten liegen zu Rundenbeginn
+  kosten: {
+    einsetzen: 1,             // Einheit auf einen leeren Turm
+    ersetzen: 1,              // Einheit auf einen besetzten Turm
+    tauschen: 1,              // eine Handkarte gegen eine neue
+  },
+  turmFaktor: 1.25,           // Turmtyp passt zur Gattung
+  signalMaxTiefe: 8,          // Schutz gegen sich selbst ausloesende Ketten
+  formation: {
+    schuetzenlinie: { ab: 3 },
+    bolzenwall:     { ab: 3, faktor: 2 },
+    schwereBatterie:{ ab: 2, faktor: 2 },
+    pulverlinie:    { ab: 3, stufen: { 3: 2, 4: 3, 5: 5 } },
+    wechselfeuer:   { ab: 4, faktor: 2 },
+    zangenstellung: { ab: 3 },
+    vorrueckend:    { ab: 3, stufen: { 3: 1.5, 4: 2, 5: 3 } },
+    fallend:        { ab: 3, stufen: { 3: 1.75, 4: 2.5, 5: 4 } },
+    koenigshuegel:  { faktor: 2 },
+    geschlosseneFront: { faktor: 1.5 },
+  },
+  wappen: {
+    wolf: 0.25,               // je leerem Turm
+    drache: { jeder: 3, faktor: 2 },
+  },
+};
+
+// ---------- Gattungen ----------
+/*
+ * Vier Gattungen, keine Kartenfarben. Sie sollen sich später mechanisch
+ * unterscheiden, nicht nur farblich - die Formationen unten sind der Anfang
+ * davon: Bogen zielt auf Wiederholung, Armbrust auf Wucht, Artillerie auf
+ * Nachbarschaft, Kanonier auf Eskalation.
+ */
+const GATTUNGEN = {
+  bogen:      { id: 'bogen',      name: 'Bogenschützen',    kurz: 'Bogen',      farbe: '#4f7a3a', hell: '#86b05c', zeichen: '🏹' },
+  armbrust:   { id: 'armbrust',   name: 'Armbrustschützen', kurz: 'Armbrust',   farbe: '#2f5fa8', hell: '#6d9ede', zeichen: '🎯' },
+  artillerie: { id: 'artillerie', name: 'Artillerie',       kurz: 'Artillerie', farbe: '#8a6a2a', hell: '#c9a04a', zeichen: '⚙' },
+  kanonier:   { id: 'kanonier',   name: 'Kanoniere',        kurz: 'Kanonier',   farbe: '#a0392a', hell: '#d96b42', zeichen: '💥' },
+};
+const GATTUNG_LISTE = Object.keys(GATTUNGEN);
+
+// ---------- Die Ränge ----------
+/*
+ * Dreizehn Ränge je Gattung, vom Bauernjungen bis zum Marschall. Der Rang IST
+ * die Grundwucht (siehe `grundwucht`) - eine Zahl, die man auf der Karte
+ * liest, statt einer zweiten, die man nachschlagen muss.
+ */
+const RANG_NAMEN = {
+  bogen: ['Bauernschütze', 'Jagdschütze', 'Burgschütze', 'Waldschütze', 'Langbogenschütze',
+    'Grenzschütze', 'Veteranenschütze', 'Meisterschütze', 'Falkenschütze', 'Königlicher Schütze',
+    'Schützenhauptmann', 'Meister des Langbogens', 'Marschall der Schützen'],
+  armbrust: ['Bolzenschütze', 'Wacharmbruster', 'Fußarmbruster', 'Burgarmbruster', 'Spannknecht',
+    'Schwerer Armbruster', 'Pavese-Schütze', 'Veteranenarmbruster', 'Arbalestschütze',
+    'Meisterarmbruster', 'Scharfschütze', 'Hauptmann der Armbrust', 'Meister der Arbalest'],
+  artillerie: ['Steinschleuderer', 'Geschützgehilfe', 'Seilspanner', 'Windenmeister',
+    'Springald-Besatzung', 'Ballisten-Besatzung', 'Onager-Besatzung', 'Mangonel-Besatzung',
+    'Petraria-Besatzung', 'Trebuchet-Besatzung', 'Meister der Balliste', 'Belagerungsingenieur',
+    'Meister der Artillerie'],
+  kanonier: ['Pulverjunge', 'Luntenknecht', 'Pulverträger', 'Büchsenknecht', 'Geschützlademeister',
+    'Handrohrschütze', 'Feldschlange-Schütze', 'Bombardenknecht', 'Kanonier', 'Schwerer Kanonier',
+    'Bombardenmeister', 'Geschützmeister', 'Meisterkanonier'],
+};
+
+/** Die 52 Grundkarten: vier Gattungen mal dreizehn Ränge. */
+function baueEinheitenPool() {
+  const pool = [];
+  for (const g of GATTUNG_LISTE) {
+    RANG_NAMEN[g].forEach((name, i) => {
+      const rang = i + 1;
+      pool.push({
+        id: g + '-' + rang,
+        gattung: g,
+        rang,
+        name,
+        grundwucht: rang,        // Rang ist Wucht. Steht so in der Spezifikation.
+        wuchtBonus: 0,           // hebt ein Ausbau (siehe `verbessereEinheit`)
+        stufe: 0,                // 0 = ungeschliffen, 1+ = verbessert
+        schlagwort: null,        // später: eigene Regeln je Karte
+        text: '',
+      });
+    });
+  }
+  return pool;
+}
+const EINHEITEN_POOL = baueEinheitenPool();
+
+/** Ein Abzug aus dem Pool, mit eigener Kennung - zwei gleiche Karten sind zwei. */
+let kernUid = 0;
+function neueEinheit(proto) {
+  const p = typeof proto === 'string' ? EINHEITEN_POOL.find(k => k.id === proto) : proto;
+  if (!p) return null;
+  return { ...p, uid: 'k' + (++kernUid) };
+}
+
+/** Was eine Karte an blanker Wucht mitbringt, vor allem anderen. */
+function grundwucht(karte) {
+  return Math.max(0, karte.grundwucht + (karte.wuchtBonus || 0));
+}
+
+/** Verbessern hebt die Wucht, nicht den Rang: der Rang bleibt Formationssache. */
+function verbessereEinheit(karte, um = 2) {
+  karte.stufe = (karte.stufe || 0) + 1;
+  karte.wuchtBonus = (karte.wuchtBonus || 0) + um;
+  return karte;
+}
+
+/*
+ * Das Startdeck. Zwölf Karten, alle vier Gattungen, überwiegend niedrige
+ * Ränge - genug, um Formationen zu treffen, zu wenig, um eine zu erzwingen.
+ */
+const START_DECK = [
+  'bogen-2', 'bogen-3', 'bogen-4',
+  'armbrust-2', 'armbrust-4', 'armbrust-5',
+  'artillerie-2', 'artillerie-3', 'artillerie-5',
+  'kanonier-2', 'kanonier-3', 'kanonier-4',
+];
+
+// ---------- Turmtypen ----------
+/*
+ * Die fünf Stellungen bleiben über den Lauf; ihr TYP ist die langfristige
+ * Fortschrittsachse. Ein Typ ist bewusst kein blosser Prozentsatz: `faktor`
+ * ist nur die einfachste Form, `proTurm` darf jede Regel sein.
+ */
+const TURMTYPEN = {
+  wachturm:      { id: 'wachturm',      name: 'Wachturm',      modell: 'wachturm',   text: 'Keine Sonderregel.' },
+  schuetzenturm: { id: 'schuetzenturm', name: 'Schützenturm',  modell: 'turmwache',  gattung: 'bogen',      faktor: KERN.turmFaktor, text: 'Bogenschützen +25 % Wucht.' },
+  ballistenturm: { id: 'ballistenturm', name: 'Ballistenturm', modell: 'steinturm',  gattung: 'armbrust',   faktor: KERN.turmFaktor, text: 'Armbrustschützen +25 % Wucht.' },
+  geschuetzturm: { id: 'geschuetzturm', name: 'Geschützturm',  modell: 'doppelturm', gattung: 'artillerie', faktor: KERN.turmFaktor, text: 'Artillerie +25 % Wucht.' },
+  pulverturm:    { id: 'pulverturm',    name: 'Pulverturm',    modell: 'bergfried',  gattung: 'kanonier',   faktor: KERN.turmFaktor, text: 'Kanoniere +25 % Wucht.' },
+};
+const TURM_START = ['wachturm', 'wachturm', 'wachturm', 'wachturm', 'wachturm'];
+
+/** Was der Turmtyp mit der Wucht seiner Einheit macht. */
+function turmFaktor(turm) {
+  const typ = TURMTYPEN[turm.typ] || TURMTYPEN.wachturm;
+  if (!turm.einheit || !typ.gattung) return 1;
+  return turm.einheit.gattung === typ.gattung ? (typ.faktor || 1) : 1;
+}
+
+// ---------- Gegner ----------
+/*
+ * Ein Kampf hat EINEN Gegner mit einem Stärkewert. Dass auf dem Feld acht
+ * Räuber stehen, ist Bild und nicht Mechanik: sie teilen sich den Wert, haben
+ * keine eigenen Züge und kein eigenes Ziel. Damit fällt der lange Gegnerzug
+ * weg, der die halbe Kampfzeit gefressen hat.
+ *
+ * `regeln` ist der Platz für Sonderregeln (Schildwall, Sturmtrupp, Nebelheer).
+ * Sie sind noch nicht ausgeführt, aber der Gegner trägt sie schon, damit
+ * Bosse später Entscheidungen erzeugen können statt nur mehr Stärke.
+ */
+const FEIND_STAERKE = [150, 250, 450, 800, 1400, 2500, 5000, 10000, 25000, 60000];
+const FEIND_STAERKE_BOSS = 150000;
+
+const FEIND_VORLAGEN = [
+  { id: 'raeuber',   name: 'Räuberhorde',      figuren: 8, typ: 'spaeher' },
+  { id: 'soeldner',  name: 'Söldnerzug',       figuren: 6, typ: 'armbrust' },
+  { id: 'ritterzug', name: 'Ritterzug',        figuren: 5, typ: 'ritter' },
+  { id: 'belagerer', name: 'Belagerungspark',  figuren: 4, typ: 'ritter' },
+];
+
+function feindStaerke(station, boss) {
+  if (boss) return FEIND_STAERKE_BOSS;
+  const i = Math.max(1, Math.min(FEIND_STAERKE.length, station)) - 1;
+  return FEIND_STAERKE[i];
+}
+
+function baueFeind(station, { boss = false, vorlage = null, zuschlag = 1 } = {}) {
+  const v = vorlage
+    ? FEIND_VORLAGEN.find(f => f.id === vorlage) || FEIND_VORLAGEN[0]
+    : FEIND_VORLAGEN[Math.min(FEIND_VORLAGEN.length - 1, Math.floor((station - 1) / 3))];
+  const hp = Math.round(feindStaerke(station, boss) * zuschlag);
+  return { id: v.id, name: boss ? 'Belagerungsmeister' : v.name, figuren: v.figuren, typ: v.typ,
+    hp, maxHp: hp, regeln: [] };
+}
+
+// ---------- Wappen ----------
+/*
+ * Wappen sind keine Karten. Sie liegen neben dem Kampf und brechen Regeln -
+ * darum geben sie bewusst keine kleinen Prozentboni, sondern ändern, wie
+ * gerechnet wird. Jedes Wappen ist ein Datensatz mit Haken; der Kampf kennt
+ * keinen einzigen Wappennamen.
+ */
+const WAPPEN = {
+  loewe: {
+    id: 'loewe', name: 'Wappen des Löwen',
+    text: 'Der mittlere Turm zählt seinen Rang doppelt.',
+    rangFaktor: (turm, i) => (i === 2 ? 2 : 1),
+  },
+  doppeladler: {
+    id: 'doppeladler', name: 'Wappen des Doppeladlers',
+    text: 'Turm 1 und Turm 5 gelten als benachbart.',
+    ring: true,
+  },
+  wolf: {
+    id: 'wolf', name: 'Wappen des Wolfs',
+    text: 'Je leerem Turm +25 % Gesamtwucht.',
+    gesamtFaktor: (ctx) => 1 + KERN.wappen.wolf * ctx.tuerme.filter(t => !t.einheit).length,
+  },
+  eber: {
+    id: 'eber', name: 'Wappen des Ebers',
+    text: 'Eine ersetzte Einheit feuert ein letztes Mal.',
+    horcht: { einheitErsetzt: (daten) => { if (daten.alt) schiesseEinzeln(daten.alt, daten.turm, 'Wappen des Ebers'); } },
+  },
+  schlange: {
+    id: 'schlange', name: 'Wappen der Schlange',
+    text: 'Der erste Kartentausch jeder Runde kostet nichts.',
+    tauschRabatt: (kampf) => (kampf.tauschInRunde === 0 ? KERN.kosten.tauschen : 0),
+  },
+  drache: {
+    id: 'drache', name: 'Wappen des Drachen',
+    text: 'Jeder dritte Nachschuss einer Runde zählt doppelt.',
+    retriggerFaktor: (nummer) => (nummer % KERN.wappen.drache.jeder === 0 ? KERN.wappen.drache.faktor : 1),
+  },
+};
+const WAPPEN_LISTE = Object.keys(WAPPEN);
+const WAPPEN_PLAETZE = 5;
+
+// ---------- Signale ----------
+/*
+ * Ein kleiner Ereignisbus. Wappen, Turmtypen und später Karten hängen sich
+ * hier ein, statt dass der Kampf ihre Namen kennt - sonst steht am Ende ein
+ * if/else-Block mit fünfzig Wappen-Kennungen mitten in der Regel.
+ *
+ * `signalTiefe` ist der Schutz gegen Ketten, die sich selbst auslösen: ein
+ * Wappen, das auf `einheitFeuert` hört und dabei feuern lässt, würde sonst
+ * das Blatt bis zum Stapelüberlauf beschäftigen.
+ */
+const SIGNALE = ['rundeBeginnt', 'karteGezogen', 'karteGetauscht', 'einheitGesetzt',
+  'einheitErsetzt', 'einheitEntfernt', 'formationAktiv', 'einheitFeuert', 'nachschuss',
+  'salve', 'rundeEndet', 'feindBesiegt', 'kampfEndet'];
+
+let signalHoerer = {};
+let signalTiefe = 0;
+let signalUeberlauf = 0;
+
+function hoereSignal(name, was) {
+  if (!signalHoerer[name]) signalHoerer[name] = [];
+  signalHoerer[name].push(was);
+}
+
+function sendeSignal(name, daten = {}) {
+  if (signalTiefe >= KERN.signalMaxTiefe) { signalUeberlauf++; return; }
+  signalTiefe++;
+  try {
+    for (const was of signalHoerer[name] || []) was(daten);
+  } finally { signalTiefe--; }
+}
+
+function leereSignale() { signalHoerer = {}; signalTiefe = 0; signalUeberlauf = 0; }
+
+// ---------- Formationen ----------
+/*
+ * Die Formationserkennung ist ein eigenes Stück: Türme rein, Ergebnisse raus.
+ * Sie kennt weder Anzeige noch Kampfzustand, und jede Formation ist ein
+ * Datensatz mit einer `finde`-Funktion - neue kommen dazu, ohne dass die
+ * Maschine sich ändert.
+ *
+ * Wichtig: Formationen überlappen sich absichtlich. Fünf Türme können
+ * gleichzeitig vier Formationen erfüllen, und genau daraus entsteht die
+ * Eskalation. Deshalb gibt jede Formation ihre betroffenen Türme zurück und
+ * nicht einfach eine Zahl.
+ *
+ * Jeder Treffer darf tragen:
+ *   tuerme    welche Stellungen beteiligt sind
+ *   proTurm   Faktor auf die Wucht JEDER beteiligten Einheit
+ *   gesamt    Faktor auf die Gesamtwucht
+ *   nachschuss  diese Türme feuern ein weiteres Mal
+ */
+const FORMATIONEN = [
+  {
+    id: 'schuetzenlinie', name: 'Schützenlinie',
+    text: 'Drei benachbarte Bogenschützen feuern ein zweites Mal.',
+    finde(ctx) {
+      return ctx.folgen(t => t.einheit && t.einheit.gattung === 'bogen')
+        .filter(f => f.length >= KERN.formation.schuetzenlinie.ab)
+        .map(f => ({ tuerme: f, nachschuss: f }));
+    },
+  },
+  {
+    id: 'bolzenwall', name: 'Bolzenwall',
+    text: 'Drei Armbrustschützen in der Burg verdoppeln ihre Wucht.',
+    finde(ctx) {
+      const wer = ctx.mit(t => t.einheit && t.einheit.gattung === 'armbrust');
+      if (wer.length < KERN.formation.bolzenwall.ab) return [];
+      return [{ tuerme: wer, proTurm: KERN.formation.bolzenwall.faktor }];
+    },
+  },
+  {
+    id: 'schwereBatterie', name: 'Schwere Batterie',
+    text: 'Zwei benachbarte Artillerie-Einheiten verdoppeln ihre Wucht.',
+    finde(ctx) {
+      return ctx.folgen(t => t.einheit && t.einheit.gattung === 'artillerie')
+        .filter(f => f.length >= KERN.formation.schwereBatterie.ab)
+        .map(f => ({ tuerme: f, proTurm: KERN.formation.schwereBatterie.faktor }));
+    },
+  },
+  {
+    id: 'pulverlinie', name: 'Pulverlinie',
+    text: 'Drei Kanoniere ×2, vier ×3, fünf ×5.',
+    finde(ctx) {
+      const wer = ctx.mit(t => t.einheit && t.einheit.gattung === 'kanonier');
+      const stufen = KERN.formation.pulverlinie.stufen;
+      const faktor = stufen[Math.min(KERN.tuerme, wer.length)];
+      if (wer.length < KERN.formation.pulverlinie.ab || !faktor) return [];
+      return [{ tuerme: wer, proTurm: faktor }];
+    },
+  },
+  {
+    id: 'wechselfeuer', name: 'Wechselfeuer',
+    text: 'Vier benachbarte Türme mit abwechselnden Gattungen: ×2.',
+    finde(ctx) {
+      const treffer = [];
+      for (const folge of ctx.folgen(t => Boolean(t.einheit))) {
+        // Die längste Strecke suchen, auf der sich genau zwei Gattungen abwechseln
+        let anfang = 0;
+        for (let i = 1; i <= folge.length; i++) {
+          const bricht = i === folge.length ||
+            ctx.tuerme[folge[i]].einheit.gattung === ctx.tuerme[folge[i - 1]].einheit.gattung ||
+            (i - anfang >= 2 &&
+              ctx.tuerme[folge[i]].einheit.gattung !== ctx.tuerme[folge[i - 2]].einheit.gattung);
+          if (!bricht) continue;
+          const stueck = folge.slice(anfang, i);
+          if (stueck.length >= KERN.formation.wechselfeuer.ab) {
+            treffer.push({ tuerme: stueck, proTurm: KERN.formation.wechselfeuer.faktor });
+          }
+          anfang = i - 1;
+        }
+      }
+      return treffer;
+    },
+  },
+  {
+    id: 'zangenstellung', name: 'Zangenstellung',
+    text: 'Gleiche Gattung an beiden Enden einer Reihe: beide feuern erneut.',
+    finde(ctx) {
+      return ctx.folgen(t => Boolean(t.einheit))
+        .filter(f => f.length >= KERN.formation.zangenstellung.ab &&
+          ctx.tuerme[f[0]].einheit.gattung === ctx.tuerme[f[f.length - 1]].einheit.gattung)
+        .map(f => {
+          const enden = [f[0], f[f.length - 1]];
+          return { tuerme: enden, nachschuss: enden };
+        });
+    },
+  },
+  {
+    id: 'vorrueckend', name: 'Vorrückende Salve',
+    text: 'Drei benachbarte Türme mit steigenden Rängen: ×1,5 · vier ×2 · fünf ×3.',
+    finde(ctx) { return ctx.monoton(1, KERN.formation.vorrueckend); },
+  },
+  {
+    id: 'fallend', name: 'Fallende Salve',
+    text: 'Drei benachbarte Türme mit fallenden Rängen: ×1,75 · vier ×2,5 · fünf ×4.',
+    finde(ctx) { return ctx.monoton(-1, KERN.formation.fallend); },
+  },
+  {
+    id: 'koenigshuegel', name: 'Königshügel',
+    text: 'Der mittlere Turm trägt den höchsten Rang: sein Rang zählt doppelt.',
+    finde(ctx) {
+      const mitte = Math.floor(KERN.tuerme / 2);
+      const t = ctx.tuerme[mitte];
+      if (!t || !t.einheit) return [];
+      const andere = ctx.mit(x => Boolean(x.einheit)).filter(i => i !== mitte);
+      if (!andere.length) return [];
+      const hoechste = Math.max(...andere.map(i => ctx.rang(i)));
+      if (ctx.rang(mitte) <= hoechste) return [];
+      return [{ tuerme: [mitte], proTurm: KERN.formation.koenigshuegel.faktor }];
+    },
+  },
+  {
+    id: 'geschlosseneFront', name: 'Geschlossene Front',
+    text: 'Alle fünf Türme besetzt: Gesamtwucht ×1,5.',
+    finde(ctx) {
+      // Fünf besetzte Türme, nicht "keiner leer": eine Probeaufstellung mit
+      // nur einem Turm ist keine geschlossene Front, auch wenn nichts fehlt.
+      if (ctx.tuerme.length < KERN.tuerme) return [];
+      if (ctx.tuerme.some(t => !t.einheit)) return [];
+      return [{ tuerme: ctx.tuerme.map((_, i) => i), gesamt: KERN.formation.geschlosseneFront.faktor }];
+    },
+  },
+];
+
+/**
+ * Der Zusammenhang, in dem eine Formation sucht: die Türme, dazu ein paar
+ * Fragen, die fast jede Formation stellt. Der Ring kommt vom Doppeladler -
+ * mit ihm sind Turm 1 und Turm 5 benachbart, und alle Nachbarschaftsregeln
+ * gelten plötzlich anders. Genau dafür sind Wappen da.
+ */
+function baueFormationsKontext(tuerme, wappen = []) {
+  const ring = wappen.some(w => WAPPEN[w] && WAPPEN[w].ring);
+  const rangFaktoren = wappen.map(w => WAPPEN[w] && WAPPEN[w].rangFaktor).filter(Boolean);
+
+  const rang = (i) => {
+    const t = tuerme[i];
+    if (!t || !t.einheit) return 0;
+    return rangFaktoren.reduce((r, f) => r * (f(t, i) || 1), t.einheit.rang);
+  };
+
+  /** Alle Stellungen, auf die `pruefe` zutrifft. */
+  const mit = (pruefe) => tuerme.map((t, i) => (pruefe(t, i) ? i : -1)).filter(i => i >= 0);
+
+  /**
+   * Zusammenhängende Läufe, auf die `pruefe` zutrifft. Mit Ring wird über das
+   * Ende hinaus gesucht, aber nie länger als die Burg breit ist.
+   */
+  const folgen = (pruefe) => {
+    const n = tuerme.length;
+    const ok = tuerme.map((t, i) => pruefe(t, i));
+    const raus = [];
+    if (ok.every(Boolean) && ring) return [tuerme.map((_, i) => i)];
+    for (let start = 0; start < n; start++) {
+      if (!ok[start]) continue;
+      if (!ring && start > 0 && ok[start - 1]) continue;           // schon Teil eines Laufs
+      if (ring && ok[(start - 1 + n) % n]) continue;
+      const lauf = [];
+      for (let k = 0; k < n; k++) {
+        const i = ring ? (start + k) % n : start + k;
+        if (i >= n || !ok[i]) break;
+        lauf.push(i);
+      }
+      if (lauf.length) raus.push(lauf);
+    }
+    return raus;
+  };
+
+  /** Streng steigende (+1) oder fallende (-1) Rangketten unter Nachbarn. */
+  const monoton = (richtung, regel) => {
+    const treffer = [];
+    for (const folge of folgen(t => Boolean(t.einheit))) {
+      let anfang = 0;
+      for (let i = 1; i <= folge.length; i++) {
+        const weiter = i < folge.length &&
+          (richtung > 0 ? rang(folge[i]) > rang(folge[i - 1]) : rang(folge[i]) < rang(folge[i - 1]));
+        if (weiter) continue;
+        const stueck = folge.slice(anfang, i);
+        const faktor = regel.stufen[Math.min(KERN.tuerme, stueck.length)];
+        if (stueck.length >= regel.ab && faktor) treffer.push({ tuerme: stueck, proTurm: faktor });
+        anfang = i;
+      }
+    }
+    return treffer;
+  };
+
+  return { tuerme, wappen, ring, rang, mit, folgen, monoton };
+}
+
+/**
+ * Welche Formationen die Burg gerade erfüllt. Reine Rechnung, kein Zustand:
+ * dieselben Türme ergeben immer dasselbe Ergebnis. Die Oberfläche ruft das
+ * auch für die Vorschau auf, während eine Karte über einem Turm hängt.
+ */
+function erkenneFormationen(tuerme, wappen = []) {
+  const ctx = baueFormationsKontext(tuerme, wappen);
+  const raus = [];
+  for (const f of FORMATIONEN) {
+    for (const treffer of f.finde(ctx) || []) {
+      raus.push({
+        id: f.id, name: f.name, text: f.text,
+        tuerme: treffer.tuerme,
+        proTurm: treffer.proTurm || 1,
+        gesamt: treffer.gesamt || 1,
+        nachschuss: treffer.nachschuss || [],
+      });
+    }
+  }
+  return raus;
+}
+
+// ---------- Wucht ----------
+/*
+ * Die Rechenkette, in dieser Reihenfolge:
+ *
+ *   je Turm:  Rang + Ausbau
+ *             × Turmtyp
+ *             × Formationen (proTurm)
+ *             × Schüsse (1 + Nachschüsse)
+ *   Summe     × Formationen (gesamt)
+ *             × Wappen (gesamt)
+ *
+ * Multiplikativ und ohne Deckel - eine Burg, die vier Formationen gleichzeitig
+ * erfüllt, soll vierstellig zuschlagen. Die Rückgabe ist ein Protokoll und
+ * nicht nur eine Zahl: die Anzeige soll später Schritt für Schritt hochzählen
+ * können, und beim Nachrechnen will man sehen, wo die Zahl herkommt.
+ */
+function berechneWucht(tuerme, wappen = []) {
+  const formationen = erkenneFormationen(tuerme, wappen);
+  const besetzt = tuerme.map((t, i) => (t.einheit ? i : -1)).filter(i => i >= 0);
+
+  const posten = besetzt.map(i => {
+    const t = tuerme[i];
+    const basis = grundwucht(t.einheit);
+    const tf = turmFaktor(t);
+    return { turm: i, name: t.einheit.name, gattung: t.einheit.gattung, rang: t.einheit.rang,
+      basis, turmFaktor: tf, wucht: basis * tf, faktoren: [], schuesse: 1 };
+  });
+  const finde = (i) => posten.find(p => p.turm === i);
+
+  const schritte = [];
+  const summe = () => posten.reduce((s, p) => s + p.wucht * p.schuesse, 0);
+  schritte.push({ art: 'grund', name: 'Grundwucht', wert: null, wucht: summe() });
+
+  // Formationen: erst die Faktoren auf einzelne Türme
+  for (const f of formationen) {
+    if (f.proTurm === 1) continue;
+    for (const i of f.tuerme) {
+      const p = finde(i);
+      if (!p) continue;
+      p.wucht *= f.proTurm;
+      p.faktoren.push({ name: f.name, wert: f.proTurm });
+    }
+    schritte.push({ art: 'formation', id: f.id, name: f.name, wert: f.proTurm, wucht: summe() });
+  }
+
+  // Dann die Nachschüsse. Das Drachenwappen zählt sie mit.
+  const drache = wappen.map(w => WAPPEN[w] && WAPPEN[w].retriggerFaktor).filter(Boolean);
+  let nachschussNr = 0;
+  for (const f of formationen) {
+    for (const i of f.nachschuss) {
+      const p = finde(i);
+      if (!p) continue;
+      nachschussNr++;
+      const bonus = drache.reduce((b, fn) => b * (fn(nachschussNr) || 1), 1);
+      p.schuesse += 1 * bonus;
+      p.faktoren.push({ name: f.name + ' (Nachschuss)', wert: bonus > 1 ? '×2 Nachschuss' : '+1 Schuss' });
+      sendeSignal('nachschuss', { turm: i, formation: f.id, nummer: nachschussNr });
+    }
+    if (f.nachschuss.length) {
+      schritte.push({ art: 'nachschuss', id: f.id, name: f.name, wert: f.nachschuss.length, wucht: summe() });
+    }
+  }
+
+  // Zuletzt, was auf die ganze Burg wirkt
+  let gesamt = summe();
+  for (const f of formationen) {
+    if (f.gesamt === 1) continue;
+    gesamt *= f.gesamt;
+    schritte.push({ art: 'formation', id: f.id, name: f.name, wert: f.gesamt, wucht: gesamt });
+  }
+  const ctx = { tuerme, wappen };
+  for (const w of wappen) {
+    const fn = WAPPEN[w] && WAPPEN[w].gesamtFaktor;
+    if (!fn) continue;
+    const faktor = fn(ctx) || 1;
+    if (faktor === 1) continue;
+    gesamt *= faktor;
+    schritte.push({ art: 'wappen', id: w, name: WAPPEN[w].name, wert: faktor, wucht: gesamt });
+  }
+
+  return {
+    posten, formationen, schritte,
+    grund: posten.reduce((s, p) => s + p.basis, 0),
+    wucht: Math.round(gesamt),
+  };
+}
+
+// ---------- Der Kampf ----------
+/*
+ * Fünf Runden, mehr gibt es nicht. Der Gegner hat einen Wert, der Spieler hat
+ * Tatendrang, und die einzige Frage ist: reicht die Wucht, die ich in fünf
+ * Runden aufbaue? Es gibt keinen Block, keine Verteidigungskarte und keinen
+ * Grund, Zeit zu schinden.
+ */
+let derKampf = null;
+
+function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START } = {}) {
+  leereSignale();
+  const k = {
+    runde: 1,
+    rundenMax: KERN.runden,
+    tatendrang: KERN.tatendrang,
+    tatendrangMax: KERN.tatendrang,
+    tauschInRunde: 0,
+    tuerme: Array.from({ length: KERN.tuerme }, (_, i) => ({
+      nr: i + 1, typ: turmTypen[i] || 'wachturm', einheit: null,
+    })),
+    zug: (deck || START_DECK.map(id => neueEinheit(id))).slice(),
+    hand: [],
+    ablage: [],
+    wappen: wappen.slice(0, WAPPEN_PLAETZE),
+    feind: feind || baueFeind(1),
+    ende: null,           // null | 'sieg' | 'niederlage'
+    log: [],              // was in dieser Runde geschah, für Anzeige und Prüfung
+  };
+  derKampf = k;
+  mischeZug();
+  // Wappen hängen sich ein, sobald der Kampf steht - nicht der Kampf kennt sie.
+  for (const w of k.wappen) {
+    const horcht = WAPPEN[w] && WAPPEN[w].horcht;
+    for (const name in horcht || {}) hoereSignal(name, horcht[name]);
+  }
+  sendeSignal('rundeBeginnt', { runde: 1 });
+  zieheAuf(KERN.handGroesse);
+  return k;
+}
+
+function mischeZug() {
+  const k = derKampf;
+  for (let i = k.zug.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [k.zug[i], k.zug[j]] = [k.zug[j], k.zug[i]];
+  }
+}
+
+/** Eine Karte vom Zugstapel. Ist er leer, wird die Ablage zum neuen Stapel. */
+function ziehe() {
+  const k = derKampf;
+  if (!k.zug.length) {
+    if (!k.ablage.length) return null;
+    k.zug = k.ablage;
+    k.ablage = [];
+    mischeZug();
+  }
+  const karte = k.zug.pop();
+  if (karte) { k.hand.push(karte); sendeSignal('karteGezogen', { karte }); }
+  return karte;
+}
+
+function zieheAuf(anzahl) {
+  let gezogen = 0;
+  while (derKampf.hand.length < anzahl) {
+    if (!ziehe()) break;
+    gezogen++;
+  }
+  return gezogen;
+}
+
+/** Reicht der Tatendrang für diese Handlung? */
+function kostetZuViel(kosten) { return kosten > derKampf.tatendrang; }
+
+/**
+ * Eine Einheit auf einen Turm. Steht dort schon jemand, wird er ersetzt und
+ * wandert in die Ablage - die Wahrscheinlichkeiten im Stapel verschieben sich
+ * dadurch während des Kampfes, und das ist beabsichtigt.
+ *
+ * Die neue Einheit feuert sofort einmal. Der Rest ihrer Wucht kommt am
+ * Rundenende mit der Salve.
+ */
+function setzeEinheit(index, karte) {
+  const k = derKampf;
+  if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
+  const turm = k.tuerme[index];
+  if (!turm) return { ok: false, grund: 'Diesen Turm gibt es nicht.' };
+  const inHand = k.hand.find(c => c.uid === karte.uid);
+  if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
+  const kosten = turm.einheit ? KERN.kosten.ersetzen : KERN.kosten.einsetzen;
+  if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
+
+  k.tatendrang -= kosten;
+  k.hand = k.hand.filter(c => c.uid !== karte.uid);
+  const alt = turm.einheit;
+  turm.einheit = inHand;
+  if (alt) {
+    k.ablage.push(alt);
+    sendeSignal('einheitErsetzt', { turm: index, alt, neu: inHand });
+    sendeSignal('einheitEntfernt', { turm: index, einheit: alt });
+  }
+  sendeSignal('einheitGesetzt', { turm: index, einheit: inHand });
+  const schaden = schiesseEinzeln(inHand, index, 'Einsatz');
+  return { ok: true, kosten, ersetzt: alt, schaden };
+}
+
+/**
+ * Ein einzelner Schuss - beim Einsetzen, und für Wappen, die eine Einheit
+ * ausserhalb der Salve feuern lassen. Rechnet mit derselben Kette wie die
+ * Salve, nur für einen Turm.
+ */
+function schiesseEinzeln(einheit, index, quelle) {
+  const k = derKampf;
+  if (!k || k.ende) return 0;
+  const turm = k.tuerme[index] || { typ: 'wachturm', einheit };
+  const wucht = Math.round(grundwucht(einheit) * turmFaktor({ ...turm, einheit }));
+  sendeSignal('einheitFeuert', { turm: index, einheit, wucht, quelle });
+  trefferAufFeind(wucht, quelle);
+  k.log.push({ art: 'schuss', quelle, turm: index, einheit: einheit.name, wucht });
+  return wucht;
+}
+
+/** Eine Handkarte gegen eine neue tauschen. Das ist der Ersatz fürs Abwerfen. */
+function tauscheHandkarte(karte) {
+  const k = derKampf;
+  if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
+  const inHand = k.hand.find(c => c.uid === karte.uid);
+  if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
+  const kosten = Math.max(0, KERN.kosten.tauschen - tauschRabatt());
+  if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
+
+  k.tatendrang -= kosten;
+  k.tauschInRunde++;
+  k.hand = k.hand.filter(c => c.uid !== karte.uid);
+  k.ablage.push(inHand);
+  const neu = ziehe();
+  sendeSignal('karteGetauscht', { alt: inHand, neu });
+  return { ok: true, kosten, neu };
+}
+
+/** Was der Tausch gerade billiger ist - das Schlangenwappen zahlt den ersten. */
+function tauschRabatt() {
+  const k = derKampf;
+  return k.wappen.reduce((r, w) => {
+    const fn = WAPPEN[w] && WAPPEN[w].tauschRabatt;
+    return Math.max(r, fn ? fn(k) : 0);
+  }, 0);
+}
+
+function tauschKosten() { return Math.max(0, KERN.kosten.tauschen - tauschRabatt()); }
+
+/** Schaden am Gegner, an einer einzigen Stelle - damit der Sieg nur hier fällt. */
+function trefferAufFeind(wucht, quelle) {
+  const k = derKampf;
+  if (!k || k.ende || wucht <= 0) return;
+  k.feind.hp = Math.max(0, k.feind.hp - wucht);
+  if (k.feind.hp <= 0 && !k.ende) {
+    k.ende = 'sieg';
+    sendeSignal('feindBesiegt', { quelle });
+    sendeSignal('kampfEndet', { ende: 'sieg' });
+  }
+}
+
+/**
+ * Runde beenden: die ganze Besatzung feuert gemeinsam, dann wird abgerechnet.
+ * Nach der fünften Runde ist Schluss - wer den Gegner bis dahin nicht
+ * niedergerungen hat, hat verloren. Es gibt keine sechste.
+ */
+function beendeRunde() {
+  const k = derKampf;
+  if (!k || k.ende) return { ende: k && k.ende };
+
+  const abrechnung = berechneWucht(k.tuerme, k.wappen);
+  sendeSignal('salve', { wucht: abrechnung.wucht });
+  trefferAufFeind(abrechnung.wucht, 'Salve');
+  k.log.push({ art: 'salve', runde: k.runde, wucht: abrechnung.wucht });
+  sendeSignal('rundeEndet', { runde: k.runde, wucht: abrechnung.wucht });
+
+  if (k.ende === 'sieg') return { ende: 'sieg', abrechnung };
+  if (k.runde >= k.rundenMax) {
+    k.ende = 'niederlage';
+    sendeSignal('kampfEndet', { ende: 'niederlage' });
+    return { ende: 'niederlage', abrechnung };
+  }
+
+  // Nächste Runde: Hand abwerfen, neu ziehen, Tatendrang auffüllen.
+  k.ablage.push(...k.hand);
+  k.hand = [];
+  k.runde++;
+  k.tatendrang = k.tatendrangMax;
+  k.tauschInRunde = 0;
+  sendeSignal('rundeBeginnt', { runde: k.runde });
+  zieheAuf(KERN.handGroesse);
+  return { ende: null, abrechnung, runde: k.runde };
+}
+
+/**
+ * Was die Burg wöge, wenn diese Karte auf diesem Turm stünde. Für die
+ * Vorschau, während eine Karte über einem Turm hängt - der Spieler soll
+ * Kombinationen sehen, statt sie im Kopf auszurechnen.
+ */
+function vorschau(index, karte) {
+  const k = derKampf;
+  const probe = k.tuerme.map((t, i) => (i === index ? { ...t, einheit: karte } : { ...t }));
+  return berechneWucht(probe, k.wappen);
+}
+
+/** Der Kampf ist vorbei: die Besatzung räumt die Türme, die Gebäude bleiben. */
+function raeumeKampf() {
+  if (!derKampf) return;
+  for (const t of derKampf.tuerme) t.einheit = null;
+  leereSignale();
+}
+
+/* Für die Prüfskripte: der Kern ist von aussen ansprechbar. */
+if (typeof window !== 'undefined') {
+  window.PARAPEX = {
+    KERN, GATTUNGEN, RANG_NAMEN, EINHEITEN_POOL, START_DECK, TURMTYPEN, TURM_START,
+    FORMATIONEN, WAPPEN, SIGNALE, FEIND_STAERKE,
+    neueEinheit, grundwucht, verbessereEinheit, baueFeind, feindStaerke,
+    erkenneFormationen, berechneWucht, vorschau,
+    neuerKampf, setzeEinheit, tauscheHandkarte, tauschKosten, beendeRunde,
+    ziehe, zieheAuf, raeumeKampf, hoereSignal, sendeSignal,
+    kampf: () => derKampf,
+    ueberlauf: () => signalUeberlauf,
+  };
+}
+
 // ============================================================
 //  Castle Master - Daten und Spielzustand
 // ============================================================
