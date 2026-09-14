@@ -1,12 +1,16 @@
 {
-  "name": "castle-master",
+  "name": "parapex",
   "version": "0.1.0",
-  "description": "Castle Master - rundenbasiertes Deckbuilding-Kartenspiel im Browser.",
+  "description": "Parapex - Deckbuilder-Roguelike im Browser. Fuenf Tuerme, fuenf Runden, ein Gegner.",
   "type": "module",
   "private": true,
   "scripts": {
     "start": "node scripts/serve.js",
-    "test": "node scripts/pruefe.mjs"
+    "test": "node scripts/pruefe.mjs",
+    "bot": "node scripts/bot.mjs",
+    "kurve": "node scripts/kurve.mjs",
+    "lauftest": "node scripts/lauftest.mjs",
+    "tot": "node scripts/erreichbar.mjs"
   },
   "engines": {
     "node": ">=18"
