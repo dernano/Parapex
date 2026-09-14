@@ -120,73 +120,29 @@
   #hilfe, #einst, #reward, #route, #werkstatt, #schluss {
     zoom: var(--bedien, 1);
   }
-
-  #hud-row {
-    position: absolute; left: 8px; right: 8px; top: 8px; z-index: 8;
-    display: flex; justify-content: space-between; align-items: flex-start;
-    gap: 6px; flex-wrap: wrap; pointer-events: none;
-  }
-  #hud-row > * { pointer-events: auto; }
   #hud-row .hud-left { margin-right: auto; }
-  #hud-row .hud-right { margin-left: auto; }
-  #hilfe-farben { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
-  #hilfe-farben span { display: flex; align-items: center; gap: 5px; }
-  #hilfe-farben canvas { image-rendering: pixelated; }
   .hud { display: flex; gap: 4px; padding: 4px 5px; align-items: center; }
 
   /* Gemalte Sinnbilder sitzen als Hintergrund in einem festen Kaestchen. */
   i.ic { display: inline-block; width: 22px; height: 22px; flex: none;
     background: center/contain no-repeat; image-rendering: pixelated;
     filter: drop-shadow(0 1px 0 rgba(0,0,0,0.55)); }
-
-  .chip { display: flex; align-items: center; gap: 5px; padding: 3px 7px; font-size: 14px; white-space: nowrap; }
-  .chip + .chip { border-left: 1px solid rgba(0,0,0,0.45); box-shadow: inset 1px 0 0 rgba(255,255,255,0.07); }
-  .chip b { font-size: 16px; letter-spacing: 0;
-    text-shadow: 0 2px 0 rgba(0,0,0,0.6); }
   .chip.burg b { color: #f0b4a2; }
   .chip.sold b { color: var(--gold); }
   .chip.schuss b { color: #ffd166; }
-  .chip.dim { color: var(--muted); }
-  .chip.dim b { color: var(--parchment-dark); }
-  .chip .saeule { display: flex; align-items: baseline; }
   .chip .klein { font-size: 11px; color: var(--muted); }
-
-  /* Tatendrang als abzaehlbare Flammen statt als Bruchzahl. */
-  .pips { display: flex; gap: 3px; align-items: center; }
-  .pips i { width: 7px; height: 11px; border-radius: 3px 3px 2px 2px;
-    background: linear-gradient(180deg, #ffd977, #d8862c);
-    box-shadow: 0 0 5px rgba(240,180,80,0.55), inset 0 -2px 0 rgba(0,0,0,0.25); }
   .pips i.leer { background: #2b2119; box-shadow: inset 0 1px 0 rgba(0,0,0,0.7); }
 
   .balken { display: block; width: 40px; height: 5px; background: #2a1512;
     border-radius: 2px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.8); }
   .balken i { display: block; height: 100%; background: linear-gradient(90deg, #e0715c, #9c2d2a); }
-
-  /* ---------- Die Frist: das Herzstueck der Anzeige ---------- */
-  #frist-tafel {
-    display: flex; align-items: center; gap: 7px; padding: 3px 12px 4px;
-    background: linear-gradient(180deg, #2b2117, #191208);
-    border: 2px solid #6b5535; border-radius: 6px;
-    box-shadow: inset 0 1px 0 rgba(255,235,190,0.16), inset 0 -10px 14px -10px rgba(0,0,0,0.9),
-      0 4px 0 rgba(0,0,0,0.6), 0 8px 18px rgba(0,0,0,0.5);
-  }
   #frist-tafel i.ic { width: 30px; height: 30px; }
-  #frist-zahl { font-size: 30px; line-height: 1;
-    color: var(--parchment); text-shadow: 0 3px 0 rgba(0,0,0,0.65); }
-  .frist-wort { font-size: 9px; line-height: 1.15; color: var(--muted);
-    text-transform: uppercase; letter-spacing: 0.08em; }
   #frist-tafel.knapp { border-color: #b34a34; }
   #frist-tafel.knapp #frist-zahl { color: #ff9a6e; animation: fristPochen 0.75s ease-in-out infinite; }
   #frist-tafel.knapp .frist-wort { color: #d8836a; }
 
   .wave { display: flex; flex-direction: column; gap: 3px; min-width: 124px; padding: 2px 7px 4px; }
-  .wave-top { display: flex; align-items: center; gap: 6px; font-size: 11.5px;
-    font-family: var(--anzeige); font-weight: 700; }
-  .wave-top b { font-size: 14px; }
-  .wave-top .foes { color: #f0b4a2; margin-left: auto; display: flex; align-items: center; gap: 4px; }
   @keyframes fristPochen { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.16); } }
-  .wave-bar { height: 5px; background: #3a1a1a; border-radius: 2px; overflow: hidden; }
-  .wave-bar i { display: block; height: 100%; background: linear-gradient(90deg, #e0503c, #8c2230); }
 
   .icon-btn {
     width: 28px; height: 28px; display: grid; place-items: center;
@@ -204,11 +160,6 @@
     display: grid; place-items: center;
     background: rgba(8, 6, 5, 0.88);
   }
-  #schluss-zahlen { display: flex; justify-content: center; gap: 14px; margin: 4px 0 14px; flex-wrap: wrap; }
-  #schluss-zahlen span { font-family: var(--fliess); font-size: 11px; color: var(--muted);
-    display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  #schluss-zahlen b { font-size: 20px; color: var(--parchment);
-    text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
 
   #reward {
     position: absolute; inset: 0; z-index: 5;
@@ -217,18 +168,7 @@
     background: rgba(8, 6, 5, 0.82);
     border-radius: 4px;
   }
-  .reward-box {
-    padding: 16px 20px; text-align: center; max-width: 92%;
-    max-height: 100%; display: flex; flex-direction: column;
-  }
   .reward-box > h2, .reward-box > p, .reward-box > .ghost-btn { flex: none; }
-  .reward-box h2 { margin: 0 0 4px; font-family: var(--pixel); font-size: 26px; font-weight: 700;
-    color: var(--gold); letter-spacing: 0.03em; text-shadow: 0 3px 0 rgba(0,0,0,0.6); }
-  .reward-box p { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
-  #reward-cards {
-    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px;
-    flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: 2px; scrollbar-width: thin;
-  }
   .ghost-btn {
     background: var(--panel-2); color: var(--muted); border: 2px solid var(--frame);
     border-radius: 6px; padding: 8px 16px; font-family: var(--anzeige); font-weight: 700;
@@ -237,17 +177,8 @@
   }
   .ghost-btn:active { transform: translateY(3px); box-shadow: none; }
   .ghost-btn:hover { color: var(--text); border-color: var(--frame-hi); }
-
-  /* Meldungen schweben ueber der Bruestung, ohne eigenen Kasten */
-  #lines {
-    position: absolute; left: 0; right: 0; bottom: var(--zeilen-unten, 31.5%);
-    text-align: center; pointer-events: none; z-index: 3;
-    text-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 1px 0 rgba(0,0,0,0.9);
-  }
   #message { font-family: var(--anzeige); font-weight: 700; font-size: 15px; color: var(--gold); min-height: 20px;
     padding: 0 14px; }
-  #lines #intent { margin-top: 1px; }
-  #intent { font-family: var(--anzeige); font-weight: 700; font-size: 12.5px; color: #cbbba0; min-height: 16px; }
 
   /* ---------- Untere Leiste ---------- */
   /* Die Bedienung liegt auf der Bruestung, verankert am Bildrand */
@@ -258,40 +189,6 @@
     grid-template-areas: "mini hand side";
     padding: 0 10px 8px;
     gap: 6px;
-  }
-  #minimap-panel { grid-area: mini; }
-  #hand-wrap { grid-area: hand; }
-  #side { grid-area: side; }
-
-  #minimap-panel {
-    padding: 5px;
-    background: rgba(16, 12, 9, 0.72);
-    border: 2px solid #6b5535;
-    border-radius: 5px;
-    box-shadow: 0 3px 0 rgba(0,0,0,0.5);
-    display: grid; place-items: center;
-    margin-bottom: 4px;
-  }
-  canvas#minimap { display: block; image-rendering: pixelated; width: 108px; height: 103px; }
-
-  /* Kein Rahmen: Die Karten liegen unmittelbar auf der Mauer. */
-  /*
-   * Eine Ablegeleiste aus Holz unter der Hand. Ohne sie schweben die Karten
-   * ueber dem Feld wie Fenster auf einer Netzseite.
-   */
-  /*
-   * Feste Hoehe, auch wenn keine Karte auf der Hand liegt: sonst haengt die
-   * Bruestung an der Zahl der Karten und das Bild rueckt bei jedem Zug.
-   */
-  #hand-wrap { position: relative; padding: 0 4px; overflow: visible; min-height: 236px; }
-  #hand-wrap::before {
-    content: ''; position: absolute; left: 0; right: 0; bottom: -6px; height: 34px;
-    z-index: 0; border-radius: 4px;
-    background:
-      repeating-linear-gradient(90deg, rgba(0,0,0,0.2) 0 2px, rgba(255,235,190,0.045) 2px 6px),
-      linear-gradient(180deg, #513016 0%, #2e1b0d 100%);
-    border-top: 2px solid #7a5c34;
-    box-shadow: inset 0 2px 0 rgba(255,225,170,0.14), 0 4px 10px rgba(0,0,0,0.6);
   }
   #hand { position: relative; z-index: 1; }
   /* Die Hand liegt aufgefaechert wie ein echtes Blatt: die Karten ueberlappen
@@ -308,11 +205,6 @@
   #hand .card-slot:hover { z-index: 20; }
   /* Die gezogene Karte bleibt als blasser Platzhalter liegen. */
   #hand .card-slot.zieht > .card { opacity: 0.22; filter: grayscale(0.5); }
-  /*
-   * Ohne das markiert der Zeiger beim Ziehen den Kartentext blau, und die
-   * halbe Hand steht unter einer Auswahl.
-   */
-  .card-slot { touch-action: none; -webkit-user-select: none; user-select: none; }
 
   /* Leichte Faecherung: aussen staerker geneigt als in der Mitte */
   #hand .card-slot:nth-child(1) > .card { transform-origin: bottom center; }
@@ -322,9 +214,6 @@
   #hand .card-slot:nth-child(5) { transform: rotate(3deg) translateY(3px); }
   #hand .card-slot:nth-child(6) { transform: rotate(4.5deg) translateY(6px); }
   #hand .card-slot:hover { transform: none; }
-
-  #side { display: flex; flex-direction: column; gap: 6px; align-items: stretch;
-    margin-bottom: 4px; width: 146px; }
 
   /*
    * Der Knopf ist kein Netzknopf, sondern eine eisenbeschlagene Bohle:
@@ -371,234 +260,17 @@
     0%, 100% { box-shadow: inset 0 2px 0 rgba(255,220,160,0.24), 0 5px 0 #1d1008, 0 0 0 0 rgba(224,80,60,0.6); }
     50%      { box-shadow: inset 0 2px 0 rgba(255,220,160,0.24), 0 5px 0 #1d1008, 0 0 0 8px rgba(224,80,60,0); }
   }
-
-  #deck-pile {
-    display: flex; align-items: center; justify-content: center; gap: 7px;
-    padding: 6px 10px; font-size: 10px; color: var(--muted); line-height: 1.2;
-    text-transform: uppercase; letter-spacing: 0.07em;
-    background: linear-gradient(180deg, #2b2117, #191208);
-    border: 2px solid #6b5535; border-radius: 4px;
-    box-shadow: inset 0 1px 0 rgba(255,235,190,0.12), 0 3px 0 rgba(0,0,0,0.55);
-  }
   #deck-pile i.ic { width: 22px; height: 22px; }
-  #deck-pile b { font-size: 22px;
-    color: var(--parchment); text-shadow: 0 2px 0 rgba(0,0,0,0.6); }
-
-  /* ---------- Karten im doppeldeutschen Blatt ---------- */
-  /* Weisser Grund, schwarze Doppellinie, flache Leuchtfarben. Alle Karten
-     sind gleich gross; was nicht hineinpasst, wird abgeschnitten, nicht
-     gedehnt. So bleibt der Faecher ruhig und das Blatt wirkt wie ein Blatt. */
-  .card-slot {
-    width: 132px;
-    flex: none;
-    perspective: 640px;
-    animation: kartefaechern 0.36s cubic-bezier(0.2, 1.3, 0.35, 1) backwards;
-  }
 
   @keyframes schweben {
     0%, 100% { transform: translateY(0) rotate(-0.35deg); }
     50%      { transform: translateY(-3px) rotate(0.35deg); }
   }
-  .card-slot > .card { animation: schweben 3.4s ease-in-out infinite; }
-  .card-slot:nth-child(2n) > .card { animation-duration: 3.9s; animation-delay: -1.1s; }
-  .card-slot:nth-child(3n) > .card { animation-duration: 4.3s; animation-delay: -2.2s; }
-
-  .card {
-    position: relative;
-    box-sizing: border-box;
-    width: 100%;
-    height: 228px;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    padding: 4px;
-    cursor: pointer;
-    overflow: hidden;
-    color: #14110c;
-    /*
-     * Gebuetteltes Papier, kein Druckerweiss: eine warme Tonung mit ganz
-     * feiner Faserung. Weisse Rechtecke waren das Lauteste am Bildschirm.
-     */
-    background:
-      repeating-linear-gradient(92deg, rgba(120,95,55,0.05) 0 1px, transparent 1px 3px),
-      repeating-linear-gradient(2deg, rgba(120,95,55,0.045) 0 1px, transparent 1px 4px),
-      radial-gradient(120% 90% at 30% 8%, #f7efd9 0%, #ece0c2 58%, #ddceaa 100%);
-    border: 2px solid #14110c;
-    border-radius: 5px;
-    box-shadow: 0 4px 0 #241a11, 0 8px 14px rgba(0, 0, 0, 0.5);
-    transition: box-shadow 0.14s ease, filter 0.14s ease;
-  }
-
-  /* Die innere Linie traegt die Seltenheit: grau, blau, golden */
-  .card::before {
-    content: "";
-    position: absolute;
-    inset: 3px;
-    border: 1.5px solid var(--sel-rand, #6e6a63);
-    border-radius: 3px;
-    pointer-events: none;
-  }
-
-  /* Glanz, der beim Ueberfahren durchwandert */
-  .card::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(105deg, transparent 32%, rgba(255, 244, 214, 0.32) 47%, transparent 60%);
-    background-size: 260% 100%;
-    background-position: 140% 0;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-  .card-slot:hover .card::after { opacity: 1; animation: glanz 0.75s ease-out; }
   @keyframes glanz { from { background-position: 140% 0; } to { background-position: -60% 0; } }
 
-  .card-slot:hover > .card {
-    animation-play-state: paused;
-    box-shadow: 0 9px 0 #241a11, 0 16px 22px rgba(0, 0, 0, 0.55);
-  }
-
   .card.disabled { cursor: not-allowed; filter: grayscale(0.35) brightness(0.6) contrast(1.05) sepia(0.15); }
-  .card-slot.gesperrt { pointer-events: none; }
-  .card.selected { box-shadow: 0 0 0 3px var(--gold), 0 9px 0 #241a11, 0 16px 22px rgba(0, 0, 0, 0.55); }
-  .card.sel-kostbar::before { border-width: 2px; }
-
-  /* Eckzeichen: Wert und Kartenfarbe, unten rechts um 180 Grad gedreht */
-  .card-ecke {
-    position: absolute;
-    display: flex; flex-direction: column; align-items: center; gap: 0;
-    line-height: 1;
-    z-index: 2;
-    pointer-events: none;
-  }
   .card-ecke.oben { left: 7px; top: 6px; }
   .card-ecke.unten { right: 7px; bottom: 6px; transform: rotate(180deg); }
-  .card-ecke b {
-    font-size: 14px;
-    color: #14110c;
-  }
-  .card-farbe { width: 17px; height: 17px; display: block; margin-top: 0; }
-
-  /* Das Bild sitzt in einer schwarzen Fassung, wie der Rahmen im Blatt */
-  .card-art-frame {
-    position: relative;
-    margin: 21px 3px 0;
-    border: 1.5px solid #14110c;
-    overflow: hidden;
-    line-height: 0;
-    flex: none;
-  }
-  .card-art { width: 100%; height: 104px; display: block; }
-
-  /* Namensband auf der Trennlinie der beiden Haelften */
-  /*
-   * Das Namensband war dunkel und schnitt das Bild in der Mitte durch. Im
-   * Blatt ist es ein helles Schriftband auf dem Bild: heller Grund, dunkle
-   * Schrift, aussen die schwarze Linie, innen die Farbe der Seltenheit.
-   */
-  .card-band {
-    position: absolute; left: 0; right: 0; top: 50%;
-    transform: translateY(-50%);
-    font-family: var(--anzeige); font-weight: 700; font-size: 10.5px; line-height: 1.15;
-    text-align: center;
-    padding: 2px 2px 1px;
-    color: #14110c;
-    background:
-      linear-gradient(180deg, rgba(20,17,12,0) 0 1.5px, var(--sel-band, #4f4c46) 1.5px 2.5px,
-        rgba(20,17,12,0) 2.5px) top/100% 100% no-repeat,
-      linear-gradient(0deg, rgba(20,17,12,0) 0 1.5px, var(--sel-band, #4f4c46) 1.5px 2.5px,
-        rgba(20,17,12,0) 2.5px) bottom/100% 100% no-repeat,
-      linear-gradient(180deg, #f7efd9, #e4d7b6);
-    border-top: 1.5px solid #14110c;
-    border-bottom: 1.5px solid #14110c;
-    text-shadow: 0 1px 0 rgba(255, 250, 230, 0.6);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-
-  /*
-   * Eine Karte mit eigenem Bild gibt dem Bild die Hoehe, die sonst der Spruch
-   * bekommt. Die Werte bleiben - die aendern sich im Lauf und muessen stimmen.
-   * Rahmen, Band und Eichenlaub bringt so ein Bild selbst mit.
-   */
-  /*
-   * Eine Karte mit ganzem Bild ist das Bild: von Kante zu Kante, ohne Rand,
-   * ohne inneren Strich, ohne Bildfassung. Rahmen, Schriftband, Eichenlaub
-   * und Eckzeichen bringt so ein Blatt selbst mit.
-   *
-   * Was bleibt, sind die Werte. Die aendern sich im Lauf und muessen stimmen,
-   * also liegen sie als Leiste unten auf dem Bild.
-   */
-  .card.mit-bild { padding: 0; }
-  .card.mit-bild::before { display: none; }
-  .card.mit-bild .card-art-frame {
-    position: relative; margin: 0; border: 0; border-radius: 3px 3px 0 0;
-    /*
-     * Das Blatt behaelt seine Hoehe (kein Schrumpfen): sonst quetscht die
-     * Werteleiste es zusammen, und weil der Kasten seinen Ueberstand abschneidet,
-     * fehlt unten ein Streifen des Blattes. Die Leiste nimmt umgekehrt genau
-     * das, was uebrig bleibt.
-     */
-    flex: 0 0 auto; max-height: calc(100% - 18px);
-  }
-  /*
-   * Die Stationsansichten setzen eine eigene Bildhoehe und gewinnen ueber die
-   * Kennung. Eine Bildkarte fuellt aber immer die ganze Karte - darum hier
-   * ausdruecklich, sonst haengt das Blatt oben und darunter bleibt Papier.
-   */
-  /*
-   * Das ganze Blatt, nichts abgeschnitten - wie ein doppeldeutsches Blatt
-   * umlaufend vom eigenen Rahmen geschlossen.
-   *
-   * Zwei Dinge schnitten es vorher an: der Zuschnitt nahm seitlich je acht
-   * Prozent weg, und das Werkzeug passte den Rest DECKEND ins Kartenmass ein.
-   * Beides traf denselben Streifen - den, in dem die Rahmenlinie steht.
-   *
-   * Jetzt behaelt das Bild sein Seitenverhaeltnis (2:3, wie ein echtes
-   * Blatt), und weil die Karte schmaler ist als 2:3, bleibt unten Platz. Der
-   * ist kein Verschnitt, sondern der Streifen fuer die Werte: die lagen
-   * vorher auf dem Bild und deckten die untere Randzier zu.
-   */
-  .card.mit-bild .card-art-frame { background: #e8dcc0; }
-  .card.mit-bild .card-art,
-  #station-karten .card.mit-bild .card-art,
-  #reward-cards .card.mit-bild .card-art {
-    width: 100%; height: auto; display: block;
-  }
-
-  /*
-   * Eine geschaerfte Karte traegt sonst ein + im Namen. Bei einer Bildkarte
-   * steht der Name im Blatt und laesst sich nicht aendern - sie bekommt
-   * stattdessen ein Zeichen in der Ecke.
-   */
-  .card-geschaerft {
-    position: absolute; top: 4px; right: 4px; z-index: 3;
-    width: 17px; height: 17px; display: grid; place-items: center;
-    font-family: var(--zahl); font-size: 13px; font-weight: 700; line-height: 1;
-    color: #2a1c06; background: linear-gradient(180deg, #f6d98a, #c9962c);
-    border: 1.5px solid #15100a; border-radius: 50%;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.5);
-  }
-  .card.mit-bild .card-unten,
-  .card.mit-bild .card-zier,
-  .card.mit-bild .card-typ,
-  .card.mit-bild .card-ecke { display: none; }
-  .card.mit-bild .card-stats {
-    position: relative; z-index: 2;
-    flex: 1 1 auto; min-height: 18px; overflow: hidden;
-    padding: 0 3px; margin: 0; gap: 3px;
-    align-items: center; align-content: center; flex-wrap: nowrap;
-    background: linear-gradient(180deg, #241a10, #120c07);
-    border-top: 1px solid rgba(0,0,0,0.55);
-    border-radius: 0 0 3px 3px;
-  }
-  /*
-   * Die Leiste einer Bildkarte ist so hoch, wie das Blatt uebrig laesst - und
-   * das ist mehr als bei einer gewoehnlichen Karte. Groessere Pillen fuellen
-   * sie, statt als kleine Marken in einem schwarzen Balken zu schwimmen.
-   */
-  .card.mit-bild .card-stats .pill { font-size: 11px; padding: 3px 5px 2px; }
-  .card.mit-bild .card-stats .pill canvas { width: 13px; height: 13px; }
   .pill.kosten { display: flex; align-items: center; gap: 3px; background: #efe3c8; }
   .pill.kosten canvas { width: 11px; height: 11px; display: block; }
 
@@ -608,95 +280,13 @@
    * auch der Tatendrang sein. Das Band sagt, woran es liegt.
    */
   .card.verbraucht { filter: grayscale(0.5) brightness(0.62) sepia(0.2); }
-  .card-verbraucht {
-    position: absolute; left: -22%; right: -22%; top: 44%;
-    transform: rotate(-19deg);
-    z-index: 4; pointer-events: none;
-    text-align: center;
-    font-family: var(--anzeige); font-weight: 700;
-    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
-    color: #f3e6cc;
-    padding: 3px 0 2px;
-    background: rgba(120, 32, 24, 0.88);
-    border-top: 1.5px solid rgba(20,14,8,0.75);
-    border-bottom: 1.5px solid rgba(20,14,8,0.75);
-    text-shadow: 0 1px 0 rgba(0,0,0,0.6);
-  }
-
-  /* Eichenlaub in der oberen rechten und unteren linken Ecke */
-  .card-zier {
-    position: absolute; width: 34px; height: 25px; z-index: 1;
-    background: center/contain no-repeat; pointer-events: none; opacity: 0.9;
-  }
-  .card-zier.zier-or { top: 5px; right: 5px; transform: scaleX(-1); }
-  .card-zier.zier-ul { bottom: 5px; left: 5px; transform: scaleY(-1); }
   .card-band.lang { font-size: 8.5px; }
-
-  .card-typ {
-    font-family: var(--fliess); font-size: 8px; font-weight: 700;
-    letter-spacing: 0.14em; text-transform: uppercase;
-    text-align: center; color: #6a6355;
-    padding: 3px 0 2px;
-    flex: none;
-  }
-
-  /*
-   * Das Schlagwort. Es steht wie ein Stempel unter dem Typenband: klein,
-   * gesperrt und in Gold auf dunklem Grund - damit man es als Regel liest
-   * und nicht als Beschreibung.
-   */
-  .card-sonderzug {
-    flex: none; align-self: center;
-    margin: -1px 0 2px;
-    padding: 1px 7px 2px;
-    font-family: var(--fliess); font-size: 7.5px; font-weight: 700;
-    /* Die Fassung eines Blattes setzt line-height: 0 (sie haelt eine Leinwand).
-       Ohne eigene Zeilenhoehe faellt ein Band darin zu einem Strich zusammen. */
-    line-height: 1.3;
-    letter-spacing: 0.16em; text-transform: uppercase;
-    color: #2a1c06;
-    background: linear-gradient(180deg, #f3d283, #c79a37);
-    border: 1px solid #7a5a1c;
-    border-radius: 2px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 1px 0 rgba(0,0,0,0.35);
-  }
   /* Ein Stapel gleicher Karten: zwei Blaetter dahinter, dazu die Zahl. */
   .card-slot.stapel > .card {
     box-shadow:
       3px -3px 0 -1px var(--papier, #efe5cd), 3px -3px 0 0 #2a2016,
       6px -6px 0 -1px var(--papier, #efe5cd), 6px -6px 0 0 #2a2016,
       0 5px 0 #241a11, 0 9px 18px rgba(0,0,0,0.45);
-  }
-  .card-stapelzahl {
-    position: absolute; right: -4px; bottom: -4px; z-index: 6;
-    min-width: 20px; padding: 1px 4px 2px;
-    font-family: var(--zahl); font-size: 13px; font-weight: 700; line-height: 1;
-    text-align: center; color: #f6ecd4;
-    background: linear-gradient(180deg, #4a3720, #241a11);
-    border: 1.5px solid #14100a; border-radius: 9px;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.5);
-  }
-  .card-schlagworte { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  /* Auf einer Bildkarte legen sich die Schlagworte ueber das Blatt. */
-  .card.mit-bild .card-schlagworte {
-    position: absolute; left: 4px; right: 4px; bottom: 4px; z-index: 3;
-    text-shadow: 0 1px 2px rgba(20,14,8,0.5);
-  }
-  /* Die Regel einer Bildkarte: heller Grund, damit sie sich vom Schlagwort
-     unterscheidet - das eine ist ein Begriff, das andere ein Satz. */
-  .card-sonderzug.regelband {
-    color: #2a1c06; border-color: #6b5a38;
-    background: linear-gradient(180deg, #f0e6ca, #d8c9a4);
-    letter-spacing: 0.01em; text-transform: none; font-size: 8px;
-    line-height: 1.2; text-align: center; padding: 2px 5px;
-    max-width: 100%; white-space: normal;
-  }
-  .card-sonderzug.mitbringsel {
-    color: #f3e6c8; border-color: #4a3a22;
-    background: linear-gradient(180deg, #6b5334, #3b2c18);
-    letter-spacing: 0.02em; text-transform: none; font-size: 7.5px;
-    line-height: 1.25; text-align: center; padding: 2px 5px;
-    max-width: 100%; white-space: normal;
   }
   /* Deckung ist Stein: die Zinnen halten einen Zug, dann sind sie hin. */
   .card-sonderzug.deckung {
@@ -710,53 +300,11 @@
     background: linear-gradient(180deg, #5d7d99, #33485c);
     border-color: #26384a;
   }
-
-  .card-stats {
-    display: flex; flex-wrap: wrap; gap: 3px; justify-content: center;
-    padding: 0 4px 2px;
-    flex: none;
-  }
-  .pill {
-    font-size: 11px; line-height: 1;
-    padding: 2px 4px 1px;
-    border: 1px solid #14110c;
-    color: #14110c;
-    background: #fffdf4;
-  }
   .pill.schaden { background: #f6d5d2; }
-  .pill.reich   { background: #d3dff2; }
   .pill.leben   { background: #d5ecda; }
   .pill.hoehe   { background: #faeec4; }
   .pill.platz   { background: #e6d9f2; }
   .pill.durch   { background: #f7e0cc; }
-
-  /* Regel und Spruch teilen sich das weisse Feld darunter */
-  .card-unten {
-    flex: 1; min-height: 0; overflow: hidden;
-    padding: 0 8px 17px 7px;
-    /* Was nicht mehr hineinpasst, laeuft aus, statt mitten im Wort zu enden */
-    mask-image: linear-gradient(180deg, #000 0 68%, transparent 92%);
-  }
-  .card-rule {
-    font-family: var(--fliess);
-    font-size: 9px; line-height: 1.25;
-    color: #2c2519;
-    font-weight: 700;
-  }
-  /* Wie hoch eine mitwachsende Karte gerade ausfaellt */
-  .card-jetzt {
-    font-family: var(--anzeige); font-weight: 700;
-    font-size: 9.5px; line-height: 1.2;
-    color: #9a6b12;
-    margin-top: 2px;
-  }
-  .card-text {
-    font-family: var(--fliess);
-    font-size: 9px; line-height: 1.25;
-    color: #77705e;
-    font-style: italic;
-    margin-top: 2px;
-  }
 
   kbd { font-family: inherit; font-size: 11px; background: var(--panel-2); border: 1px solid var(--frame);
     border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--muted); }
@@ -885,25 +433,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ---------- Seltenheit: Rahmen und Band tragen die Farbe ---------- */
-  .card { border-color: var(--sel-rand, #37281a); }
-  .card-badge { background: linear-gradient(180deg, var(--sel-rand), var(--sel-band)); }
-  .card.sel-kostbar {
-    box-shadow:
-      inset 0 0 0 2px rgba(255, 246, 214, 0.85),
-      inset 0 -14px 20px -12px rgba(90, 62, 28, 0.55),
-      0 0 0 2px rgba(213, 154, 42, 0.45),
-      0 5px 0 #241a11,
-      0 9px 18px rgba(140, 92, 10, 0.4);
-  }
-  .card.sel-selten {
-    box-shadow:
-      inset 0 0 0 2px rgba(246, 250, 255, 0.8),
-      inset 0 -14px 20px -12px rgba(90, 62, 28, 0.55),
-      0 5px 0 #241a11,
-      0 9px 16px rgba(0, 0, 0, 0.55);
-  }
-
   /* ---------- Die Route des Feldzugs ---------- */
   /*
    * Die Route liegt auf einer gezeichneten Karte. Der Hintergrund ist nur
@@ -916,51 +445,9 @@
       radial-gradient(120% 70% at 50% 100%, rgba(60, 44, 24, 0.55), transparent 70%),
       linear-gradient(180deg, #241a10, #140e08 60%, #1c140c);
   }
-  canvas.route-karte {
-    position: absolute; left: 0; top: 0; width: 100%; height: 100%;
-    z-index: 0; pointer-events: none; border-radius: 3px;
-    box-shadow: 0 6px 22px rgba(0,0,0,0.55);
-  }
-  #route-feld > svg { z-index: 1; }
-  #route-kopf {
-    margin: 8px 10px 4px; padding: 5px 12px;
-    display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
-    font-family: var(--anzeige); font-weight: 700; font-size: 13px; color: var(--muted);
-  }
-  #route-kopf b { color: var(--parchment); font-size: 14px;
-    font-family: var(--zahl); font-variant-numeric: tabular-nums; font-weight: 700; }
   #route-kopf .burg b { color: #e9917f; }
   #route-kopf .sold b { color: var(--gold); }
-
-  #route-rolle { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 6px; scrollbar-width: thin; }
-  #route-feld { position: relative; width: 100%; }
-  #route-feld svg { position: absolute; left: 0; top: 0; display: block; }
-  /* Ungegangene Wege sind gestrichelt eingezeichnet, gegangene mit Tinte
-     nachgezogen, waehlbare rot hervorgehoben - wie auf einer Marschkarte. */
-  #route-feld line { stroke: rgba(74, 53, 32, 0.45); stroke-width: 1.6; stroke-dasharray: 4 5;
-    vector-effect: non-scaling-stroke; stroke-linecap: round; }
-  #route-feld line.begangen { stroke: rgba(58, 40, 22, 0.9); stroke-dasharray: none; stroke-width: 3.4; }
   #route-feld line.offen { stroke: #a8362d; stroke-dasharray: none; stroke-width: 3.4; }
-
-  /*
-   * Eine Station ist ein Siegel auf dem Pergament: heller Grund, Tintenring,
-   * ein Tropfen Farbe in der Art der Station, darauf das gezeichnete Zeichen.
-   * Die glaenzende Kugel von frueher lag wie ein Knopf auf der Karte.
-   */
-  .route-knoten {
-    position: absolute; transform: translate(-50%, -50%); z-index: 2;
-    width: 38px; height: 38px; padding: 0;
-    display: grid; place-items: center;
-    border-radius: 50%;
-    border: 2px solid #4a3520;
-    background:
-      radial-gradient(circle at 50% 50%, var(--knotenfarbe) 0 42%, transparent 43%),
-      radial-gradient(circle at 38% 30%, #f4ead0, #d9c69e 70%, #bda877);
-    cursor: default;
-    filter: saturate(0.5) brightness(0.82);
-    box-shadow: 0 2px 4px rgba(40,26,10,0.45), inset 0 0 0 1px rgba(255,248,225,0.5);
-    transition: filter 0.15s ease, transform 0.15s ease;
-  }
   .route-knoten .zeichen { width: 20px; height: 20px; filter: none; }
   .route-knoten.erledigt { filter: saturate(0.2) brightness(0.7); opacity: 0.75; }
   /* Was hinter dir liegt, ist abgehakt - ein Kreuz mit der Feder. */
@@ -984,25 +471,6 @@
     0%, 100% { box-shadow: 0 0 0 2px rgba(168, 54, 45, 0.85), 0 2px 5px rgba(40,26,10,0.5); }
     50%      { box-shadow: 0 0 0 8px rgba(168, 54, 45, 0.10), 0 2px 5px rgba(40,26,10,0.5); }
   }
-  .route-name {
-    position: absolute; transform: translate(-50%, 0); z-index: 2;
-    font-family: var(--anzeige); font-weight: 700; font-size: 10.5px; color: #3a2818;
-    white-space: nowrap; pointer-events: none;
-    padding: 1px 5px; border-radius: 3px;
-    background: rgba(244, 234, 208, 0.82);
-    box-shadow: 0 1px 0 rgba(60,42,24,0.35);
-  }
-  .route-marke {
-    position: absolute; left: 6px; transform: translateY(-50%); z-index: 2;
-    font-family: var(--zahl); font-size: 10px; font-weight: 700;
-    color: rgba(74, 53, 32, 0.6); pointer-events: none;
-  }
-  #route-fuss {
-    padding: 5px 10px 9px; text-align: center;
-    font-family: var(--anzeige); font-weight: 700; font-size: 11.5px; color: var(--muted);
-    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
-  }
-  #route-fuss span { display: inline-flex; align-items: center; gap: 4px; }
   #route-fuss i.ic { width: 16px; height: 16px; }
 
   /* ---------- Stationen ohne Kampf ---------- */
@@ -1013,41 +481,8 @@
       rgba(9, 7, 5, 0.97);
     padding: 7px;
   }
-  .station-box {
-    padding: 14px 18px 16px; text-align: center; max-width: 94%; width: 620px;
-    max-height: 100%;
-    display: flex; flex-direction: column;
-  }
   .station-box.weit { width: 860px; }
-  .station-box > h2, .station-box > p, #station-meldung, #station-knoepfe { flex: none; }
   #station-wappen i.ic { width: 24px; height: 24px; }
-  #station-wappen {
-    width: 40px; height: 40px; margin: 0 auto 6px; flex: none;
-    display: grid; place-items: center; border-radius: 50%;
-    font-size: 19px; color: #fff4e0;
-    border: 2px solid rgba(0,0,0,0.5);
-    background: radial-gradient(circle at 36% 28%, rgba(255,255,255,0.25), transparent 60%),
-      linear-gradient(180deg, var(--wappenfarbe, #6b5535), rgba(0,0,0,0.45));
-    box-shadow: 0 3px 0 rgba(0,0,0,0.5), 0 0 0 4px rgba(227, 181, 82, 0.12);
-    text-shadow: 0 2px 0 rgba(0,0,0,0.55);
-  }
-  .station-box h2 { margin: 0 0 4px; font-family: var(--pixel); font-size: 24px; font-weight: 700;
-    color: var(--gold); letter-spacing: 0.02em; text-shadow: 0 3px 0 rgba(0,0,0,0.6); }
-  .station-box > p { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-  #station-karten {
-    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px;
-    flex: 0 1 auto; min-height: 0; max-height: 340px;
-    overflow-y: auto; padding: 2px; scrollbar-width: thin;
-    /* Angeschnittene Reihen sollen nach mehr aussehen, nicht nach Fehler */
-    mask-image: linear-gradient(180deg, #000 0 92%, transparent 100%);
-  }
-  #station-karten .card-slot { width: 112px; }
-  #station-karten .card { height: 198px; }
-  #station-karten .card-art { height: 88px; }
-  /* In den kuerzeren Karten des Angebots muss das Band mit weniger auskommen. */
-  #station-karten .card-sonderzug.mitbringsel,
-  #reward-cards .card-sonderzug.mitbringsel { font-size: 7px; padding: 1px 4px; }
-  .station-ware { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .station-ware .preis {
     font-family: var(--zahl); font-variant-numeric: tabular-nums; font-weight: 700;
     font-size: 12px; color: var(--gold);
@@ -1056,15 +491,6 @@
   }
   .station-ware .preis.feil { color: #b6e08a; border-color: #5d7a3a; }
   .station-ware .preis.weg { color: var(--disabled); border-color: #443c30; text-decoration: line-through; }
-  #station-meldung {
-    font-family: var(--anzeige); font-weight: 700; font-size: 13px; color: var(--gold); margin-bottom: 8px;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-  }
-  #station-knoepfe { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-  #station-knoepfe button { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; }
-  #station-knoepfe button i { font-style: normal; font-size: 9.5px; font-family: var(--fliess);
-    opacity: 0.8; letter-spacing: 0; }
-  #station-knoepfe button:disabled { filter: grayscale(0.7) brightness(0.62); cursor: not-allowed; }
 
   /* Schmale Bildschirme: Die Hand bleibt im Bild, wird aber kompakt.
      Beschreibungstext und Werte entfallen, sie stehen ohnehin in der Hilfe. */
@@ -8508,7 +7934,10 @@ function pkZeichne() {
   const dinge = [];
   for (const m of state.wall.values()) dinge.push({ art: 'wall', ref: m, rect: { col: m.col, row: m.row, w: 1, h: 1 } });
   dinge.push({ art: 'burg', ref: CASTLE, rect: CASTLE });
-  for (const t of (derKampf ? derKampf.tuerme : [])) dinge.push({ art: 'turm', ref: t, rect: t });
+  for (const t of (derKampf ? derKampf.tuerme : [])) {
+    if (t.col === undefined) continue;
+    dinge.push({ art: 'turm', ref: t, rect: t });
+  }
   for (const e of state.enemies) dinge.push({ art: 'feind', ref: e, rect: gegnerRect(e) });
   for (const d of DEKO) dinge.push({ art: 'deko', ref: d, rect: { col: d.col, row: d.row, w: 0.6, h: 0.6 } });
   for (const o of zeichenReihenfolge(dinge)) {
@@ -8538,6 +7967,12 @@ function pkZeichne() {
 }
 
 function pkZeichneTurm(t) {
+  /*
+   * Ein Turm ohne Platz auf der Karte wird nicht gezeichnet. Der Kern kann
+   * einen Kampf ohne Stellungen bauen - die Pruefskripte tun genau das -, und
+   * dann hat der Turm zwar eine Nummer und eine Einheit, aber kein Feld.
+   */
+  if (t.col === undefined || t.row === undefined) return;
   const H = MODELL_HOEHE[t.modell || 'wachturm'] + WALL_HOEHE - (t.rueckstoss || 0) * 4;
   drawBauSchatten(t.col, t.row, t.w, t.h, H * 0.8);
   drawBlock(t.col, t.row, t.w, t.h, WALL_HOEHE, STOFF.stein.f);
