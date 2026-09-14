@@ -1,7 +1,8 @@
 # Castle Master — vollständige Spielbeschreibung
 
-Stand: Version 68 des veröffentlichten Artifacts, Branch
-`claude/castle-master-access-yznomz`.
+Stand: Version 68 des veröffentlichten Artifacts; erster Stand im Repository
+`dernano/Parapex`, das `dernano/CastleMaster` mit vollständiger Geschichte
+fortsetzt.
 
 Dieses Dokument beschreibt den **Ist-Zustand** des Spiels so, dass ein Modell
 ohne Zugriff auf den Quelltext daran weiterarbeiten oder darüber urteilen kann.

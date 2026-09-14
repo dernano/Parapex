@@ -1,5 +1,11 @@
 # Castle Master
 
+> **Dieses Repository setzt [dernano/CastleMaster](https://github.com/dernano/CastleMaster)
+> fort.** Die vollständige Geschichte ist mitgewandert — 85 Commits vom ersten
+> Prototyp bis hierher; das alte Repository bleibt unverändert als Archiv
+> stehen. Von hier aus geht das Spiel in eine neue Richtung, und der Name des
+> Repositorys nimmt sie vorweg.
+
 Ein rundenbasiertes Deckbuilding-Spiel im Browser, im Aufbau an Slay the Spire
 angelehnt. Du reitest eine Route aus elf Stationen entlang der Grenze. An
 jeder Kampfstation baust du an **derselben Burg** weiter — Türme auf den Wall,
