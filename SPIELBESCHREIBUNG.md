@@ -55,8 +55,20 @@ Zahl, die man liest, statt einer zweiten, die man nachschlägt.
 Ein **Schliff** hebt die Wucht (`+2`), nicht den Rang: der Rang bleibt
 Formationssache, damit ein Schliff eine Formation nicht kaputtmacht.
 
-Das **Startdeck** sind zwölf Karten, alle vier Gattungen, Ränge 2–5:
-`bogen-2/3/4`, `armbrust-2/4/5`, `artillerie-2/3/5`, `kanonier-2/3/4`.
+### Das Startdeck ist das ganze Blatt
+
+Alle **52 Karten** liegen von Anfang an im Deck. Das dreht die Richtung des
+Spiels um: ein Lauf lässt das Deck nicht wachsen, er **verschmälert** es. Die
+Bauernschützen werden ausgemustert, damit die Marschälle öfter kommen.
+
+Daraus folgt alles Weitere:
+
+- **Ausmustern ist die schärfste Belohnung**, eine hinzugefügte Karte die
+  schwächste. Eine Karte von 52 hebt den Schnitt um zwei Hundertstel.
+- Ausgemustert wird deshalb in **Schüben**: vier Karten als Belohnung, drei
+  beim Händler — immer die schwächsten.
+- Ein **Schliff** ist im 52-Karten-Deck fast wirkungslos und damit eher ein
+  Notkauf als eine Achse.
 
 ---
 
@@ -147,14 +159,20 @@ hängt.
 
 Fünf Plätze. Wappen brechen Regeln, statt Zahlen zu heben.
 
-| Wappen | Wirkung |
-|---|---|
-| Löwe | der mittlere Turm zählt seinen Rang **dreifach** |
-| Doppeladler | Turm 1 und Turm 5 gelten als **benachbart** (die Reihe wird zum Ring) |
-| Wolf | je leerem Turm **+60 %** Gesamtwucht |
-| Eber | eine **ersetzte** Einheit feuert ein letztes Mal |
-| Schlange | die ersten **zwei** Kartentausche jeder Runde kosten nichts |
-| Drache | jeder **zweite** Nachschuss einer Runde zählt ×2,5 |
+| Wappen | Wirkung | gemessener Wert |
+|---|---|---|
+| Löwe | der mittlere Turm zählt seinen Rang **dreifach** | ×1,31 (bis ×2,71) |
+| Drache | jeder Nachschuss zählt **doppelt** | ×1,08 (bis ×1,55) |
+| Doppeladler | Turm 1 und Turm 5 gelten als **benachbart** (die Reihe wird zum Ring) | ×1,03 (bis ×1,72) |
+| Wolf | je leerem Turm **+60 %** Gesamtwucht | ×1,00 voll, **×3,06** mit leeren Türmen |
+| Eber | eine **ersetzte** Einheit feuert ein letztes Mal | wirkt außerhalb der Salve |
+| Schlange | die ersten **zwei** Kartentausche jeder Runde kosten nichts | reine Handarbeit |
+
+Die Spalte rechts kommt aus `scripts/wappen.mjs`: 2000 zufällige Aufstellungen
+aus hohen Rängen, jeweils mit und ohne das Wappen gerechnet. Drei der sechs
+fassen die Wucht der Salve gar nicht an — Wolf ist ein eigener Bauplan (leere
+Türme), Eber schießt außerhalb der Abrechnung, Schlange ist Handarbeit. Wer
+einen vierten Multiplikator sucht, findet hier keinen.
 
 Technisch hängt ein Wappen an einem von fünf Griffen: `rangFaktor`, `ring`,
 `gesamtFaktor`, `horcht` (Ereignisse), `tauschRabatt`, `retriggerFaktor`. Ein
@@ -173,10 +191,15 @@ ist die langsame Fortschrittsachse und bleibt über den ganzen Akt.
 | Typ | Wirkung |
 |---|---|
 | Wachturm | keine Sonderregel (Startzustand aller fünf) |
-| Schützenturm | Bogenschützen +25 % |
-| Ballistenturm | Armbrustschützen +25 % |
-| Geschützturm | Artillerie +25 % |
-| Pulverturm | Kanoniere +25 % |
+| Schützenturm | Bogenschützen +40 % |
+| Ballistenturm | Armbrustschützen +40 % |
+| Geschützturm | Artillerie +40 % |
+| Pulverturm | Kanoniere +40 % |
+
+Fünf Türme stehen fest auf dem Riegel, gleichmäßig verteilt und
+spiegelsymmetrisch zur Mittelachse (Zeilen 1, 5, 9, 13, 17 eines 20 Zeilen
+tiefen Feldes). Sie werden nicht mehr gesucht, sondern stehen, wo der
+Baumeister sie hingestellt hat — die Anlage ist bei jedem Lauf dieselbe.
 
 ---
 
@@ -278,40 +301,61 @@ In der Konsole: `PX.station(9)` springt an Station 9 mit passendem Deck,
 
 ## 11. Gemessene Balance
 
-60 Läufe mit dem Bot, der in jeder Runde die Setzung nimmt, die die Salve am
+70 Läufe mit dem Bot, der in jeder Runde die Setzung nimmt, die die Salve am
 stärksten hebt — also ein Spieler, der die Vorschau liest und sonst nichts
 weiter denkt:
 
 | Station | Art | gewonnen |
 |---|---|---|
 | 1 | Kampf | 100 % |
-| 2 | Kampf | 100 % |
-| 5 | Kampf | 92 % |
-| 6 | Sturmtrupp | 76 % |
-| 8 | Kampf | 83 % |
-| 10 | Sturmtrupp | 77 % |
-| 11 | Belagerungsmeister | 59 % |
+| 2 | Kampf | 99 % |
+| 5 | Kampf | 96 % |
+| 6 | Sturmtrupp | 77 % |
+| 8 | Kampf | 84 % |
+| 10 | Sturmtrupp | 70 % |
+| 11 | Belagerungsmeister | **50 %** |
 
-**Akt geschafft: 27 %.** Die Mitte liegt bei Station 10 — die meisten Läufe
-sterben am Boss oder kurz davor.
+**Akt geschafft: 21 %.** Die Mitte liegt bei Station 10 — die meisten Läufe
+sterben am Boss oder kurz davor, und der Boss ist mit Abstand die schwerste
+Hürde. Das ist die Form, die ein Akt haben soll.
 
-Wucht über fünf Runden, nach Kampfnummer (Mittelwert):
+### Die Kurve ist flach — und warum
+
+Wucht über fünf Runden, nach Kampfnummer (Mitte von 25 Läufen):
 
 ```
-Kampf   1     2     3     4     5     6     7
-Wucht  645   662   798   735   799  1219  1181
+Kampf     1       2       3       4       5       6       7
+Wucht   3.822   3.510   3.150   3.230   3.522   3.180   3.374
 ```
 
-**Das ist die wichtigste offene Frage am Spiel.** Das Deck wächst über einen Akt
-etwa auf das Doppelte, nicht auf das Hundertfache. Der Grund: das Vielfache aus
-den Formationen liegt schon im ersten Kampf bei etwa 14 und steigt kaum, weil
-die Formationen mit einem beliebigen Deck erreichbar sind. Die einzige Achse,
-die wirklich wächst, ist der Rang — und der reicht von 3 bis 13, also knapp das
-Vierfache.
+Sie steigt nicht. **Das ist die Folge des vollen Blatts**, und es ist eine
+Rechnung, keine Meinung:
 
-Wer die Zahlen explodieren lassen will, muss dort ansetzen: Formationen, die
-ein Startdeck **nicht** treffen kann, oder Wappen, die sich gegenseitig
-verstärken.
+1. **Die Rangachse ist ab Kampf 1 fast ausgereizt.** Ein 52-Karten-Deck hat
+   Rangschnitt 7; die besten fünf einer Hand von sieben liegen um 9. Die
+   Obergrenze ist 13. Über den ganzen Akt bringt Verschmälern den Schnitt von
+   8,5 auf 10,4 — Faktor 1,2, nicht Faktor 10.
+2. **Die Formationen feuern von Anfang an fast voll.** Das Vielfache liegt im
+   ersten Kampf bei 17 und bleibt dort, weil ein volles Blatt jede Formation
+   erreichen kann. Es gibt nichts mehr freizuschalten.
+3. **Alles, was nur EINEN Turm vervielfacht, verdünnt sich auf ein Fünftel.**
+   Der Turmtyp gibt +40 %, auf die Gesamtwucht also +8 % — und die
+   Formationen, die ganze Gruppen verdoppeln, schlagen ihn. Gemessen: ein Bot,
+   der konsequent ausbaute und am Ende 4,5 spezialisierte Türme hatte, kam auf
+   **6 % mehr Wucht** als einer, der nie ausbaute.
+4. **Von sechs Wappen fasst nur eines die Wucht spürbar an** (Löwe ×1,31,
+   siehe Abschnitt 6).
+
+Der Spannungsbogen liegt deshalb allein in der Gegnertabelle: sie steigt von
+gut vierzig Prozent der mittleren Wucht bis knapp darüber beim
+Belagerungsmeister. Die Spannung kommt aus der Streuung der Hand und aus den
+Entscheidungen, nicht aus wachsender Macht.
+
+**Wer die Zahlen wachsen lassen will**, muss an `gesamt`-Faktoren ansetzen —
+alles andere verdünnt sich. Konkret: ein Ausbau, der die ganze Burg
+vervielfacht statt einen Turm; Wappen mit `gesamtFaktor`, die sich gegenseitig
+verstärken; oder Formationen, die ein volles Blatt gerade **nicht** trifft,
+sondern erst ein verschmälertes.
 
 ---
 

@@ -11,6 +11,10 @@ nebeneinander stehen, ergibt Formationen, und Formationen überlappen und
 vervielfachen sich miteinander. Es gibt keine Verteidigung, keinen Gegnerzug und
 keine Obergrenze.
 
+Das Deck ist von Anfang an das **ganze Blatt**: alle 52 Karten. Ein Lauf lässt
+es nicht wachsen, er verschmälert es — die Bauernschützen gehen, damit die
+Marschälle öfter kommen.
+
 Ein Akt führt über elf Stationen zum Belagerungsmeister. Deck, Wappen und
 Turmtypen nimmt man mit; ein verlorener Kampf beendet den Akt.
 
@@ -83,6 +87,26 @@ Kommentaren. Eigenschaftsnamen (`state.draw` hielt die Zeichenfunktion `draw` am
 Leben). Und der mittlere Zweig einer Bedingung — `boss ? FAKTOR : 1` sah aus wie
 ein Schlüssel, und schon galt eine benutzte Konstante als tot. Sie wurde
 geschnitten, und das ist aufgefallen, weil danach gemessen wurde.
+
+**Ein Angebot, das nie erscheint, ist kein Angebot.** Als das Startdeck auf
+alle 52 Karten umgestellt wurde, bekamen Ausbau und Ausmustern feste Plätze in
+der Belohnung — und damit war die dritte Reihe voll, bevor das Wappen an der
+Reihe war. Gemessen kam der Bot über einen ganzen Akt auf 0,3 Wappen. Jetzt
+bewerben sich vier Angebote um drei Plätze, und eines bleibt jedes Mal draußen.
+
+**Ein Faktor auf einen von fünf Türmen ist kein Multiplikator.** Der Turmtyp
+gibt +40 % — auf die Gesamtwucht sind das +8 %, und die Formationen, die ganze
+Gruppen verdoppeln, schlagen ihn jedes Mal. Ein Bot, der konsequent ausbaute
+und am Ende 4,5 spezialisierte Türme hatte, kam auf 6 % mehr Wucht als einer,
+der nie ausbaute. Was nur einen Turm anfasst, verdünnt sich auf ein Fünftel;
+nur `gesamt`-Faktoren wachsen wirklich.
+
+**Symmetrie ist Arithmetik, nicht Geschmack.** Fünf Türme von je zwei Zeilen
+Tiefe brauchen 2·Rand + 4·Lücke + 10 Zeilen. Bei neunzehn Zeilen geht das nicht
+ganzzahlig auf — der mittlere Turm stand immer eine halbe Zeile neben der
+Achse. Das Feld hat deshalb eine Zeile mehr bekommen, und die Burg wird auf
+der halben Zeile gemalt, weil sie fünf Zeilen tief ist und sonst ihrerseits
+danebenstünde.
 
 **Ein neuer Zeichenweg vergisst, was der alte tat.** Das Rütteln bei jeder
 Salve, der Schirmblitz und das Banner wurden ausgelöst und nie gezeichnet —
