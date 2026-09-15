@@ -224,151 +224,242 @@ const ergebnis = await seite.evaluate(() => {
   });
 
   // ---------- Formationen ----------
-  const burg = (...karten) => karten.map((id, i) => ({
-    nr: i + 1, typ: 'wachturm', einheit: id ? P.neueEinheit(id) : null,
-  }));
-  const hat = (formationen, id) => formationen.some(f => f.id === id);
+  /*
+   * Die Stellung der Tuerme darf NICHT zaehlen. Deshalb bekommt fast jede
+   * Pruefung hier auch eine gewuerfelte Variante: dieselben Einheiten, andere
+   * Reihenfolge, dasselbe Ergebnis.
+   */
+  const blatt = (...karten) => karten.map((id, i) =>
+    ({ nr: i + 1, typ: 'wachturm', einheit: id ? P.neueEinheit(id) : null }));
+  const misch = (a) => { const b = a.slice();
+    for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
+    return b.map((t, i) => ({ ...t, nr: i + 1 })); };
+  const formIds = (tuerme, wappen) => P.erkenneFormationen(tuerme, wappen).map(f => f.id).sort();
+  const hat = (tuerme, id) => formIds(tuerme).includes(id);
 
-  pruefe('Schützenlinie: drei benachbarte Bogenschützen', () => {
-    const f = P.erkenneFormationen(burg('bogen-3', 'bogen-5', 'bogen-7', null, null));
-    if (!hat(f, 'schuetzenlinie')) return 'nicht erkannt';
-    const s = f.find(x => x.id === 'schuetzenlinie');
-    return gleich(s.nachschuss.length, 3, 'Nachschüsse');
+  pruefe('Fünf gleiche Gattungen sind eine Reine Garde', () => {
+    const t = blatt('bogen-2', 'bogen-7', 'bogen-11', 'bogen-4', 'bogen-9');
+    if (!hat(t, 'reineGarde')) return 'nicht erkannt: ' + formIds(t);
+    // Und in jeder Reihenfolge.
+    for (let i = 0; i < 8; i++) if (!hat(misch(t), 'reineGarde')) return 'nach dem Mischen weg';
+    return true;
   });
-  pruefe('Schützenlinie nicht bei Lücke', () => {
-    const f = P.erkenneFormationen(burg('bogen-3', 'bogen-5', null, 'bogen-7', null));
-    return hat(f, 'schuetzenlinie') ? 'fälschlich erkannt' : true;
+
+  pruefe('Vier gleiche Gattungen sind ein Großes Regiment', () => {
+    const t = blatt('armbrust-2', 'armbrust-7', 'armbrust-11', 'armbrust-4', 'bogen-9');
+    if (!hat(t, 'grossesRegiment')) return formIds(t);
+    return true;
   });
-  pruefe('Bolzenwall: drei Armbrustschützen, auch verstreut', () => {
-    const f = P.erkenneFormationen(burg('armbrust-3', null, 'armbrust-5', null, 'armbrust-7'));
-    return hat(f, 'bolzenwall') ? true : 'nicht erkannt';
+
+  pruefe('Drei gleiche Gattungen sind ein Regiment', () => {
+    const t = blatt('artillerie-2', 'artillerie-7', 'artillerie-11', 'bogen-4', 'kanonier-9');
+    if (!hat(t, 'regiment')) return formIds(t);
+    return true;
   });
-  pruefe('Schwere Batterie: zwei benachbarte Artillerie', () => {
-    const f = P.erkenneFormationen(burg(null, 'artillerie-4', 'artillerie-6', null, null));
-    return hat(f, 'schwereBatterie') ? true : 'nicht erkannt';
+
+  pruefe('Die Gattungsfamilie stapelt nicht', () => {
+    const t = blatt('bogen-2', 'bogen-7', 'bogen-11', 'bogen-4', 'bogen-9');
+    const ids = formIds(t);
+    for (const kleiner of ['regiment', 'grossesRegiment']) {
+      if (ids.includes(kleiner)) return kleiner + ' gilt neben der Reinen Garde';
+    }
+    return true;
   });
-  pruefe('Pulverlinie steigt mit der Zahl', () => {
-    const drei = P.erkenneFormationen(burg('kanonier-2', 'kanonier-3', 'kanonier-4', null, null))
-      .find(f => f.id === 'pulverlinie');
-    const fuenf = P.erkenneFormationen(burg('kanonier-2', 'kanonier-3', 'kanonier-4', 'kanonier-5', 'kanonier-6'))
-      .find(f => f.id === 'pulverlinie');
-    if (!drei || !fuenf) return 'nicht erkannt';
-    if (drei.proTurm !== 2) return 'drei Kanoniere geben ×' + drei.proTurm;
-    return gleich(fuenf.proTurm, 5, 'fünf Kanoniere');
+
+  pruefe('Fünf fortlaufende Ränge sind ein Perfekter Vormarsch', () => {
+    const t = blatt('bogen-8', 'armbrust-9', 'artillerie-10', 'kanonier-11', 'bogen-12');
+    if (!hat(t, 'perfekterVormarsch')) return formIds(t);
+    return true;
   });
-  pruefe('Wechselfeuer: vier abwechselnde Gattungen', () => {
-    const f = P.erkenneFormationen(burg('bogen-3', 'armbrust-4', 'bogen-5', 'armbrust-6', null));
-    return hat(f, 'wechselfeuer') ? true : 'nicht erkannt';
+
+  pruefe('Die Reihenfolge der Türme zählt für die Folge nicht', () => {
+    // 12, 8, 10, 9, 11 - dieselbe Folge, anders aufgestellt.
+    const t = blatt('bogen-12', 'armbrust-8', 'artillerie-10', 'kanonier-9', 'bogen-11');
+    if (!hat(t, 'perfekterVormarsch')) return formIds(t);
+    return true;
   });
-  pruefe('Wechselfeuer nicht bei drei gleichen', () => {
-    const f = P.erkenneFormationen(burg('bogen-3', 'bogen-4', 'bogen-5', 'bogen-6', null));
-    return hat(f, 'wechselfeuer') ? 'fälschlich erkannt' : true;
+
+  pruefe('Vier und drei fortlaufende Ränge', () => {
+    const vier = blatt('bogen-5', 'armbrust-6', 'artillerie-7', 'kanonier-8', 'bogen-13');
+    if (!hat(vier, 'grosserVormarsch')) return 'vier: ' + formIds(vier);
+    const drei = blatt('bogen-5', 'armbrust-6', 'artillerie-7', 'kanonier-12', 'bogen-1');
+    if (!hat(drei, 'vormarsch')) return 'drei: ' + formIds(drei);
+    return true;
   });
-  pruefe('Zangenstellung: gleiche Gattung an den Enden', () => {
-    const f = P.erkenneFormationen(burg('bogen-3', 'armbrust-4', 'artillerie-5', null, null))
-      .find(x => x.id === 'zangenstellung');
-    if (f) return 'fälschlich erkannt';
-    const g = P.erkenneFormationen(burg('bogen-3', 'armbrust-4', 'bogen-5', null, null))
-      .find(x => x.id === 'zangenstellung');
-    if (!g) return 'nicht erkannt';
-    return gleich(g.nachschuss.length, 2, 'Nachschüsse');
+
+  pruefe('Die Folgenfamilie stapelt nicht', () => {
+    const t = blatt('bogen-8', 'armbrust-9', 'artillerie-10', 'kanonier-11', 'bogen-12');
+    const ids = formIds(t);
+    for (const kleiner of ['vormarsch', 'grosserVormarsch']) {
+      if (ids.includes(kleiner)) return kleiner + ' gilt neben dem Perfekten Vormarsch';
+    }
+    return true;
   });
-  pruefe('Vorrückende Salve ist keine Straße', () => {
-    const f = P.erkenneFormationen(burg('bogen-3', 'armbrust-6', 'artillerie-9', null, null))
-      .find(x => x.id === 'vorrueckend');
-    if (!f) return 'Sprünge werden nicht erkannt';
-    return gleich(f.proTurm, 1.5, 'Faktor bei drei');
+
+  pruefe('Gleiche Ränge zählen in einer Folge nur einmal', () => {
+    // 8, 8, 9, 10 ist eine Folge von drei, keine von vier.
+    const t = blatt('bogen-8', 'armbrust-8', 'artillerie-9', 'kanonier-10', null);
+    const ids = formIds(t);
+    if (ids.includes('grosserVormarsch')) return 'als Folge von vier gewertet';
+    if (!ids.includes('vormarsch')) return 'die Folge von drei fehlt: ' + ids;
+    return true;
   });
-  pruefe('Fallende Salve', () => {
-    const f = P.erkenneFormationen(burg('bogen-9', 'armbrust-6', 'artillerie-2', null, null))
-      .find(x => x.id === 'fallend');
-    return f ? gleich(f.proTurm, 1.75, 'Faktor bei drei') : 'nicht erkannt';
+
+  pruefe('Paar, Doppelte Wache, Drilling, Viererblock', () => {
+    const paar = blatt('bogen-8', 'armbrust-8', null, null, null);
+    if (!hat(paar, 'doppelposten')) return 'Paar: ' + formIds(paar);
+    const zwei = blatt('bogen-8', 'armbrust-8', 'artillerie-9', 'kanonier-9', null);
+    if (!hat(zwei, 'doppelteWache')) return 'zwei Paare: ' + formIds(zwei);
+    const drei = blatt('bogen-8', 'armbrust-8', 'artillerie-8', null, null);
+    if (!hat(drei, 'drillingsposten')) return 'Drilling: ' + formIds(drei);
+    const vier = blatt('bogen-11', 'armbrust-11', 'artillerie-11', 'kanonier-11', null);
+    if (!hat(vier, 'viererblock')) return 'Viererblock: ' + formIds(vier);
+    return true;
   });
-  pruefe('Königshügel nur bei echtem Höchstrang in der Mitte', () => {
-    const ja = P.erkenneFormationen(burg('bogen-3', 'bogen-4', 'bogen-11', 'bogen-5', 'bogen-2'));
-    if (!hat(ja, 'koenigshuegel')) return 'nicht erkannt';
-    const nein = P.erkenneFormationen(burg('bogen-3', 'bogen-4', 'bogen-11', 'bogen-11', 'bogen-2'));
-    return hat(nein, 'koenigshuegel') ? 'bei Gleichstand erkannt' : true;
+
+  pruefe('Die Rangfamilie stapelt nicht', () => {
+    const vier = blatt('bogen-11', 'armbrust-11', 'artillerie-11', 'kanonier-11', null);
+    const ids = formIds(vier);
+    for (const kleiner of ['doppelposten', 'doppelteWache', 'drillingsposten']) {
+      if (ids.includes(kleiner)) return kleiner + ' gilt neben dem Viererblock';
+    }
+    return true;
   });
+
+  pruefe('Fünf Ränge derselben Gattung in Folge: Königlicher Aufmarsch', () => {
+    const t = blatt('bogen-8', 'bogen-9', 'bogen-10', 'bogen-11', 'bogen-12');
+    const ids = formIds(t);
+    if (!ids.includes('koeniglicherAufmarsch')) return ids;
+    // Er loest Gattung UND Folge ab - uebrig bleibt er selbst und die Front.
+    for (const weg of ['reineGarde', 'perfekterVormarsch', 'regiment', 'vormarsch']) {
+      if (ids.includes(weg)) return weg + ' gilt neben dem Königlichen Aufmarsch';
+    }
+    if (!ids.includes('geschlosseneFront')) return 'die Geschlossene Front fehlt';
+    return true;
+  });
+
   pruefe('Geschlossene Front nur bei fünf Einheiten', () => {
-    const vier = P.erkenneFormationen(burg('bogen-3', 'armbrust-4', 'artillerie-5', 'kanonier-6', null));
-    if (hat(vier, 'geschlosseneFront')) return 'bei vier erkannt';
-    const fuenf = P.erkenneFormationen(burg('bogen-3', 'armbrust-4', 'artillerie-5', 'kanonier-6', 'bogen-7'));
-    return hat(fuenf, 'geschlosseneFront') ? true : 'bei fünf nicht erkannt';
+    const voll = blatt('bogen-1', 'armbrust-3', 'artillerie-5', 'kanonier-7', 'bogen-9');
+    if (!hat(voll, 'geschlosseneFront')) return 'bei fünf nicht erkannt';
+    const luecke = blatt('bogen-1', 'armbrust-3', 'artillerie-5', 'kanonier-7', null);
+    if (hat(luecke, 'geschlosseneFront')) return 'bei vier trotzdem erkannt';
+    return true;
   });
-  pruefe('Formationen überlappen sich', () => {
-    const f = P.erkenneFormationen(burg('bogen-5', 'bogen-7', 'bogen-9', 'artillerie-11', 'artillerie-13'));
-    const soll = ['schuetzenlinie', 'vorrueckend', 'schwereBatterie', 'geschlosseneFront'];
-    const fehlt = soll.filter(id => !hat(f, id));
-    return fehlt.length ? 'fehlt: ' + fehlt.join(', ') : true;
+
+  pruefe('Jede Formation nennt ihre Familie und ihre Salven', () => {
+    for (const f of P.FORMATIONEN) {
+      if (!P.FORMATIONS_FAMILIEN[f.familie]) return f.id + ': Familie ' + f.familie + ' gibt es nicht';
+      if (!(f.salven > 0)) return f.id + ' bringt keine Salven';
+      if (typeof f.rang !== 'number') return f.id + ' hat keinen Rang in seiner Familie';
+      if (!f.name || !f.text) return f.id + ' ohne Namen oder Text';
+    }
+    return true;
+  });
+
+  pruefe('Formationsstufen heben die Salven', () => {
+    const f = P.FORMATIONEN.find(x => x.id === 'reineGarde');
+    if (P.formationsSalven(f, 1) !== f.salven) return 'Stufe 1 weicht ab';
+    if (P.formationsSalven(f, 3) !== f.salven + 2 * f.jeStufe) return 'Stufe 3 rechnet falsch';
+    return true;
   });
 
   // ---------- Wucht ----------
   pruefe('leere Burg macht keine Wucht', () => {
-    const w = P.berechneWucht(burg(null, null, null, null, null));
+    const w = P.berechneWucht(blatt(null, null, null, null, null));
     return gleich(w.wucht, 0, 'Wucht');
   });
-  pruefe('eine Einheit macht ihren Rang', () => {
-    const w = P.berechneWucht(burg('bogen-7', null, null, null, null));
+  pruefe('eine Einheit feuert einmal und macht ihren Rang', () => {
+    const w = P.berechneWucht(blatt('bogen-7', null, null, null, null));
+    if (w.salven !== P.KERN.salvenGrund) return w.salven + ' Salven statt ' + P.KERN.salvenGrund;
     return gleich(w.wucht, 7, 'Wucht');
   });
   pruefe('Turmtyp wirkt nur auf die passende Gattung', () => {
-    // Auf die Regel pruefen, nicht auf die Zahl: der Faktor ist eine
-    // Stellschraube in KERN und darf sich aendern.
     const passt = P.berechneWucht([{ nr: 1, typ: 'schuetzenturm', einheit: P.neueEinheit('bogen-8') }]);
     if (passt.wucht !== Math.round(8 * P.KERN.turmFaktor)) return 'Bogen auf Schützenturm: ' + passt.wucht;
     const nicht = P.berechneWucht([{ nr: 1, typ: 'schuetzenturm', einheit: P.neueEinheit('kanonier-8') }]);
     return gleich(nicht.wucht, 8, 'Kanonier auf Schützenturm');
   });
-  pruefe('Formationen vervielfachen, statt zu addieren', () => {
-    const ohne = P.berechneWucht(burg('kanonier-4', 'bogen-4', 'kanonier-4', null, null)).wucht;
-    const mit = P.berechneWucht(burg('kanonier-4', 'kanonier-4', 'kanonier-4', null, null)).wucht;
-    if (mit <= ohne) return 'Pulverlinie bringt nichts: ' + ohne + ' -> ' + mit;
-    // 3 x 4 Wucht, Pulverlinie x2 = je 8. Dazu greift die Zangenstellung:
-    // aussen steht zweimal dieselbe Gattung, also feuern Turm 1 und 3 doppelt.
-    // 8 x 2 + 8 + 8 x 2 = 40. Genau diese Ueberlagerung ist der Kern des Spiels.
-    return gleich(mit, 40, 'drei Kanoniere mit Pulverlinie und Zange');
+
+  /*
+   * Die eine Rechnung, auf der jetzt alles steht: Summe der Wucht je Salve,
+   * mal die Zahl der Salven. Wer sie im Kopf nachrechnen kann, kann das Spiel
+   * planen - genau dafuer wurde die alte Faktorkette aufgegeben.
+   */
+  pruefe('Wucht ist Summe je Salve mal Salvenzahl', () => {
+    const t = blatt('bogen-8', 'bogen-9', 'bogen-10', 'bogen-11', 'bogen-12');
+    const w = P.berechneWucht(t);
+    const erwartet = (8 + 9 + 10 + 11 + 12) * w.salven;
+    if (w.jeSalve !== 50) return 'je Salve ' + w.jeSalve;
+    return gleich(w.wucht, erwartet, 'Königlicher Aufmarsch');
   });
-  pruefe('Nachschuss zählt als zweiter Schuss', () => {
-    const w = P.berechneWucht(burg('bogen-3', 'bogen-4', 'bogen-5', null, null));
-    // Schützenlinie: alle drei feuern zweimal. Zangenstellung: die Enden noch einmal.
-    if (w.wucht < 24) return 'zu wenig: ' + w.wucht;
+
+  pruefe('Mehr Formation heisst mehr Salven', () => {
+    const salven = (t) => P.berechneWucht(t).salven;
+    const nichts = salven(blatt('bogen-2', 'armbrust-5', 'artillerie-9', 'kanonier-12', null));
+    const front  = salven(blatt('bogen-2', 'armbrust-5', 'artillerie-9', 'kanonier-12', 'bogen-7'));
+    const garde  = salven(blatt('bogen-2', 'bogen-5', 'bogen-9', 'bogen-12', 'bogen-7'));
+    const koenig = salven(blatt('bogen-8', 'bogen-9', 'bogen-10', 'bogen-11', 'bogen-12'));
+    if (!(nichts < front && front < garde && garde < koenig)) {
+      return 'Reihenfolge stimmt nicht: ' + [nichts, front, garde, koenig].join(' < ');
+    }
     return true;
   });
-  pruefe('Breakdown nennt jeden Schritt', () => {
-    const w = P.berechneWucht(burg('bogen-5', 'bogen-7', 'bogen-9', 'artillerie-11', 'artillerie-13'));
+
+  pruefe('Die Salvenzahl steht in jedem Posten', () => {
+    const t = blatt('bogen-8', 'bogen-9', 'bogen-10', 'bogen-11', 'bogen-12');
+    const w = P.berechneWucht(t);
+    for (const p of w.posten) if (p.schuesse !== w.salven) return 'Posten feuert ' + p.schuesse;
+    return true;
+  });
+
+  pruefe('Breakdown nennt jeden Schritt und endet auf der Endwucht', () => {
+    const w = P.berechneWucht(blatt('bogen-5', 'bogen-7', 'bogen-9', 'artillerie-11', 'artillerie-13'));
     if (!w.schritte.length) return 'keine Schritte';
     if (w.schritte[0].art !== 'grund') return 'erster Schritt ist ' + w.schritte[0].art;
     if (!w.posten.length) return 'keine Posten';
     if (w.schritte[w.schritte.length - 1].wucht !== w.wucht) return 'letzter Schritt passt nicht zur Endwucht';
+    if (!w.schritte.some(x => x.art === 'salven')) return 'die Salvenzeile fehlt';
     return true;
   });
+
   pruefe('eine starke Burg eskaliert deutlich', () => {
-    const w = P.berechneWucht(burg('bogen-5', 'bogen-7', 'bogen-9', 'artillerie-11', 'artillerie-13'));
-    return w.wucht >= 200 ? true : 'nur ' + w.wucht;
+    const schwach = P.berechneWucht(blatt('bogen-5', 'armbrust-7', 'artillerie-9', 'kanonier-11', 'bogen-13')).wucht;
+    const stark = P.berechneWucht(blatt('bogen-9', 'bogen-10', 'bogen-11', 'bogen-12', 'bogen-13')).wucht;
+    if (stark < schwach * 3) return 'nur ' + schwach + ' -> ' + stark;
+    return true;
   });
 
   // ---------- Wappen ----------
-  pruefe('Wappen des Löwen verdoppelt den Rang der Mitte', () => {
-    const ohne = P.erkenneFormationen(burg('bogen-9', 'bogen-4', 'bogen-6', 'bogen-3', 'bogen-2'));
-    const mit = P.erkenneFormationen(burg('bogen-9', 'bogen-4', 'bogen-6', 'bogen-3', 'bogen-2'), ['loewe']);
-    const ohneHuegel = ohne.some(f => f.id === 'koenigshuegel');
-    const mitHuegel = mit.some(f => f.id === 'koenigshuegel');
-    if (ohneHuegel) return 'ohne Wappen schon erkannt';
-    return mitHuegel ? true : 'mit Wappen nicht erkannt';
+  pruefe('Wappen des Löwen hebt den Rang der Mitte', () => {
+    // Rang 4 in der Mitte wird mit dem Loewen zu 12 - und bildet damit ein
+    // Paar mit einer echten 12, das ohne das Wappen nicht da waere.
+    const t = blatt('bogen-2', 'armbrust-5', 'artillerie-4', 'kanonier-12', 'bogen-7');
+    const ohne = P.erkenneFormationen(t).map(f => f.id);
+    const mit = P.erkenneFormationen(t, ['loewe']).map(f => f.id);
+    if (ohne.includes('doppelposten')) return 'ohne Wappen schon ein Paar';
+    if (!mit.includes('doppelposten')) return 'mit Wappen kein Paar: ' + mit;
+    return true;
   });
-  pruefe('Wappen des Doppeladlers schliesst den Ring', () => {
-    const ohne = P.erkenneFormationen(burg('bogen-3', null, null, 'bogen-5', 'bogen-7'));
-    const mit = P.erkenneFormationen(burg('bogen-3', null, null, 'bogen-5', 'bogen-7'), ['doppeladler']);
-    if (ohne.some(f => f.id === 'schuetzenlinie')) return 'ohne Wappen schon erkannt';
-    return mit.some(f => f.id === 'schuetzenlinie') ? true : 'mit Wappen nicht erkannt';
+  pruefe('Wappen des Doppeladlers zählt Turm 1 doppelt', () => {
+    // Zwei Bogenschuetzen plus der Doppeladler auf Turm 1 sind drei - ein Regiment.
+    const t = blatt('bogen-9', 'bogen-4', 'artillerie-5', 'kanonier-12', 'armbrust-7');
+    const ohne = P.erkenneFormationen(t).map(f => f.id);
+    const mit = P.erkenneFormationen(t, ['doppeladler']).map(f => f.id);
+    if (ohne.includes('regiment')) return 'ohne Wappen schon ein Regiment';
+    if (!mit.includes('regiment')) return 'mit Wappen kein Regiment: ' + mit;
+    // Die Kopie besetzt keinen Turm: die Front braucht weiter fuenf Einheiten.
+    const vier = blatt('bogen-9', 'bogen-4', 'artillerie-5', 'kanonier-12', null);
+    if (P.erkenneFormationen(vier, ['doppeladler']).some(f => f.id === 'geschlosseneFront')) {
+      return 'die Kopie füllt eine leere Stellung';
+    }
+    return true;
   });
   pruefe('Wappen des Wolfs zahlt für leere Türme', () => {
     // Nicht auf eine Zahl prüfen, sondern auf die Regel: der Zuschlag ist eine
     // Stellschraube in KERN und darf sich ändern, ohne dass die Prüfung bricht.
     const leer = 4;
-    const ohne = P.berechneWucht(burg('bogen-8', null, null, null, null)).wucht;
-    const mit = P.berechneWucht(burg('bogen-8', null, null, null, null), ['wolf']).wucht;
+    const ohne = P.berechneWucht(blatt('bogen-8', null, null, null, null)).wucht;
+    const mit = P.berechneWucht(blatt('bogen-8', null, null, null, null), ['wolf']).wucht;
     if (mit <= ohne) return 'kein Unterschied';
     return gleich(mit, Math.round(ohne * (1 + P.KERN.wappen.wolf * leer)), 'Wucht mit Wolf');
   });

@@ -790,18 +790,12 @@ const KERN = {
    */
   turmFaktor: 1.4,            // Turmtyp passt zur Gattung
   signalMaxTiefe: 8,          // Schutz gegen sich selbst ausloesende Ketten
-  formation: {
-    schuetzenlinie: { ab: 3 },
-    bolzenwall:     { ab: 3, faktor: 2 },
-    schwereBatterie:{ ab: 2, faktor: 2 },
-    pulverlinie:    { ab: 3, stufen: { 3: 2, 4: 3, 5: 5 } },
-    wechselfeuer:   { ab: 4, faktor: 2 },
-    zangenstellung: { ab: 3 },
-    vorrueckend:    { ab: 3, stufen: { 3: 1.5, 4: 2, 5: 3 } },
-    fallend:        { ab: 3, stufen: { 3: 1.75, 4: 2.5, 5: 4 } },
-    koenigshuegel:  { faktor: 2 },
-    geschlosseneFront: { faktor: 1.5 },
-  },
+  /*
+   * Die Grundsalve. Jede besetzte Stellung feuert einmal, auch ohne jede
+   * Formation - alles Weitere kommt aus FORMATIONEN dazu.
+   */
+  salvenGrund: 1,
+
   /*
    * Die Wappen. Ihre Werte sind gemessen gegen die Frage: ist ein Wappen so
    * viel wert wie die beste Karte, die statt seiner im Angebot laege? In der
@@ -1000,9 +994,20 @@ const WAPPEN = {
     rangFaktor: (turm, i) => (i === Math.floor(KERN.tuerme / 2) ? KERN.wappen.loewe : 1),
   },
   doppeladler: {
+    /*
+     * Frueher schloss dieses Wappen die Turmreihe zum Ring - sinnvoll,
+     * solange Formationen an Nachbarschaft haengen. Seit sie ueber die MENGE
+     * der besetzten Stellungen gehen, gibt es keine Nachbarn mehr, und der
+     * Doppeladler waere ein Wappen ohne Wirkung geworden.
+     *
+     * Er behaelt sein Bild und bekommt eine Wirkung, die dazu passt: zwei
+     * Koepfe, eine Einheit. Die Einheit auf der ersten Stellung zaehlt beim
+     * Erkennen doppelt - sie kann also mit sich selbst ein Paar bilden, ein
+     * Regiment vervollstaendigen oder eine Luecke in einer Folge fuellen.
+     */
     id: 'doppeladler', name: 'Wappen des Doppeladlers',
-    text: 'Turm 1 und Turm 5 gelten als benachbart.',
-    ring: true,
+    text: 'Die Einheit auf Turm 1 zählt für Formationen doppelt.',
+    zaehltDoppelt: 0,
   },
   wolf: {
     id: 'wolf', name: 'Wappen des Wolfs',
@@ -1063,291 +1068,307 @@ function leereSignale() { signalHoerer = {}; signalTiefe = 0; signalUeberlauf = 
 
 // ---------- Formationen ----------
 /*
- * Die Formationserkennung ist ein eigenes Stück: Türme rein, Ergebnisse raus.
- * Sie kennt weder Anzeige noch Kampfzustand, und jede Formation ist ein
- * Datensatz mit einer `finde`-Funktion - neue kommen dazu, ohne dass die
- * Maschine sich ändert.
+ * Fuenf besetzte Tuerme sind ein Blatt. Was darin steckt, erkennt man wie in
+ * einem Kartenspiel: gleiche Gattung, gleiche Raenge, eine Folge von Raengen -
+ * und das Beste ist beides zugleich.
  *
- * Wichtig: Formationen überlappen sich absichtlich. Fünf Türme können
- * gleichzeitig vier Formationen erfüllen, und genau daraus entsteht die
- * Eskalation. Deshalb gibt jede Formation ihre betroffenen Türme zurück und
- * nicht einfach eine Zahl.
+ * DIE STELLUNG DER TUERME SPIELT KEINE ROLLE. Das ist der wichtigste
+ * Unterschied zur ersten Fassung. Dort zaehlte Nachbarschaft, und damit war
+ * "drei Bogenschuetzen" mal eine Formation und mal nicht, je nachdem, auf
+ * welchen Tuermen sie zufaellig standen. Wer fuenf Bogenschuetzen aufstellt,
+ * soll etwas Grosses bekommen - immer, ohne sie vorher sortieren zu muessen.
  *
- * Jeder Treffer darf tragen:
- *   tuerme    welche Stellungen beteiligt sind
- *   proTurm   Faktor auf die Wucht JEDER beteiligten Einheit
- *   gesamt    Faktor auf die Gesamtwucht
- *   nachschuss  diese Türme feuern ein weiteres Mal
+ * FAMILIEN. Die Formationen stehen in drei Familien, und aus jeder gilt nur
+ * die HOECHSTE erreichte. Fuenf gleiche Gattungen sind eine Reine Garde und
+ * nicht zusaetzlich ein Regiment und ein Grosses Regiment - sonst waere jede
+ * gute Aufstellung ein Stapel aus sechs Auszeichnungen, und niemand koennte
+ * mehr abschaetzen, was eine davon wert ist.
+ *
+ * DER LOHN SIND SALVEN, keine Faktoren. Das ist das ganze Denkmodell:
+ * bessere Formation, mehr Salven, und eine Salve ist ein Schuss, den man
+ * sieht. Wer +7 Salven liest, weiss, was gleich passiert.
+ */
+const FORMATIONS_FAMILIEN = {
+  gattung: 'Gattung',
+  rang: 'Rang',
+  folge: 'Rangfolge',
+  grund: 'Grundstellung',
+};
+
+/*
+ * Die Werte sind Stellschrauben und stehen bewusst hier oben beieinander.
+ * `salven` ist der Grundwert, `jeStufe` was eine spaetere Aufwertung der
+ * Formation dazugibt (siehe `formationsSalven`) - das Geruest dafuer steht,
+ * die Ausbau-Oekonomie kommt spaeter.
  */
 const FORMATIONEN = [
+  // ---- Grundstellung ----
   {
-    id: 'schuetzenlinie', name: 'Schützenlinie',
-    text: 'Drei benachbarte Bogenschützen feuern ein zweites Mal.',
-    finde(ctx) {
-      return ctx.folgen(t => t.einheit && t.einheit.gattung === 'bogen')
-        .filter(f => f.length >= KERN.formation.schuetzenlinie.ab)
-        .map(f => ({ tuerme: f, nachschuss: f }));
-    },
+    id: 'geschlosseneFront', name: 'Geschlossene Front', familie: 'grund', rang: 1,
+    salven: 1, jeStufe: 1,
+    text: 'Alle fünf Stellungen besetzt.',
+    finde: (h) => (h.anzahl === KERN.tuerme ? { tuerme: h.alle } : null),
+  },
+
+  // ---- Familie: gleiche Gattung ----
+  {
+    id: 'regiment', name: 'Regiment', familie: 'gattung', rang: 1,
+    salven: 2, jeStufe: 1,
+    text: 'Drei Einheiten derselben Gattung.',
+    finde: (h) => h.gleicheGattung(3),
   },
   {
-    id: 'bolzenwall', name: 'Bolzenwall',
-    text: 'Drei Armbrustschützen in der Burg verdoppeln ihre Wucht.',
-    finde(ctx) {
-      const wer = ctx.mit(t => t.einheit && t.einheit.gattung === 'armbrust');
-      if (wer.length < KERN.formation.bolzenwall.ab) return [];
-      return [{ tuerme: wer, proTurm: KERN.formation.bolzenwall.faktor }];
-    },
+    id: 'grossesRegiment', name: 'Großes Regiment', familie: 'gattung', rang: 2,
+    salven: 4, jeStufe: 2,
+    text: 'Vier Einheiten derselben Gattung.',
+    finde: (h) => h.gleicheGattung(4),
   },
   {
-    id: 'schwereBatterie', name: 'Schwere Batterie',
-    text: 'Zwei benachbarte Artillerie-Einheiten verdoppeln ihre Wucht.',
-    finde(ctx) {
-      return ctx.folgen(t => t.einheit && t.einheit.gattung === 'artillerie')
-        .filter(f => f.length >= KERN.formation.schwereBatterie.ab)
-        .map(f => ({ tuerme: f, proTurm: KERN.formation.schwereBatterie.faktor }));
-    },
+    id: 'reineGarde', name: 'Reine Garde', familie: 'gattung', rang: 3,
+    salven: 7, jeStufe: 3,
+    text: 'Alle fünf Stellungen mit derselben Gattung.',
+    finde: (h) => (h.anzahl === KERN.tuerme ? h.gleicheGattung(5) : null),
+  },
+
+  // ---- Familie: gleiche Raenge ----
+  {
+    id: 'doppelposten', name: 'Doppelposten', familie: 'rang', rang: 1,
+    salven: 1, jeStufe: 1,
+    text: 'Zwei Einheiten desselben Rangs.',
+    finde: (h) => h.gleicherRang(2),
   },
   {
-    id: 'pulverlinie', name: 'Pulverlinie',
-    text: 'Drei Kanoniere ×2, vier ×3, fünf ×5.',
-    finde(ctx) {
-      const wer = ctx.mit(t => t.einheit && t.einheit.gattung === 'kanonier');
-      const stufen = KERN.formation.pulverlinie.stufen;
-      const faktor = stufen[Math.min(KERN.tuerme, wer.length)];
-      if (wer.length < KERN.formation.pulverlinie.ab || !faktor) return [];
-      return [{ tuerme: wer, proTurm: faktor }];
-    },
+    id: 'doppelteWache', name: 'Doppelte Wache', familie: 'rang', rang: 2,
+    salven: 2, jeStufe: 1,
+    text: 'Zwei verschiedene Paare.',
+    finde: (h) => h.zweiPaare(),
   },
   {
-    id: 'wechselfeuer', name: 'Wechselfeuer',
-    text: 'Vier benachbarte Türme mit abwechselnden Gattungen: ×2.',
-    finde(ctx) {
-      const treffer = [];
-      for (const folge of ctx.folgen(t => Boolean(t.einheit))) {
-        // Die längste Strecke suchen, auf der sich genau zwei Gattungen abwechseln
-        let anfang = 0;
-        for (let i = 1; i <= folge.length; i++) {
-          const bricht = i === folge.length ||
-            ctx.tuerme[folge[i]].einheit.gattung === ctx.tuerme[folge[i - 1]].einheit.gattung ||
-            (i - anfang >= 2 &&
-              ctx.tuerme[folge[i]].einheit.gattung !== ctx.tuerme[folge[i - 2]].einheit.gattung);
-          if (!bricht) continue;
-          const stueck = folge.slice(anfang, i);
-          if (stueck.length >= KERN.formation.wechselfeuer.ab) {
-            treffer.push({ tuerme: stueck, proTurm: KERN.formation.wechselfeuer.faktor });
-          }
-          anfang = i - 1;
-        }
-      }
-      return treffer;
-    },
+    id: 'drillingsposten', name: 'Drillingsposten', familie: 'rang', rang: 3,
+    salven: 3, jeStufe: 2,
+    text: 'Drei Einheiten desselben Rangs.',
+    finde: (h) => h.gleicherRang(3),
   },
   {
-    id: 'zangenstellung', name: 'Zangenstellung',
-    text: 'Gleiche Gattung an beiden Enden einer Reihe: beide feuern erneut.',
-    finde(ctx) {
-      return ctx.folgen(t => Boolean(t.einheit))
-        .filter(f => f.length >= KERN.formation.zangenstellung.ab &&
-          ctx.tuerme[f[0]].einheit.gattung === ctx.tuerme[f[f.length - 1]].einheit.gattung)
-        .map(f => {
-          const enden = [f[0], f[f.length - 1]];
-          return { tuerme: enden, nachschuss: enden };
-        });
-    },
+    id: 'viererblock', name: 'Viererblock', familie: 'rang', rang: 4,
+    salven: 10, jeStufe: 4,
+    text: 'Vier Einheiten desselben Rangs.',
+    finde: (h) => h.gleicherRang(4),
+  },
+
+  // ---- Familie: Rangfolge ----
+  {
+    id: 'vormarsch', name: 'Vormarsch', familie: 'folge', rang: 1,
+    salven: 2, jeStufe: 1,
+    text: 'Drei aufeinanderfolgende Ränge.',
+    finde: (h) => h.folge(3),
   },
   {
-    id: 'vorrueckend', name: 'Vorrückende Salve',
-    text: 'Drei benachbarte Türme mit steigenden Rängen: ×1,5 · vier ×2 · fünf ×3.',
-    finde(ctx) { return ctx.monoton(1, KERN.formation.vorrueckend); },
+    id: 'grosserVormarsch', name: 'Großer Vormarsch', familie: 'folge', rang: 2,
+    salven: 4, jeStufe: 2,
+    text: 'Vier aufeinanderfolgende Ränge.',
+    finde: (h) => h.folge(4),
   },
   {
-    id: 'fallend', name: 'Fallende Salve',
-    text: 'Drei benachbarte Türme mit fallenden Rängen: ×1,75 · vier ×2,5 · fünf ×4.',
-    finde(ctx) { return ctx.monoton(-1, KERN.formation.fallend); },
+    id: 'perfekterVormarsch', name: 'Perfekter Vormarsch', familie: 'folge', rang: 3,
+    salven: 7, jeStufe: 3,
+    text: 'Fünf aufeinanderfolgende Ränge.',
+    finde: (h) => h.folge(5),
   },
+
+  /*
+   * Die Kroenung. Sie loest Gattungs- UND Rangfolgen-Familie zugleich ab -
+   * darum steht sie in beiden und traegt `loest` - und ist das Seltenste, was
+   * sich aus einem Blatt von 52 Karten bauen laesst: fuenf Karten einer
+   * Gattung in ununterbrochener Folge.
+   */
   {
-    id: 'koenigshuegel', name: 'Königshügel',
-    text: 'Der mittlere Turm trägt den höchsten Rang: sein Rang zählt doppelt.',
-    finde(ctx) {
-      const mitte = Math.floor(KERN.tuerme / 2);
-      const t = ctx.tuerme[mitte];
-      if (!t || !t.einheit) return [];
-      const andere = ctx.mit(x => Boolean(x.einheit)).filter(i => i !== mitte);
-      if (!andere.length) return [];
-      const hoechste = Math.max(...andere.map(i => ctx.rang(i)));
-      if (ctx.rang(mitte) <= hoechste) return [];
-      return [{ tuerme: [mitte], proTurm: KERN.formation.koenigshuegel.faktor }];
-    },
-  },
-  {
-    id: 'geschlosseneFront', name: 'Geschlossene Front',
-    text: 'Alle fünf Türme besetzt: Gesamtwucht ×1,5.',
-    finde(ctx) {
-      // Fünf besetzte Türme, nicht "keiner leer": eine Probeaufstellung mit
-      // nur einem Turm ist keine geschlossene Front, auch wenn nichts fehlt.
-      if (ctx.tuerme.length < KERN.tuerme) return [];
-      if (ctx.tuerme.some(t => !t.einheit)) return [];
-      return [{ tuerme: ctx.tuerme.map((_, i) => i), gesamt: KERN.formation.geschlosseneFront.faktor }];
+    id: 'koeniglicherAufmarsch', name: 'Königlicher Aufmarsch', familie: 'gattung', rang: 9,
+    loest: ['folge'], kroenung: true,
+    salven: 15, jeStufe: 5,
+    text: 'Fünf aufeinanderfolgende Ränge derselben Gattung.',
+    finde: (h) => {
+      if (h.anzahl !== KERN.tuerme) return null;
+      const gattung = h.gleicheGattung(5);
+      const folge = h.folge(5);
+      return gattung && folge ? { tuerme: h.alle } : null;
     },
   },
 ];
 
-/**
- * Der Zusammenhang, in dem eine Formation sucht: die Türme, dazu ein paar
- * Fragen, die fast jede Formation stellt. Der Ring kommt vom Doppeladler -
- * mit ihm sind Turm 1 und Turm 5 benachbart, und alle Nachbarschaftsregeln
- * gelten plötzlich anders. Genau dafür sind Wappen da.
+/*
+ * Das Blatt: die besetzten Stellungen, aufbereitet zum Mustersuchen. Alles
+ * hier arbeitet auf MENGEN, nicht auf Nachbarschaft - deshalb ist
+ * `7 / 3 / 6 / 12 / 5` genau dieselbe Folge wie `5 / 6 / 7`.
  */
-function baueFormationsKontext(tuerme, wappen = []) {
-  const ring = wappen.some(w => WAPPEN[w] && WAPPEN[w].ring);
+function baueBlatt(tuerme, wappen = []) {
   const rangFaktoren = wappen.map(w => WAPPEN[w] && WAPPEN[w].rangFaktor).filter(Boolean);
+  const doppelt = wappen
+    .map(w => (WAPPEN[w] ? WAPPEN[w].zaehltDoppelt : undefined))
+    .filter(i => i !== undefined);
+  const alle = [];
+  const karten = [];
+  tuerme.forEach((t, i) => {
+    if (!t || !t.einheit) return;
+    const rang = Math.round(rangFaktoren.reduce((r, f) => r * (f(t, i) || 1), t.einheit.rang));
+    alle.push(i);
+    karten.push({ turm: i, rang, gattung: t.einheit.gattung });
+    // Ein Wappen kann eine Stellung doppelt zaehlen lassen. Die Kopie traegt
+    // denselben Turm - so leuchtet beim Zuenden die richtige Stellung auf.
+    if (doppelt.includes(i)) karten.push({ turm: i, rang, gattung: t.einheit.gattung, kopie: true });
+  });
 
-  const rang = (i) => {
-    const t = tuerme[i];
-    if (!t || !t.einheit) return 0;
-    return rangFaktoren.reduce((r, f) => r * (f(t, i) || 1), t.einheit.rang);
+  /** Die n haeufigste Gattung - wenn sie mindestens n mal vorkommt. */
+  const gleicheGattung = (n) => {
+    const nach = {};
+    for (const k of karten) (nach[k.gattung] || (nach[k.gattung] = [])).push(k.turm);
+    for (const g in nach) if (nach[g].length >= n) return { tuerme: nach[g], gattung: g };
+    return null;
   };
 
-  /** Alle Stellungen, auf die `pruefe` zutrifft. */
-  const mit = (pruefe) => tuerme.map((t, i) => (pruefe(t, i) ? i : -1)).filter(i => i >= 0);
+  const nachRang = () => {
+    const nach = {};
+    for (const k of karten) (nach[k.rang] || (nach[k.rang] = [])).push(k.turm);
+    return nach;
+  };
 
-  /**
-   * Zusammenhängende Läufe, auf die `pruefe` zutrifft. Mit Ring wird über das
-   * Ende hinaus gesucht, aber nie länger als die Burg breit ist.
+  /** Der hoechste Rang, der mindestens n mal vorkommt. */
+  const gleicherRang = (n) => {
+    const nach = nachRang();
+    let beste = null;
+    for (const r in nach) {
+      if (nach[r].length < n) continue;
+      if (!beste || Number(r) > beste.rang) beste = { tuerme: nach[r].slice(0, n), rang: Number(r) };
+    }
+    return beste;
+  };
+
+  /** Zwei verschiedene Raenge, die je zweimal vorkommen. */
+  const zweiPaare = () => {
+    const nach = nachRang();
+    const paare = Object.keys(nach).filter(r => nach[r].length >= 2)
+      .sort((a, b) => Number(b) - Number(a));
+    if (paare.length < 2) return null;
+    return { tuerme: [...nach[paare[0]].slice(0, 2), ...nach[paare[1]].slice(0, 2)] };
+  };
+
+  /*
+   * Die laengste ununterbrochene Rangfolge. Gleiche Raenge zaehlen einmal -
+   * `8 / 8 / 9 / 10` ist eine Folge von drei, keine von vier.
    */
-  const folgen = (pruefe) => {
-    const n = tuerme.length;
-    const ok = tuerme.map((t, i) => pruefe(t, i));
-    const raus = [];
-    if (ok.every(Boolean) && ring) return [tuerme.map((_, i) => i)];
-    for (let start = 0; start < n; start++) {
-      if (!ok[start]) continue;
-      if (!ring && start > 0 && ok[start - 1]) continue;           // schon Teil eines Laufs
-      if (ring && ok[(start - 1 + n) % n]) continue;
-      const lauf = [];
-      for (let k = 0; k < n; k++) {
-        const i = ring ? (start + k) % n : start + k;
-        if (i >= n || !ok[i]) break;
-        lauf.push(i);
-      }
-      if (lauf.length) raus.push(lauf);
+  const folge = (n) => {
+    const raenge = [...new Set(karten.map(k => k.rang))].sort((a, b) => a - b);
+    let beste = [];
+    let lauf = [];
+    for (let i = 0; i < raenge.length; i++) {
+      if (i && raenge[i] === raenge[i - 1] + 1) lauf.push(raenge[i]);
+      else lauf = [raenge[i]];
+      if (lauf.length > beste.length) beste = lauf.slice();
     }
-    return raus;
+    if (beste.length < n) return null;
+    // Die letzten n der Folge nehmen: die hoechsten Raenge sind die wertvollsten.
+    const genommen = beste.slice(-n);
+    const tuerme = genommen.map(r => karten.find(k => k.rang === r).turm);
+    return { tuerme, raenge: genommen };
   };
 
-  /** Streng steigende (+1) oder fallende (-1) Rangketten unter Nachbarn. */
-  const monoton = (richtung, regel) => {
-    const treffer = [];
-    for (const folge of folgen(t => Boolean(t.einheit))) {
-      let anfang = 0;
-      for (let i = 1; i <= folge.length; i++) {
-        const weiter = i < folge.length &&
-          (richtung > 0 ? rang(folge[i]) > rang(folge[i - 1]) : rang(folge[i]) < rang(folge[i - 1]));
-        if (weiter) continue;
-        const stueck = folge.slice(anfang, i);
-        const faktor = regel.stufen[Math.min(KERN.tuerme, stueck.length)];
-        if (stueck.length >= regel.ab && faktor) treffer.push({ tuerme: stueck, proTurm: faktor });
-        anfang = i;
-      }
-    }
-    return treffer;
-  };
-
-  return { tuerme, wappen, ring, rang, mit, folgen, monoton };
+  // `anzahl` zaehlt Stellungen, nicht Karten: eine Kopie besetzt keinen Turm.
+  return { tuerme, karten, alle, anzahl: alle.length,
+    gleicheGattung, gleicherRang, zweiPaare, folge };
 }
 
-/**
- * Welche Formationen die Burg gerade erfüllt. Reine Rechnung, kein Zustand:
- * dieselben Türme ergeben immer dasselbe Ergebnis. Die Oberfläche ruft das
- * auch für die Vorschau auf, während eine Karte über einem Turm hängt.
+/*
+ * Was eine Formation an Salven bringt. Die Stufe kommt aus dem Lauf, wenn es
+ * ihn gibt - so lassen sich einzelne Formationen spaeter dauerhaft aufwerten,
+ * ohne dass hier etwas umgebaut werden muesste.
+ */
+function formationsStufe(id) {
+  return (derLauf && derLauf.formationsStufen && derLauf.formationsStufen[id]) || 1;
+}
+
+function formationsSalven(f, stufe) {
+  return f.salven + (stufe - 1) * (f.jeStufe || 0);
+}
+
+/*
+ * Erkennen. Erst alles sammeln, was zutrifft, dann je Familie nur die hoechste
+ * stehen lassen - und was eine Kroenung abloest, faellt mit.
  */
 function erkenneFormationen(tuerme, wappen = []) {
-  const ctx = baueFormationsKontext(tuerme, wappen);
-  const raus = [];
+  const blatt = baueBlatt(tuerme, wappen);
+  if (!blatt.anzahl) return [];
+
+  const treffer = [];
   for (const f of FORMATIONEN) {
-    for (const treffer of f.finde(ctx) || []) {
-      raus.push({
-        id: f.id, name: f.name, text: f.text,
-        tuerme: treffer.tuerme,
-        proTurm: treffer.proTurm || 1,
-        gesamt: treffer.gesamt || 1,
-        nachschuss: treffer.nachschuss || [],
-      });
-    }
+    const t = f.finde(blatt);
+    if (!t) continue;
+    const stufe = formationsStufe(f.id);
+    treffer.push({
+      id: f.id, name: f.name, text: f.text, familie: f.familie, rang: f.rang,
+      kroenung: Boolean(f.kroenung), loest: f.loest || [],
+      tuerme: t.tuerme || blatt.alle,
+      stufe, salven: formationsSalven(f, stufe),
+    });
   }
-  return raus;
+
+  // Je Familie die hoechste.
+  const beste = {};
+  for (const t of treffer) {
+    if (!beste[t.familie] || t.rang > beste[t.familie].rang) beste[t.familie] = t;
+  }
+  const raus = Object.values(beste);
+  // Was eine Kroenung abloest, faellt heraus.
+  const abgeloest = new Set();
+  for (const t of raus) for (const fam of t.loest) abgeloest.add(fam);
+  return raus.filter(t => !abgeloest.has(t.familie))
+    .sort((a, b) => b.salven - a.salven);
+}
+
+/** Wie viele Salven die ganze Burg feuert: eine Grundsalve plus alles, was die Formationen geben. */
+function salvenZahl(formationen) {
+  return KERN.salvenGrund + formationen.reduce((s, f) => s + f.salven, 0);
 }
 
 // ---------- Wucht ----------
 /*
- * Die Rechenkette, in dieser Reihenfolge:
+ * Die Wucht einer Salve ist einfach geworden, und das ist der Punkt:
  *
- *   je Turm:  Rang + Ausbau
- *             × Turmtyp
- *             × Formationen (proTurm)
- *             × Schüsse (1 + Nachschüsse)
- *   Summe     × Formationen (gesamt)
- *             × Wappen (gesamt)
+ *   je Turm:  (Rang + Schliff) x Turmtyp
+ *   Summe  x  Salvenzahl  x  Wappen
  *
- * Multiplikativ und ohne Deckel - eine Burg, die vier Formationen gleichzeitig
- * erfüllt, soll vierstellig zuschlagen. Die Rückgabe ist ein Protokoll und
- * nicht nur eine Zahl: die Anzeige soll später Schritt für Schritt hochzählen
- * können, und beim Nachrechnen will man sehen, wo die Zahl herkommt.
+ * Die Salvenzahl ist eine Grundsalve plus, was die Formationen geben. Sie ist
+ * KEIN Rechentrick: jede Salve ist ein Schuss, den die Anzeige auch zeigt.
+ * Wer `7 Salven` liest, sieht sieben Mal feuern.
+ *
+ * Vorher stand hier eine Kette aus Faktoren je Turm, Nachschuessen und
+ * Gesamtfaktoren. Sie rechnete richtig, aber niemand konnte sie im Kopf
+ * mitfuehren - und was man nicht mitfuehren kann, kann man auch nicht planen.
  */
 function berechneWucht(tuerme, wappen = []) {
   const formationen = erkenneFormationen(tuerme, wappen);
   const besetzt = tuerme.map((t, i) => (t.einheit ? i : -1)).filter(i => i >= 0);
+  const salven = salvenZahl(formationen);
 
   const posten = besetzt.map(i => {
     const t = tuerme[i];
     const basis = grundwucht(t.einheit);
     const tf = turmFaktor(t);
     return { turm: i, name: t.einheit.name, gattung: t.einheit.gattung, rang: t.einheit.rang,
-      basis, turmFaktor: tf, wucht: basis * tf, faktoren: [], schuesse: 1 };
+      basis, turmFaktor: tf, wucht: basis * tf, faktoren: [], schuesse: salven };
   });
-  const finde = (i) => posten.find(p => p.turm === i);
 
   const schritte = [];
-  const summe = () => posten.reduce((s, p) => s + p.wucht * p.schuesse, 0);
-  schritte.push({ art: 'grund', name: 'Grundwucht', wert: null, wucht: summe() });
+  const grundsumme = posten.reduce((s, p) => s + p.wucht, 0);
+  schritte.push({ art: 'grund', name: 'Wucht je Salve', wert: null, wucht: grundsumme });
 
-  // Formationen: erst die Faktoren auf einzelne Türme
   for (const f of formationen) {
-    if (f.proTurm === 1) continue;
-    for (const i of f.tuerme) {
-      const p = finde(i);
-      if (!p) continue;
-      p.wucht *= f.proTurm;
-      p.faktoren.push({ name: f.name, wert: f.proTurm });
-    }
-    schritte.push({ art: 'formation', id: f.id, name: f.name, wert: f.proTurm, wucht: summe() });
+    schritte.push({ art: 'formation', id: f.id, name: f.name, wert: '+' + f.salven,
+      salven: f.salven, wucht: grundsumme * salven });
   }
+  schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
+    salven, wucht: grundsumme * salven });
 
-  // Dann die Nachschüsse. Das Drachenwappen zählt sie mit.
-  const drache = wappen.map(w => WAPPEN[w] && WAPPEN[w].retriggerFaktor).filter(Boolean);
-  let nachschussNr = 0;
-  for (const f of formationen) {
-    for (const i of f.nachschuss) {
-      const p = finde(i);
-      if (!p) continue;
-      nachschussNr++;
-      const bonus = drache.reduce((b, fn) => b * (fn(nachschussNr) || 1), 1);
-      p.schuesse += 1 * bonus;
-      p.faktoren.push({ name: f.name + ' (Nachschuss)', wert: bonus > 1 ? '×2 Nachschuss' : '+1 Schuss' });
-      sendeSignal('nachschuss', { turm: i, formation: f.id, nummer: nachschussNr });
-    }
-    if (f.nachschuss.length) {
-      schritte.push({ art: 'nachschuss', id: f.id, name: f.name, wert: f.nachschuss.length, wucht: summe() });
-    }
-  }
-
-  // Zuletzt, was auf die ganze Burg wirkt
-  let gesamt = summe();
-  for (const f of formationen) {
-    if (f.gesamt === 1) continue;
-    gesamt *= f.gesamt;
-    schritte.push({ art: 'formation', id: f.id, name: f.name, wert: f.gesamt, wucht: gesamt });
-  }
+  let gesamt = grundsumme * salven;
   const ctx = { tuerme, wappen };
   for (const w of wappen) {
     const fn = WAPPEN[w] && WAPPEN[w].gesamtFaktor;
@@ -1355,12 +1376,13 @@ function berechneWucht(tuerme, wappen = []) {
     const faktor = fn(ctx) || 1;
     if (faktor === 1) continue;
     gesamt *= faktor;
-    schritte.push({ art: 'wappen', id: w, name: WAPPEN[w].name, wert: faktor, wucht: gesamt });
+    schritte.push({ art: 'wappen', id: w, name: WAPPEN[w].name, wert: '×' + faktor, wucht: gesamt });
   }
 
   return {
-    posten, formationen, schritte,
+    posten, formationen, schritte, salven,
     grund: posten.reduce((s, p) => s + p.basis, 0),
+    jeSalve: Math.round(grundsumme),
     wucht: Math.round(gesamt),
   };
 }
@@ -1724,6 +1746,12 @@ function neuerLauf({ stationen = LAUF.stationen, muster = LAUF.muster } = {}) {
     deck: START_DECK.map(id => neueEinheit(id)),
     wappen: [],
     turmTypen: TURM_START.slice(),
+    /*
+     * Je Formation eine Stufe. Sie steht schon hier, damit eine spaetere
+     * Belohnung ("Manoever: Reine Garde") nur einen Eintrag hochzaehlen muss,
+     * statt dass die Kampfrechnung dafuer umgebaut wird.
+     */
+    formationsStufen: {},
     sold: LAUF.sold.start,
     leben: LAUF.leben,
     ende: null,                 // null | 'sieg' | 'niederlage'
@@ -2129,7 +2157,8 @@ function verlasseKnoten() {
 if (typeof window !== 'undefined') {
   window.PARAPEX = {
     KERN, GATTUNGEN, RANG_NAMEN, EINHEITEN_POOL, START_DECK, TURMTYPEN, TURM_START,
-    FORMATIONEN, WAPPEN, SIGNALE, FEIND_STAERKE,
+    FORMATIONEN, FORMATIONS_FAMILIEN, WAPPEN, SIGNALE, FEIND_STAERKE,
+    baueBlatt, salvenZahl, formationsSalven,
     neueEinheit, grundwucht, verbessereEinheit, baueFeind, feindStaerke,
     erkenneFormationen, berechneWucht, vorschau,
     neuerKampf, setzeEinheit, tauscheHandkarte, tauscheHandkarten, tauschKosten,
@@ -3434,11 +3463,16 @@ function zeigeZahl(col, row, text, farbe) {
   zahlen.push({ col, row, text, farbe, t: 0, dauer: 0.9 });
 }
 
-function zeigePfeil(vonCol, vonRow, zuCol, zuRow, farbe, versatz, art) {
+function zeigePfeil(vonCol, vonRow, zuCol, zuRow, farbe, versatz, art, wie) {
   if (wenigerBewegung) return;
+  const w = wie || {};
   projektile.push({ vonCol, vonRow, zuCol, zuRow, farbe, versatz: versatz || 0,
     art: art || 'pfeil', dreh: Math.random() * 6.28,
-    t: 0, dauer: PFEIL_DAUER });
+    // Flugzeit und Bogenhoehe kommen aus dem Profil der Einheit: ein Bolzen
+    // geht flach und schnell, ein Trebuchetstein hoch und langsam.
+    hoehe: w.hoehe === undefined ? 1 : w.hoehe,
+    dicke: w.dicke || 1,
+    t: 0, dauer: w.dauer || PFEIL_DAUER });
 }
 
 /**
@@ -3446,12 +3480,6 @@ function zeigePfeil(vonCol, vonRow, zuCol, zuRow, farbe, versatz, art) {
  * ein Geschoss, kurz nacheinander. Wer im Bild steht, schiesst auch.
  * `vorlauf` ist die Spannzeit - erst wenn die Sehne los ist, fliegt etwas.
  */
-function schussSalve(vonCol, vonRow, zuCol, zuRow, farbe, mitte, vorlauf, art) {
-  batallionPlaetze(mitte || 3).forEach((versatz, i) => {
-    spaeter((vorlauf || 0) + i * 0.055,
-      () => zeigePfeil(vonCol, vonRow, zuCol, zuRow, farbe, versatz, art));
-  });
-}
 
 /**
  * Etwas nach `sek` Sekunden tun - oder sofort, wenn der Spieler wenig Bewegung
@@ -5937,7 +5965,7 @@ function pfeilOrt(p, f) {
   const r = p.vonRow + (p.zuRow - p.vonRow) * f;
   return [
     isoX(c, r) + (p.versatz || 0) * (1 - f),
-    isoY(c, r) + TH / 2 - 22 - Math.sin(f * Math.PI) * 16,
+    isoY(c, r) + TH / 2 - 22 - Math.sin(f * Math.PI) * 16 * (p.hoehe === undefined ? 1 : p.hoehe),
   ];
 }
 
@@ -5961,6 +5989,23 @@ function drawProjektile() {
      * selbst statt in der Bahn zu liegen - schon daran ist von weitem zu
      * sehen, was da kommt.
      */
+    if (p.art === 'kugel') {
+      // Eine Kanonenkugel: rund, dunkel, mit einer Rauchfahne dahinter.
+      const gr = 3 + p.dicke * 1.6;
+      ctx.fillStyle = 'rgba(120,110,100,' + (0.3 * (1 - f)).toFixed(2) + ')';
+      for (let n = 1; n <= 3; n++) {
+        const [sx, sy] = pfeilOrt(p, Math.max(0, f - n * 0.06));
+        ctx.beginPath();
+        ctx.arc(sx - cx, sy - cy, gr * (1 - n * 0.2), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = p.farbe;
+      ctx.beginPath(); ctx.arc(0, 0, gr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,220,170,0.5)';
+      ctx.beginPath(); ctx.arc(-gr * 0.3, -gr * 0.3, gr * 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      continue;
+    }
     if (p.art === 'stein') {
       ctx.rotate(p.dreh + f * 7);
       ctx.fillStyle = p.farbe;
@@ -5971,6 +6016,20 @@ function drawProjektile() {
       continue;
     }
     ctx.rotate(winkel);
+    if (p.art === 'bolzen') {
+      // Kurz, dick, ohne Fiedern - und mit einer harten Spur: eine Armbrust
+      // wirft nicht, sie schiesst.
+      ctx.fillStyle = 'rgba(205,213,222,' + (0.34 * (1 - f)).toFixed(3) + ')';
+      ctx.fillRect(-26, -0.7, 18, 1.4);
+      ctx.fillStyle = p.farbe;
+      ctx.fillRect(-5, -1.4 * p.dicke, 9, 2.8 * p.dicke);
+      ctx.fillStyle = '#eef2f6';
+      ctx.beginPath();
+      ctx.moveTo(8, 0); ctx.lineTo(3.5, -2.6 * p.dicke); ctx.lineTo(3.5, 2.6 * p.dicke);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      continue;
+    }
     // Die Luftspur hinter dem Schaft: nur am Anfang, wo er am schnellsten ist
     if (f < 0.55) {
       ctx.fillStyle = 'rgba(255,242,214,' + (0.2 * (1 - f / 0.55)).toFixed(3) + ')';
@@ -7827,16 +7886,6 @@ function pkBaueStellungen() {
   }));
 }
 
-/*
- * Ein Schuss von einem Turm: Flugbahn, Ton und - beim Bogen - das Spannen.
- * `vorlauf` versetzt ihn, damit eine Salve nacheinander losgeht.
- */
-function pkSchiesst(turm, vorlauf = 0) {
-  if (!turm || !turm.einheit) return;
-  if (turm.einheit.gattung === 'bogen') { turm.spann = SPANN_DAUER; klang('spannen'); }
-  else klang('schuss');
-  schussSalve(turm.col + 1, turm.row + 1, COLS - 2, Math.round(ROWS / 2), '#f0e2bd', 3, vorlauf);
-}
 
 /** Die Gegner als Kulisse: sie stehen da, sie handeln nicht. */
 function pkStelleFeindAuf(feind) {
@@ -7938,20 +7987,24 @@ function pkZeichneTurm(t) {
   }
 
   if (t.einheit) {
-    const figur = (PK_FIGUR[t.einheit.gattung] || PK_FIGUR.bogen)();
     /*
-     * Bogenschuetzen spannen sichtbar. Die Figur traegt ihren Bogen schon im
-     * Bild, also wird sie fuer die Dauer des Schusses ohne ihn gezeichnet und
-     * der gespannte darueber gelegt - sonst haette jeder Schuetze zwei Bogen.
+     * Die Einheit, nicht die Karte. Was hier oben steht, kommt aus dem Profil:
+     * Figur, Massstab und Verhalten haengen an Gattung UND Rang, ein
+     * Bauernschuetze sieht also anders aus als ein Marschall derselben
+     * Gattung. Die Karte bleibt die Karte - sie liegt im Deck, nicht auf der
+     * Mauer.
      */
-    const spannt = t.einheit.gattung === 'bogen' && t.spann > 0;
-    const stellungen = batallionStellungen(cx, cy + 4, 3);
-    for (const st of stellungen) drawSprite(spannt ? ohneBogen(figur) : figur, st.x, st.y, st.s);
+    const p = einheitProfil(t.einheit);
+    const spannt = p.spannt && t.spann > 0;
+    const stellungen = batallionStellungen(cx, cy + 4, p.massstab);
+    for (const st of stellungen) drawSprite(spannt ? ohneBogen(p.figur) : p.figur, st.x, st.y, st.s);
     if (spannt) {
       const zug = bogenZug(t.spann);
       for (const st of stellungen) zeichneBogen(st.x, st.y, st.s, zug);
     }
+    // Ein Meister traegt eine Fahne mehr - das Rangabzeichen der Burg.
     drawBanner(cx + 22, cy - 2, GATTUNGEN[t.einheit.gattung].farbe);
+    if (t.einheit.rang >= 13) drawBanner(cx - 24, cy - 2, '#e8c464');
     drawBadge(cx, cy - 30, String(t.einheit.rang), GATTUNGEN[t.einheit.gattung].hell, '#1a1208');
   }
   // Die Nummer steht am Fuß: sie ist die Sprache, in der die Formationen reden.
@@ -8035,7 +8088,7 @@ const PK_CSS = `
 
 /* ---------- Unten: Tuerme, Formationen, Hand ---------- */
 #pk .pk-unten { background: linear-gradient(0deg, rgba(12,9,6,0.98) 55%, rgba(12,9,6,0.80));
-  padding: 0 12px 8px; display: flex; flex-direction: column; gap: 5px; }
+  padding: 0 12px 8px; display: flex; flex-direction: column; gap: 5px; position: relative; }
 
 /* ---------- Die fuenf Stellungen ---------- */
 #pk .pk-tuerme { display: flex; gap: 9px; justify-content: center; padding-top: 8px; }
@@ -8121,6 +8174,13 @@ const PK_CSS = `
   display: inline-flex; align-items: center; gap: 4px; }
 #pk .pk-form.neu { background: linear-gradient(180deg, #b7f08f, #4f9a3a); border-color: #2f6a24;
   color: #0e2408; animation: pk-form-neu .32s cubic-bezier(.2,1.7,.4,1); }
+/* Die Kroenung traegt Gold und leuchtet - sie ist das Seltenste im Spiel. */
+#pk .pk-form.kroenung { background: linear-gradient(180deg, #fff2c0, #e8a832);
+  border-color: #a8761c; color: #2a1c06; box-shadow: 0 0 14px rgba(255,200,90,0.55);
+  animation: pk-kroenung 2.4s ease-in-out infinite; }
+@keyframes pk-kroenung { 50% { box-shadow: 0 0 22px rgba(255,214,120,0.9); } }
+#pk .pk-ruf.kroenung { font-size: 46px; color: #fff2c0; letter-spacing: 0.06em;
+  text-shadow: 0 4px 0 rgba(60,30,0,0.7), 0 0 44px rgba(255,190,70,0.95); }
 #pk .pk-form.bricht { background: none; border: 1px solid #a8442b; color: #e08a72;
   text-decoration: line-through; }
 #pk .pk-form.still { background: none; color: #6d6252; border-color: transparent;
@@ -8248,6 +8308,13 @@ const PK_CSS = `
 #pk button.pk-knopf.haupt:hover:not(:disabled) { background: linear-gradient(180deg, #b27614, #744d0c); }
 #pk button.pk-knopf.tausch { background: linear-gradient(180deg, #7a5a1c, #4a3510); border-color: #2a1c06; }
 #pk button.pk-knopf.tausch.fehlt { background: linear-gradient(180deg, #7d2534, #4a1520); border-color: #2a0c12; opacity: 1; }
+/*
+ * Der Tauschknopf verschwindet nicht, er wird unsichtbar. Mit 'hidden' gab er
+ * seinen Platz frei, die Leiste brach anders um und die ganze Leiste sprang -
+ * auf schmalen Schirmen um dreizehn Punkte, jedes Mal, wenn man eine Karte
+ * waehlte. Ein Platzhalter, der bleibt, ist ruhiger als ein Knopf, der springt.
+ */
+#pk button.pk-knopf.leer { visibility: hidden; pointer-events: none; }
 #pk button.pk-knopf.zeigtan { animation: pk-knopf-auf .26s cubic-bezier(.2,1.7,.4,1); }
 @keyframes pk-knopf-auf { 0% { transform: scale(0.82); opacity: 0; } 60% { transform: scale(1.07); } }
 #pk button.pk-knopf.ruettelt { animation: pk-knopf-nein .3s ease-out; }
@@ -8261,8 +8328,17 @@ const PK_CSS = `
  * des normalen Spiels bleibt sie leer - was passiert, zeigen Karten, Tuerme und
  * Zahlen. Bei einem Fehlgriff blitzt sie kurz rot auf und verschwindet wieder.
  */
-#pk .pk-meldung { text-align: center; font-size: 11.5px; color: #8a7c63; min-height: 15px;
-  letter-spacing: 0.02em; transition: opacity .25s, color .15s; opacity: 0; }
+/*
+ * Die Meldung schwebt, sie steht nicht im Fluss. Als Zeile mit Mindesthoehe
+ * wuchs sie bei zweizeiligem Text um dreizehn Punkte und schob auf schmalen
+ * Schirmen die ganze Leiste - fuer einen Hinweis, der nach drei Sekunden
+ * wieder weg ist. Jetzt legt sie sich ueber die Huefte zwischen Formationen
+ * und Hand und kostet nichts.
+ */
+#pk .pk-meldung { position: absolute; left: 0; right: 0; text-align: center;
+  font-size: 11.5px; color: #8a7c63; letter-spacing: 0.02em; pointer-events: none;
+  transition: opacity .25s, color .15s; opacity: 0; z-index: 7;
+  text-shadow: 0 1px 3px rgba(10,7,4,0.9), 0 0 8px rgba(10,7,4,0.8); }
 #pk .pk-meldung.sichtbar { opacity: 1; }
 #pk .pk-meldung.fehler { color: #e08a72; opacity: 1; }
 
@@ -8362,12 +8438,6 @@ const PK_SORT_SPEICHER = 'px-sortierung';
 let pkSortierung = 'farbe';        // 'farbe' | 'rang'
 try { pkSortierung = localStorage.getItem(PK_SORT_SPEICHER) || 'farbe'; } catch (e) { /* ohne Speicher eben so */ }
 
-const PK_FIGUR = {
-  bogen: () => FIG_BOGEN,
-  armbrust: () => FIG_ARMBRUST,
-  artillerie: () => FIG_SCHLEUDER,
-  kanonier: () => FIG_FACKEL,
-};
 
 /*
  * Die vier Gattungen brauchen ein Erkennungszeichen, das ohne Farbe traegt -
@@ -8415,7 +8485,7 @@ function pkBaueOberflaeche() {
           <button id="pk-sort-rang" type="button" title="Nach Rang, darin nach Gattung">Rang</button>
         </div>
         <div class="pk-drang">Tatendrang <span class="pk-pips" id="pk-pips"></span></div>
-        <button class="pk-knopf tausch" id="pk-tausch" type="button" hidden></button>
+        <button class="pk-knopf tausch leer" id="pk-tausch" type="button"></button>
         <button class="pk-knopf haupt" id="pk-ende" type="button">Runde beenden</button>
       </div>
     </div>`;
@@ -8671,8 +8741,11 @@ function pkMalTuerme(rechnung) {
       pkZucke(inhalt.querySelector('.pk-schild'), 'einzug', 440);
     }
     const wEl = inhalt.querySelector('.pk-wucht');
-    const neuText = wucht.toLocaleString('de-DE') +
-      (posten && posten.schuesse > 1 ? '<small> ×' + posten.schuesse + '</small>' : '');
+    // Erst was ein Schuss macht, dann wie oft geschossen wird. In dieser
+    // Reihenfolge, weil man beim Vergleichen zweier Einheiten den ersten Wert
+    // sucht und die Salvenzahl fuer alle gleich ist.
+    const neuText = (posten ? Math.round(posten.wucht).toLocaleString('de-DE') : '0') +
+      (posten && posten.schuesse > 1 ? '<small> × ' + posten.schuesse + ' Salven</small>' : '');
     if (wEl.innerHTML !== neuText) {
       wEl.innerHTML = neuText;
       pkZucke(wEl, 'springt');
@@ -8713,9 +8786,9 @@ function pkMalFormationen() {
   const gesehen = new Set();
   const marke = (f, art) => {
     const b = document.createElement('span');
-    b.className = 'pk-form' + (art ? ' ' + art : '');
-    const zahl = f.proTurm > 1 ? '×' + f.proTurm : (f.gesamt > 1 ? '×' + f.gesamt : '↻');
-    b.innerHTML = (art === 'neu' ? '+ ' : art === 'bricht' ? '− ' : '') + f.name + ' <b>' + zahl + '</b>';
+    b.className = 'pk-form' + (art ? ' ' + art : '') + (f.kroenung ? ' kroenung' : '');
+    b.innerHTML = (art === 'neu' ? '+ ' : art === 'bricht' ? '− ' : '') + f.name +
+      ' <b>+' + f.salven + '</b>';
     b.title = f.text;
     leiste.appendChild(b);
   };
@@ -8795,11 +8868,16 @@ function pkMalTauschKnopf() {
   const b = document.getElementById('pk-tausch');
   if (!k || !b) return;
   const n = pkWahl.size;
-  if (!n || k.ende) { b.hidden = true; return; }
+  if (!n || k.ende) {
+    b.classList.add('leer');
+    // Der Text bleibt stehen, damit die Breite nicht springt.
+    if (!b.textContent) b.innerHTML = 'Austauschen ×1<span class="pk-knopf-pips"><i></i></span>';
+    return;
+  }
   const kosten = tauschKostenFuer(n);
   const reicht = kosten <= k.tatendrang;
-  const zeigteVorher = !b.hidden;
-  b.hidden = false;
+  const zeigteVorher = !b.classList.contains('leer');
+  b.classList.remove('leer');
   b.disabled = false;                       // nie sperren: ein Klick soll SAGEN, was fehlt
   b.classList.toggle('fehlt', !reicht);
   b.innerHTML = (reicht ? 'Austauschen ×' + n : 'Es fehlen ' + (kosten - k.tatendrang)) +
@@ -9027,15 +9105,266 @@ function pkSpielSetzen(el, turmEl, { dauer = 230 } = {}) {
     .onfinish = () => { flug.remove(); pkZucke(turmEl, 'einschlag'); };
 }
 
-/** Der Turm feuert: kurzes Einsacken, dann Rueckstoss. */
-function pkSpielTurmFeuert(i, { vorlauf = 0 } = {}) {
-  const el = pkTuermeEl[i];
+// ============================================================
+//  Die 52 Einheiten: Aussehen und Feuersprache
+// ============================================================
+/*
+ * Zweiundfuenfzig Einheiten sollen nicht wie vier Karten mit Zahlen wirken.
+ * Sie bekommen darum kein eigenes Bild je Karte - das waeren 52 Zeichnungen -,
+ * sondern ein PROFIL, das sich aus Gattung und Rang ergibt:
+ *
+ *   die Gattung bestimmt die SPRACHE des Schusses
+ *     Bogen      spannen, loesen, hoher Bogen, leichter Einschlag
+ *     Armbrust   anlegen, mechanisch loesen, flacher Bolzen, harter Treffer
+ *     Artillerie Arm schwingt, Stein fliegt, schwerer Aufschlag
+ *     Kanonier   zuenden, Muendungsfeuer, Rueckstoss, Rauch, Detonation
+ *
+ *   der Rang bestimmt die STUFE: Ausruestung, Groesse, Wucht der Wirkung
+ *     1-3    schlecht ausgeruestet, kleine Figur, duennes Geschoss
+ *     4-6    ausgebildet, ordentliches Geraet
+ *     7-9    Veteran, schweres Geraet, sichtbare Wirkung
+ *     10-12  Elite, grosses Geraet, starke Wirkung
+ *     13     der Gipfel seiner Gattung, eigene Erscheinung
+ *
+ * Alles Weitere - Figur, Massstab, Geschossart, Farbe, Einschlag, Ton - folgt
+ * aus diesen beiden Zahlen. Eine neue Einheit braucht keinen neuen Code.
+ */
+const EINHEIT_STUFEN = [
+  { ab: 1,  name: 'Aufgebot',  massstab: 2.4, fx: 0.55 },
+  { ab: 4,  name: 'Besatzung', massstab: 2.7, fx: 0.75 },
+  { ab: 7,  name: 'Veteranen', massstab: 3.0, fx: 1.0 },
+  { ab: 10, name: 'Elite',     massstab: 3.3, fx: 1.3 },
+  { ab: 13, name: 'Meister',   massstab: 3.7, fx: 1.75 },
+];
+
+function einheitStufe(rang) {
+  let s = EINHEIT_STUFEN[0];
+  for (const e of EINHEIT_STUFEN) if (rang >= e.ab) s = e;
+  return s;
+}
+
+/*
+ * Die Feuersprache je Gattung. `figur` waehlt nach Stufe aus, was schon da
+ * ist; `geschoss`, `spur` und `einschlag` sagen, was durch die Luft geht und
+ * was am Ziel passiert.
+ */
+const GATTUNG_PROFIL = {
+  bogen: {
+    figuren: [FIG_BOGEN, FIG_BOGEN, FIG_WALDLAEUFER, FIG_WALDLAEUFER, FIG_WALDLAEUFER],
+    spannt: true,                 // zieht sichtbar die Sehne
+    geschoss: 'pfeil',
+    farbe: '#f0e2bd',
+    ton: 'bogen', tonFern: 'schuss',
+    ruecklauf: 2,
+    fliegt: 0.42,                 // wie lange das Geschoss unterwegs ist
+    bogenhoehe: 0.9,              // wie hoch es steigt
+    einschlag: { staub: 4, farbe: '#d9cbaa', ruetteln: 1.5, blitz: 0 },
+  },
+  armbrust: {
+    figuren: [FIG_ARMBRUST, FIG_ARMBRUST, FIG_ARMBRUSTER, FIG_ARMBRUSTER, FIG_ARMBRUSTER],
+    geschoss: 'bolzen',
+    farbe: '#cdd5de',
+    ton: 'spannen', tonFern: 'schuss',
+    ruecklauf: 3.5,
+    fliegt: 0.3,                  // flach und schnell
+    bogenhoehe: 0.25,
+    einschlag: { staub: 5, farbe: '#b9c2cc', ruetteln: 3, blitz: 0 },
+  },
+  artillerie: {
+    figuren: [FIG_SCHLEUDER, FIG_SCHLEUDER, FIG_SCHLEUDER, FIG_SPEER, FIG_SPEER],
+    geschoss: 'stein',
+    farbe: '#9a8straight',
+    ton: 'einschlag', tonFern: 'einschlag',
+    ruecklauf: 6,
+    fliegt: 0.62,                 // hoher, langsamer Bogen
+    bogenhoehe: 2.1,
+    einschlag: { staub: 10, farbe: '#a89070', ruetteln: 7, blitz: 0.05 },
+  },
+  kanonier: {
+    figuren: [FIG_FACKEL, FIG_FACKEL, FIG_FACKEL, FIG_MEISTER, FIG_MEISTER],
+    muendung: true,               // Feuerblitz an der Muendung
+    geschoss: 'kugel',
+    farbe: '#3a3430',
+    ton: 'einschlag', tonFern: 'einschlag',
+    ruecklauf: 8,
+    fliegt: 0.34,
+    bogenhoehe: 0.5,
+    einschlag: { staub: 12, farbe: '#4a4038', ruetteln: 9, blitz: 0.14 },
+  },
+};
+GATTUNG_PROFIL.artillerie.farbe = '#9a8058';
+
+/*
+ * Das Profil einer konkreten Einheit. Es entsteht aus Gattung und Rang und
+ * wird gemerkt - zweiundfuenfzig Profile, die einmal gebaut werden.
+ */
+const einheitProfile = new Map();
+function einheitProfil(einheit) {
+  if (!einheit) return null;
+  const schluessel = einheit.gattung + '-' + einheit.rang;
+  let p = einheitProfile.get(schluessel);
+  if (p) return p;
+  const g = GATTUNG_PROFIL[einheit.gattung] || GATTUNG_PROFIL.bogen;
+  const stufe = einheitStufe(einheit.rang);
+  const nr = EINHEIT_STUFEN.indexOf(stufe);
+  const kraft = 0.55 + (einheit.rang - 1) / 12 * 1.1;     // 0,55 bei Rang 1 bis 1,65 bei Rang 13
+  p = {
+    gattung: einheit.gattung,
+    rang: einheit.rang,
+    stufe: stufe.name,
+    figur: g.figuren[nr] || g.figuren[0],
+    massstab: stufe.massstab,
+    spannt: Boolean(g.spannt),
+    muendung: Boolean(g.muendung),
+    geschoss: g.geschoss,
+    farbe: g.farbe,
+    ton: g.ton,
+    ruecklauf: g.ruecklauf * kraft,
+    fliegt: g.fliegt,
+    bogenhoehe: g.bogenhoehe,
+    // Je hoeher der Rang, desto mehr Staub, Blitz und Ruetteln.
+    einschlag: {
+      staub: Math.round(g.einschlag.staub * kraft),
+      farbe: g.einschlag.farbe,
+      ruetteln: g.einschlag.ruetteln * kraft,
+      blitz: g.einschlag.blitz * kraft,
+    },
+    kraft,
+  };
+  einheitProfile.set(schluessel, p);
+  return p;
+}
+
+// ============================================================
+//  Salven: aus einer Zahl wird eine Schussfolge
+// ============================================================
+/*
+ * `7 Salven` heisst sieben Schuesse, nicht `Schaden mal sieben`. Das ist der
+ * ganze Sinn der Umstellung: die Zahl auf dem Turm ist ein Versprechen, und
+ * die Anzeige loest es ein.
+ *
+ * Der Spielstand ist davon unberuehrt. Der Kern hat den Schaden schon
+ * abgezogen, bevor hier der erste Schuss faellt - faellt die Vorstellung aus,
+ * weil jemand wenig Bewegung eingestellt hat oder die Runde abgebrochen wird,
+ * stimmt die Rechnung trotzdem. Animation folgt dem Zustand, nie umgekehrt.
+ *
+ * Bei wenigen Salven sieht man jeden Schuss. Bei vielen wird verdichtet -
+ * sonst waeren hundert Salven hundert mal 130 ms, also dreizehn Sekunden
+ * Zusehen. Die Schwellen stehen in SALVEN_TAKT und sind Stellschrauben.
+ */
+const SALVEN_TAKT = {
+  // Bis hierher bekommt jeder Schuss seinen eigenen Auftritt.
+  einzeln: 5,
+  // Ab hier wird gebuendelt: so viele Schuesse gehen gemeinsam los.
+  buendel: [
+    { ab: 6,   je: 1, takt: 0.085 },
+    { ab: 12,  je: 2, takt: 0.075 },
+    { ab: 25,  je: 4, takt: 0.065 },
+    { ab: 60,  je: 8, takt: 0.055 },
+    { ab: 150, je: 20, takt: 0.05 },
+  ],
+  einzelTakt: 0.16,       // Abstand zwischen einzelnen Schuessen
+  turmVersatz: 0.05,      // damit die fuenf Tuerme nicht im Gleichschritt feuern
+  hoechstens: 2.2,        // laenger dauert keine Salve, egal wie viele Schuesse
+};
+
+/*
+ * Wie eine Salve abgespielt wird: wie viele Sichtschuesse, in welchem Takt,
+ * wie viele echte Schuesse jeder davon darstellt. Aus dieser einen Funktion
+ * folgt, dass 3 Salven nach drei Schuessen aussehen und 100 nach einem
+ * Trommelfeuer - ohne dass irgendwo eine Sonderbehandlung stuende.
+ */
+function planeSalve(salven) {
+  if (salven <= SALVEN_TAKT.einzeln) {
+    return { schuesse: salven, je: 1, takt: SALVEN_TAKT.einzelTakt, dicht: false };
+  }
+  let stufe = SALVEN_TAKT.buendel[0];
+  for (const s of SALVEN_TAKT.buendel) if (salven >= s.ab) stufe = s;
+  const schuesse = Math.max(1, Math.ceil(salven / stufe.je));
+  // Nie laenger als die Obergrenze: der Takt zieht an, wenn es sonst zu lang wird.
+  const takt = Math.min(stufe.takt, SALVEN_TAKT.hoechstens / schuesse);
+  return { schuesse, je: stufe.je, takt, dicht: salven > SALVEN_TAKT.einzeln * 3 };
+}
+
+/*
+ * Die Salve der ganzen Burg. Jeder besetzte Turm feuert seine Schuesse, die
+ * Tuerme leicht gegeneinander versetzt - fuenf gleichzeitige Schuesse sind ein
+ * Knall, fuenf versetzte sind eine Salve.
+ */
+function pkSpielSalve(tuerme, salven, { beiTreffer = null } = {}) {
+  const plan = planeSalve(salven);
+  const besetzte = tuerme.map((t, i) => (t.einheit ? i : -1)).filter(i => i >= 0);
+  if (!besetzte.length) { if (beiTreffer) beiTreffer(); return 0; }
+
+  if (wenigerBewegung) {
+    for (const i of besetzte) pkSpielTurmFeuert(i);
+    if (beiTreffer) beiTreffer();
+    return 0.2;
+  }
+
+  besetzte.forEach((turm, n) => {
+    for (let s = 0; s < plan.schuesse; s++) {
+      const zeit = s * plan.takt + n * SALVEN_TAKT.turmVersatz;
+      spaeter(zeit, () => pkSpielTurmFeuert(turm, { wucht: plan.je, dicht: plan.dicht }));
+    }
+  });
+
+  const dauer = (plan.schuesse - 1) * plan.takt + besetzte.length * SALVEN_TAKT.turmVersatz;
+  // Der Treffer kommt, wenn die ersten Geschosse ankommen - nicht erst, wenn
+  // das letzte losgegangen ist. Sonst wartet man einer Zahl beim Fallen zu.
+  if (beiTreffer) spaeter(Math.min(0.3, dauer * 0.35), beiTreffer);
+  return dauer;
+}
+
+/*
+ * Ein Turm feuert. Wie er das tut, steht im Profil der Einheit, die oben
+ * steht - nicht hier. Diese Funktion kennt keinen Bogenschuetzen und keine
+ * Kanone; sie liest, was das Profil sagt, und fuehrt es aus.
+ *
+ * `wucht` ist die Zahl der echten Schuesse, die dieser eine Sichtschuss
+ * darstellt. Bei wenigen Salven ist sie 1, bei hundert steht ein Schuss fuer
+ * zwanzig - und sieht dann entsprechend schwerer aus.
+ */
+function pkSpielTurmFeuert(i, { vorlauf = 0, wucht = 1, dicht = false } = {}) {
   const turm = derKampf && derKampf.tuerme[i];
   if (!turm || !turm.einheit) return;
-  setTimeout(() => {
-    pkZucke(el, 'feuert', 320);
-    pkSchiesst(turm);
-  }, vorlauf * 1000);
+  const p = einheitProfil(turm.einheit);
+  const spielen = () => {
+    const el = pkTuermeEl[i];
+    pkZucke(el, 'feuert', 300);
+
+    // Der Bogen spannt sichtbar, alles andere hat einen Rueckstoss.
+    if (p.spannt) turm.spann = SPANN_DAUER;
+    turm.rueckstoss = Math.max(turm.rueckstoss || 0, p.ruecklauf * (dicht ? 0.6 : 1));
+
+    // Muendungsfeuer: nur die Kanoniere, und es waechst mit dem Rang.
+    if (p.muendung) {
+      staub(turm.col + 1, turm.row + 1, Math.round(3 + p.kraft * 3), '#ffd27a');
+      schirmBlitz(0.04 * p.kraft * Math.min(2, wucht));
+    }
+
+    const zuCol = COLS - 2, zuRow = Math.round(ROWS / 2);
+    const geschosse = Math.min(3, 1 + Math.floor(Math.log2(wucht + 1)));
+    batallionPlaetze(3).slice(0, geschosse).forEach((versatz, n) => {
+      spaeter(n * 0.03, () => zeigePfeil(
+        turm.col + 1, turm.row + 1, zuCol, zuRow, p.farbe, versatz, p.geschoss,
+        { dauer: p.fliegt, hoehe: p.bogenhoehe, dicke: 0.7 + p.kraft * 0.5 }));
+    });
+
+    // Der Einschlag am Ziel, wenn das Geschoss ankommt.
+    const e = p.einschlag;
+    spaeter(p.fliegt, () => {
+      staub(zuCol, zuRow, Math.max(2, Math.round(e.staub * (dicht ? 0.5 : 1))), e.farbe);
+      if (!dicht) {
+        ruetteln(e.ruetteln * Math.min(2, wucht));
+        if (e.blitz) schirmBlitz(e.blitz);
+      }
+    });
+
+    // Der Ton nur bei den ersten Schuessen - hundert Salven sind sonst Laerm.
+    if (!dicht || Math.random() < 0.25) klang(p.ton);
+  };
+  spaeter(vorlauf, spielen);
 }
 
 /** Der Gegner nimmt Schaden: Balken, Zucken, und Wucht nach Groesse. */
@@ -9124,15 +9453,31 @@ function pkSpielFormationen(rechnung) {
   for (const i of tuerme) pkZucke(pkTuermeEl[i], 'einschlag', 340);
   pkVerbindeTuerme([...tuerme]);
 
-  if (neu.length === 1) {
-    pkRuf(neu[0].name + '!', { art: 'formation', y: -40, dauer: 560 });
-  } else {
-    pkRuf(neu.length + '× FORMATION', {
-      art: 'kombo', y: -50, dauer: 700,
-      unter: neu.map(f => f.name).join(' · '),
-    });
+  /*
+   * Eine Kroenung bekommt ihren eigenen Auftritt - laenger, groesser, mit
+   * Blitz und Beben. Sie ist das Seltenste, was sich aus 52 Karten bauen
+   * laesst, und wer sie zum ersten Mal zusammenbekommt, soll es merken.
+   */
+  const kroenung = neu.find(f => f.kroenung);
+  if (kroenung) {
+    pkRuf(kroenung.name, { art: 'kroenung', y: -50, dauer: 1100,
+      unter: '+' + kroenung.salven + ' Salven' });
+    ruetteln(14);
+    schirmBlitz(0.42);
+    klang('sieg');
+    for (const i of tuerme) staub(derKampf.tuerme[i].col + 1, derKampf.tuerme[i].row + 1, 10, '#ffd166');
+    return;
   }
-  klang(neu.length > 2 ? 'sieg' : 'bau');
+
+  // Sonst: der grosse Gewinn zuerst, die Salven darunter.
+  const beste = neu.reduce((a, f) => (f.salven > a.salven ? f : a), neu[0]);
+  const summe = neu.reduce((n, f) => n + f.salven, 0);
+  pkRuf(beste.name, {
+    art: neu.length > 1 || beste.salven >= 7 ? 'kombo' : 'formation',
+    y: -44, dauer: 640,
+    unter: '+' + summe + ' Salve' + (summe === 1 ? '' : 'n'),
+  });
+  klang(summe >= 7 ? 'sieg' : 'bau');
 }
 
 /*
@@ -9313,30 +9658,36 @@ function pkRundeBeenden() {
   pkMalPips();
   document.getElementById('pk-ende').disabled = true;
 
-  besetzte.forEach((i, n) => pkSpielTurmFeuert(i, { vorlauf: n * 0.055 }));
+  /*
+   * Die Salve. Sie ist keine Rechnung mehr, sondern eine Folge von Schuessen:
+   * `pkSpielSalve` loest die Salvenzahl in sichtbares Feuern auf und ruft den
+   * Treffer, wenn die ersten Geschosse ankommen.
+   */
+  const salven = rechnungVorher.salven;
   const anzahl = rechnungVorher.formationen.length;
-  if (anzahl > 1) {
-    pkRuf(anzahl + '× FORMATION', { art: 'kombo', y: -118, dauer: 620,
+  if (salven > 1) {
+    pkRuf(salven + ' SALVEN', { art: 'kombo', y: -118, dauer: 620,
       unter: rechnungVorher.formationen.map(f => f.name).join(' · ') });
   }
+  const dauer = pkSpielSalve(k.tuerme.map((t, i) => ({ ...t, einheit: besetzte.includes(i) ? t.einheit : null })),
+    salven, { beiTreffer: () => {
+      pkSpielTreffer(getroffen, { gross: salven > 6 });
+      pkRufSchaden(getroffen);
+      // Jedes Wappen, das an dieser Salve mitgerechnet hat, leuchtet auf. Der
+      // Spieler soll sehen, WARUM die Zahl so gross ist, nicht nur DASS sie es ist.
+      for (const schritt of r.abrechnung.schritte) {
+        if (schritt.art === 'wappen') pkSpielWappen(schritt.id);
+      }
+      pkZeigeKette(r.abrechnung);
+      pkAktualisiere();
+    } });
 
+  // Erst wenn das Feuern durch ist, geht es weiter.
   setTimeout(() => {
-    pkSpielTreffer(getroffen, { gross: anzahl > 2 });
-    pkRufSchaden(getroffen);
-    // Jedes Wappen, das an dieser Salve mitgerechnet hat, leuchtet auf. Der
-    // Spieler soll sehen, WARUM die Zahl so gross ist, nicht nur DASS sie es ist.
-    for (const schritt of r.abrechnung.schritte) {
-      if (schritt.art === 'wappen') pkSpielWappen(schritt.id);
-    }
-    if (k.wappen.includes('drache') && r.abrechnung.schritte.some(x => x.art === 'nachschuss')) {
-      pkSpielWappen('drache');
-    }
-    pkZeigeKette(r.abrechnung);
-    pkAktualisiere();
-    if (r.ende) { setTimeout(() => pkZeigeEnde(r.abrechnung), 900); return; }
+    if (r.ende) { pkZeigeEnde(r.abrechnung); return; }
     pkFormenVorher = new Set();
     pkSpielRundenwechsel(k);
-  }, 230 + besetzte.length * 55);
+  }, Math.round((dauer + 0.35) * 1000));
 }
 
 /** Der Rundenwechsel: kurzer Ruf, Punkte fuellen sich, neues Blatt. */
@@ -9371,9 +9722,8 @@ function pkZeigeKette(abrechnung) {
   const zeilen = [];
   for (const s of abrechnung.schritte) {
     const z = document.createElement('div');
-    z.className = 'pk-kette-zeile' + (s.art === 'nachschuss' ? ' retrigger' : '');
-    const wert = s.art === 'grund' ? Math.round(s.wucht).toLocaleString('de-DE')
-      : (s.art === 'nachschuss' ? '↻ ' + s.wert : '×' + s.wert);
+    z.className = 'pk-kette-zeile' + (s.art === 'formation' ? ' retrigger' : '');
+    const wert = s.art === 'grund' ? Math.round(s.wucht).toLocaleString('de-DE') : s.wert;
     z.innerHTML = '<span>' + s.name + '</span><b>' + wert + '</b>';
     kasten.appendChild(z);
     zeilen.push(z);
@@ -9411,7 +9761,7 @@ function pkZeigeEnde(abrechnung) {
   if (!sieg) {
     const schritte = (abrechnung || pkLetzteSalve || { schritte: [] }).schritte
       .map(s => '<div class="pk-schritt"><span>' + s.name + '</span><b>' +
-        (s.art === 'grund' ? '' : (s.art === 'nachschuss' ? '↻ ' + s.wert : '×' + s.wert)) + '</b></div>').join('');
+        (s.art === 'grund' ? Math.round(s.wucht) : s.wert) + '</b></div>').join('');
     pkTafel(
       '<h2>Der Sturm kommt durch</h2>' +
       '<p class="pk-vor">' + k.feind.name + ' steht noch mit ' + k.feind.hp.toLocaleString('de-DE') +
@@ -9530,11 +9880,41 @@ const PK_LAUF_CSS = `
  * selbst schiebt nie zur Seite.
  */
 html, body { max-width: 100%; overflow-x: hidden; }
-#pk .pk-tuerme, #pk .pk-hand { overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: thin; padding-bottom: 2px; }
-#pk .pk-turm { min-width: 128px; }
+
+/*
+ * KEIN Schiebekasten um Hand und Tuerme.
+ *
+ * Hier stand 'overflow-x: auto', damit auf schmalen Schirmen nichts ueber den
+ * Rand laeuft. Das war die Ursache eines haesslichen Fehlers: ein Element,
+ * das per 'transform' angehoben und vergroessert wird, ERWEITERT den
+ * Rollbereich seines Kastens. Jedes Ueberfahren einer Handkarte liess also
+ * unten eine Rollleiste aufblitzen, und mit ihr sprang die Zeilenhoehe.
+ *
+ * Eine Kartenhand rollt ohnehin nicht - sie faechert. Wird es eng, schieben
+ * sich die Karten uebereinander, und die Tuerme brechen in zwei Reihen um.
+ * Beides braucht keinen Rollbereich und kann darum auch keinen erzeugen.
+ */
+#pk .pk-tuerme, #pk .pk-hand { overflow: visible; }
 #pk .pk-karte { flex: none; }
 
+/*
+ * Eng wird es zuerst bei der Hand. Statt zu rollen, ruecken die Karten
+ * zusammen - ein Faecher, wie man ihn in der Hand haelt. Das Ueberfahren hebt
+ * die Karte dann ueber ihre Nachbarn, und man sieht sie ganz.
+ */
+@media (max-width: 1080px) {
+  #pk .pk-hand { gap: 0; }
+  #pk .pk-karte { margin-right: -6px; }
+}
+@media (max-width: 880px) {
+  #pk .pk-karte { margin-right: -20px; }
+}
+@media (max-width: 720px) {
+  /* Fuenf Tuerme passen nicht mehr nebeneinander: drei und zwei. */
+  #pk .pk-tuerme { flex-wrap: wrap; }
+  #pk .pk-turm { flex: 1 1 30%; min-width: 108px; }
+  #pk .pk-karte { margin-right: -30px; }
+}
 @media (max-width: 720px) {
   /*
    * Hochkant bleibt vom Bild ein breiter Streifen uebrig - eine isometrische
@@ -9978,8 +10358,7 @@ function pxZeichne() {
       zeile('davon Grundwucht', ab.grund);
     html += '<h4>Wuchtkette</h4>';
     for (const s of ab.schritte) {
-      html += zeile(s.name, s.art === 'grund' ? Math.round(s.wucht)
-        : (s.art === 'nachschuss' ? '↻' + s.wert : '×' + s.wert));
+      html += zeile(s.name, s.art === 'grund' ? Math.round(s.wucht) : s.wert);
     }
     if (!ab.schritte.length) html += '<div class="px-hin">keine Türme besetzt</div>';
   }
