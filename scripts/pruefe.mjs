@@ -338,6 +338,88 @@ const ergebnis = await seite.evaluate(() => {
     return true;
   });
 
+  /*
+   * Die Koenigliche Garde - Neun bis Koenig in einer Gattung. Acht Pruefungen,
+   * weil sie an acht Stellen mitspielen muss und nicht nur in der Leiste
+   * stehen soll: Erkennung, Reihenfolge, Abgrenzung nach unten und zur Seite,
+   * Ablose, Salvenlohn, Stufenausbau und Vorschau.
+   */
+  const gardenblatt = (g = 'bogen') => blatt(g + '-9', g + '-10', g + '-11', g + '-12', g + '-13');
+
+  pruefe('Neun bis König in einer Gattung ist die Königliche Garde', () => {
+    const ids = formIds(gardenblatt());
+    if (!ids.includes('koeniglicheGarde')) return 'nicht erkannt: ' + ids;
+    return true;
+  });
+
+  pruefe('Die Königliche Garde steht in jeder Reihenfolge', () => {
+    for (let i = 0; i < 12; i++) {
+      if (!hat(misch(gardenblatt()), 'koeniglicheGarde')) return 'nach dem Mischen weg';
+    }
+    return true;
+  });
+
+  pruefe('Die Königliche Garde löst den Königlichen Aufmarsch ab', () => {
+    const ids = formIds(gardenblatt());
+    for (const weg of ['koeniglicherAufmarsch', 'reineGarde', 'perfekterVormarsch',
+                       'grossesRegiment', 'regiment', 'vormarsch']) {
+      if (ids.includes(weg)) return weg + ' gilt neben der Königlichen Garde';
+    }
+    if (!ids.includes('geschlosseneFront')) return 'die Geschlossene Front fehlt';
+    return true;
+  });
+
+  pruefe('Acht bis Dame ist nur ein Aufmarsch, keine Garde', () => {
+    const t = blatt('bogen-8', 'bogen-9', 'bogen-10', 'bogen-11', 'bogen-12');
+    if (hat(t, 'koeniglicheGarde')) return 'die Garde gilt schon ab der Acht';
+    if (!hat(t, 'koeniglicherAufmarsch')) return 'der Aufmarsch fehlt';
+    return true;
+  });
+
+  pruefe('Neun bis König in gemischten Gattungen ist keine Garde', () => {
+    const t = blatt('bogen-9', 'armbrust-10', 'artillerie-11', 'kanonier-12', 'bogen-13');
+    if (hat(t, 'koeniglicheGarde')) return 'die Gattung wird nicht geprüft';
+    if (!hat(t, 'perfekterVormarsch')) return 'der Perfekte Vormarsch fehlt';
+    return true;
+  });
+
+  pruefe('Die Königliche Garde zahlt ihre Salven aus', () => {
+    const f = P.FORMATIONEN.find(x => x.id === 'koeniglicheGarde');
+    const aufmarsch = P.FORMATIONEN.find(x => x.id === 'koeniglicherAufmarsch');
+    if (!(f.salven > aufmarsch.salven)) return 'sie bringt nicht mehr als der Aufmarsch';
+    const w = P.berechneWucht(gardenblatt());
+    const erwartet = 1 + f.salven + 1;   // Grundsalve + Garde + Geschlossene Front
+    if (w.salven !== erwartet) return 'Salven ' + w.salven + ', erwartet ' + erwartet;
+    return gleich(w.wucht, (9 + 10 + 11 + 12 + 13) * w.salven, 'Königliche Garde');
+  });
+
+  pruefe('Die Königliche Garde lässt sich ausbauen', () => {
+    const f = P.FORMATIONEN.find(x => x.id === 'koeniglicheGarde');
+    if (!(f.jeStufe > 0)) return 'sie hat keinen Stufenzuwachs';
+    const s1 = P.formationsSalven(f, 1);
+    const s3 = P.formationsSalven(f, 3);
+    return gleich(s3 - s1, 2 * f.jeStufe, 'Zuwachs über zwei Stufen');
+  });
+
+  pruefe('Die Königliche Garde erscheint in der Vorschau', () => {
+    const deck = ['bogen-9', 'bogen-10', 'bogen-11', 'bogen-12', 'bogen-13']
+      .map(id => P.neueEinheit(id));
+    P.neuerKampf({ feind: P.baueFeind(1), deck });
+    const tuerme = P.kampf().tuerme;
+    // Vier stehen, die fuenfte haengt noch ueber dem letzten Turm.
+    ['bogen-9', 'bogen-10', 'bogen-11', 'bogen-12']
+      .forEach((id, i) => { tuerme[i].einheit = P.neueEinheit(id); });
+    tuerme[4].einheit = null;
+    const ohne = P.berechneWucht(tuerme).formationen.map(f => f.id);
+    if (ohne.includes('koeniglicheGarde')) return 'die Garde gilt schon bei vier Einheiten';
+    const v = P.vorschau(4, P.neueEinheit('bogen-13'));
+    if (!v.formationen.some(f => f.id === 'koeniglicheGarde')) {
+      return 'die Vorschau kennt sie nicht: ' + v.formationen.map(f => f.id);
+    }
+    if (!(v.wucht > P.berechneWucht(tuerme).wucht)) return 'die Vorschau verspricht nicht mehr Wucht';
+    return true;
+  });
+
   pruefe('Geschlossene Front nur bei fünf Einheiten', () => {
     const voll = blatt('bogen-1', 'armbrust-3', 'artillerie-5', 'kanonier-7', 'bogen-9');
     if (!hat(voll, 'geschlosseneFront')) return 'bei fünf nicht erkannt';
