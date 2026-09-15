@@ -36,6 +36,27 @@ const pfad = process.env.CHROMIUM_PFAD || '/opt/pw-browsers/chromium-1194/chrome
  * die falsche. Solange alter und neuer Code nebeneinander liegen, wird das
  * hier gefunden statt im Spiel.
  */
+/*
+ * Ein Gegenzeichen im Stilblatt beendet es. Die CSS-Bloecke stehen in
+ * Schablonen-Zeichenketten, und ein einzelnes ` in einem Kommentar darin
+ * schliesst die Zeichenkette mitten im Stilblatt - der Rest der Datei wird
+ * dann als Code gelesen und die Seite stuerzt beim Laden ab. Das ist hier
+ * zweimal passiert, beide Male in einem Kommentar, der einen Selektor zitieren
+ * wollte. Seitdem sucht die Pruefung danach.
+ */
+const gegenzeichen = [];
+{
+  const quelle = readFileSync(join(WURZEL, 'index.html'), 'utf8');
+  for (const m of quelle.matchAll(/^const (PK_\w+|PX_CSS) = `/gm)) {
+    const anfang = m.index + m[0].length;
+    const ende = quelle.indexOf('`;', anfang);
+    const block = quelle.slice(anfang, ende < 0 ? quelle.length : ende);
+    if (block.includes('`')) {
+      gegenzeichen.push(m[1] + ' enthält ein Gegenzeichen und bricht dort ab');
+    }
+  }
+}
+
 const doppelt = [];
 {
   const quelle = readFileSync(join(WURZEL, 'index.html'), 'utf8');
@@ -685,6 +706,10 @@ let schlecht = 0;
 for (const e of ergebnis) {
   if (!e.ok) schlecht++;
   console.log((e.ok ? '  ok   ' : '  FEHL ') + e.name + (e.ok ? '' : '  — ' + e.hinweis));
+}
+if (gegenzeichen.length) {
+  schlecht += gegenzeichen.length;
+  for (const g of gegenzeichen) console.log('  FEHL Stilblatt bricht ab — ' + g);
 }
 if (doppelt.length) {
   schlecht += doppelt.length;

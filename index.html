@@ -8050,6 +8050,14 @@ const PK_CSS = `
   background: repeating-linear-gradient(90deg, #4a3a22 0 9px, transparent 9px 16px);
   border-radius: 1px; }
 #pk .pk-turm:hover { transform: translateY(-3px); border-color: #7d6438; }
+/*
+ * Der Zeiger sagt, was geht: eine Turmtafel ist nur dann ein Ziel, wenn eine
+ * Karte in der Luft ist - sonst gibt es dort nichts anzuklicken.
+ */
+#pk .pk-tuerme { cursor: default; }
+#pk.haelt .pk-turm { cursor: copy; }
+#pk.haelt .pk-turm.verboten { cursor: not-allowed; }
+#pk.zieht, #pk.zieht .pk-karte, #pk.zieht .pk-turm { cursor: grabbing; }
 #pk .pk-turm.ziel { transform: translateY(-7px) scale(1.035); border-color: var(--gold);
   box-shadow: 0 0 0 1px var(--gold), 0 0 22px rgba(232,196,100,0.32), 0 10px 18px rgba(0,0,0,0.5); }
 #pk .pk-turm.ziel::before { background: repeating-linear-gradient(90deg, var(--gold) 0 9px, transparent 9px 16px); }
@@ -8149,6 +8157,22 @@ const PK_CSS = `
 #pk .pk-karte:hover { transform: translateY(-14px) scale(1.055); z-index: 3;
   box-shadow: 0 12px 0 #1c150d, 0 16px 26px rgba(0,0,0,0.55); }
 #pk .pk-karte:active { cursor: grabbing; }
+/*
+ * Die Nachbarn weichen aus. Ohne das schiebt sich die angehobene Karte ueber
+ * ihre Nachbarn und verdeckt genau die Raenge, zwischen denen man gerade
+ * vergleicht. Zwei Nachbarn je Seite reichen - weiter draussen faellt es nicht
+ * mehr auf und kostet nur Bewegung.
+ */
+#pk .pk-karte:hover + .pk-karte { transform: translateX(11px); }
+#pk .pk-karte:hover + .pk-karte + .pk-karte { transform: translateX(5px); }
+#pk .pk-hand:has(.pk-karte:hover) .pk-karte { transition-duration: .16s; }
+#pk .pk-karte:has(+ .pk-karte:hover) { transform: translateX(-11px); }
+#pk .pk-karte:has(+ .pk-karte + .pk-karte:hover) { transform: translateX(-5px); }
+/* Eine gewaehlte Karte behaelt ihren Hub, auch wenn der Nachbar schiebt. */
+#pk .pk-karte.gewaehlt:hover + .pk-karte { transform: translateX(13px); }
+#pk .pk-karte.gewaehlt:has(+ .pk-karte:hover),
+#pk .pk-karte.gewaehlt:has(+ .pk-karte + .pk-karte:hover) {
+  transform: translateY(-22px) rotate(-2.5deg) scale(1.04); }
 #pk .pk-karte.gewaehlt { transform: translateY(-22px) rotate(-2.5deg) scale(1.04); z-index: 4;
   box-shadow: 0 0 0 3px var(--gold), 0 14px 0 #1c150d, 0 18px 30px rgba(0,0,0,0.6),
     0 0 26px rgba(232,196,100,0.45); }
@@ -8243,9 +8267,45 @@ const PK_CSS = `
 #pk .pk-meldung.fehler { color: #e08a72; opacity: 1; }
 
 /* ---------- Der fliegende Klon beim Ziehen ---------- */
-#pk .pk-flug, .pk-flug { position: fixed; z-index: 90; pointer-events: none; margin: 0;
-  transform: rotate(-4deg) scale(1.06); filter: drop-shadow(0 16px 18px rgba(0,0,0,0.6)); }
-.pk-flug.nein { filter: drop-shadow(0 16px 18px rgba(0,0,0,0.6)) grayscale(0.7); opacity: 0.8; }
+/*
+ * Wer weniger Bewegung eingestellt hat, bekommt dieselbe Auskunft mit weniger
+ * Ausschlag: Auswahl, Ziel und Formation bleiben deutlich, Schuetteln und
+ * lange Wege fallen weg. Die Rueckmeldungsschicht prueft die Einstellung
+ * ohnehin selbst - das hier faengt, was rein ueber CSS laeuft.
+ */
+@media (prefers-reduced-motion: reduce) {
+  #pk *, #pk *::before, #pk *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .08s !important; }
+  #pk .pk-karte:hover { transform: translateY(-6px); }
+  #pk .pk-karte.gewaehlt { transform: translateY(-14px); }
+  #pk .pk-karte:hover + .pk-karte, #pk .pk-karte:has(+ .pk-karte:hover),
+  #pk .pk-karte:hover + .pk-karte + .pk-karte,
+  #pk .pk-karte:has(+ .pk-karte + .pk-karte:hover) { transform: none; }
+  #pk .pk-turm.ziel { transform: none; }
+}
+
+/*
+ * Die fliegende Karte. Sie muss INNERHALB von #pk haengen: saemtliche
+ * Kartenregeln stehen unter '#pk .pk-karte', und ein Klon am Dokumentkoerper
+ * verliert sie alle auf einmal - er fiel dann in sich zusammen, ohne Grund,
+ * ohne Groesse, mit ineinanderlaufender Schrift. 'position: fixed' bezieht
+ * sich weiterhin auf das Fenster, denn #pk traegt keine Transformation.
+ */
+/*
+ * Eine eigene Ebene fuer alles, was fliegt. Der Klon direkt in #pk zu haengen
+ * war falsch: #pk ist ein Flex-Kasten, und der Klon wurde darin als Kind
+ * mitgerechnet - beim Anheben einer Karte sprang die ganze Burg um
+ * hundertzwanzig Punkte nach oben, und die Turmtafeln lagen nicht mehr da,
+ * wo der Zeiger sie suchte. Die Ebene liegt ueber allem, faengt nichts ab und
+ * nimmt am Fluss nicht teil.
+ */
+#pk .pk-ebene { position: fixed; inset: 0; z-index: 90; pointer-events: none; }
+#pk .pk-flug { position: fixed; z-index: 90; pointer-events: none; margin: 0;
+  transform: rotate(-4deg) scale(1.06); filter: drop-shadow(0 16px 18px rgba(0,0,0,0.6));
+  transition: none; }
+#pk .pk-flug:hover { transform: rotate(-4deg) scale(1.06); }
+#pk .pk-flug.nein { filter: drop-shadow(0 16px 18px rgba(0,0,0,0.6)) grayscale(0.75); opacity: 0.75; }
 
 /* ---------- Grosse Einblendungen: Formation, Kombo, Runde ---------- */
 #pk .pk-buehne { position: absolute; inset: 0; display: grid; place-items: center;
@@ -8337,6 +8397,7 @@ function pkBaueOberflaeche() {
       <div class="pk-wappen" id="pk-wappen"></div>
     </div>
     <div class="pk-mitte"><div class="pk-buehne" id="pk-buehne"></div></div>
+    <div class="pk-ebene" id="pk-ebene"></div>
     <div class="pk-unten">
       <div class="pk-tuerme" id="pk-tuerme"></div>
       <div class="pk-formationen" id="pk-formationen"></div>
@@ -8541,6 +8602,11 @@ function pkMalHand() {
   const k = derKampf;
   if (!k) return;
   const kosten = tauschKostenFuer(pkWahl.size + 1);
+  const wurzel = document.getElementById('pk');
+  if (wurzel) {
+    wurzel.classList.toggle('haelt', Boolean(pkVorschauKarte()));
+    wurzel.classList.toggle('zieht', Boolean(pkZiehen));
+  }
   for (const [uid, el] of pkKarten) {
     const gewaehlt = pkWahl.has(uid);
     el.classList.toggle('gewaehlt', gewaehlt);
@@ -8805,6 +8871,9 @@ function pkUeberTurmSetzen(i) {
   if (pkUeberTurm === i) return;
   pkUeberTurm = i;
   const karte = pkVorschauKarte();
+  // `haelt` heisst: eine Karte ist in der Luft, die Tuerme sind Ziele.
+  const wurzel = document.getElementById('pk');
+  if (wurzel) wurzel.classList.toggle('haelt', Boolean(karte));
   pkTuermeEl.forEach((el, n) => {
     el.classList.toggle('ziel', karte && n === i);
     el.classList.toggle('verboten', Boolean(karte) && n === i &&
@@ -8851,8 +8920,18 @@ function pkZiehbar(el, karte) {
         klon.classList.add('pk-flug');
         klon.style.width = kasten.width + 'px';
         klon.style.height = kasten.height + 'px';
-        document.body.appendChild(klon);
-        pkZiehen = { karte, klon, griff };
+        klon.style.left = (evt.clientX - griff.x) + 'px';
+        klon.style.top = (evt.clientY - griff.y) + 'px';
+        document.getElementById('pk-ebene').appendChild(klon);
+        /*
+         * Die Turmrechtecke EINMAL messen, nicht bei jeder Mausbewegung. Vorher
+         * lief hier `document.elementFromPoint` je Zeigerbewegung, und das
+         * erzwingt jedes Mal ein Neu-Layout der ganzen Seite - genau waehrend
+         * die Karte fluessig folgen soll. Die Tafeln bewegen sich waehrend
+         * eines Ziehens nicht, also genuegt eine Messung.
+         */
+        const felder = pkTuermeEl.map((t, n) => ({ n, r: t.getBoundingClientRect() }));
+        pkZiehen = { karte, klon, griff, felder };
         pkMalHand();
         pkMalFormationen();
       }
@@ -8860,9 +8939,9 @@ function pkZiehbar(el, karte) {
       z.klon.style.left = (e2.clientX - z.griff.x) + 'px';
       z.klon.style.top = (e2.clientY - z.griff.y) + 'px';
 
-      const unter = document.elementFromPoint(e2.clientX, e2.clientY);
-      const tafel = unter && unter.closest ? unter.closest('.pk-turm') : null;
-      const neu = tafel ? Number(tafel.dataset.turm) : null;
+      const treffer = z.felder.find(f => e2.clientX >= f.r.left && e2.clientX <= f.r.right &&
+        e2.clientY >= f.r.top && e2.clientY <= f.r.bottom);
+      const neu = treffer ? treffer.n : null;
       if (neu !== pkUeberTurm) {
         pkUeberTurmSetzen(neu);
         if (neu !== null) klang('karte');
@@ -8930,7 +9009,7 @@ function pkSpielSetzen(el, turmEl, { dauer = 230 } = {}) {
   const flug = el.cloneNode(true);
   flug.classList.add('pk-flug');
   flug.style.cssText += `left:${a.left}px;top:${a.top}px;width:${a.width}px;height:${a.height}px;`;
-  document.body.appendChild(flug);
+  document.getElementById('pk-ebene').appendChild(flug);
   el.remove();
   const dx = b.left + b.width / 2 - (a.left + a.width / 2);
   const dy = b.top + b.height / 2 - (a.top + a.height / 2);
