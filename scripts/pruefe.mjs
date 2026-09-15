@@ -963,6 +963,28 @@ const ergebnis = await seite.evaluate(() => {
     return pkLiesStand() ? 'der Stand liess sich nicht vergessen' : true;
   });
 
+  pruefe('Begegnungen sind auf dem Weg vom Lager erreichbar', () => {
+    /*
+     * Beim Umbau auf die Belagerung hatten die sechs Begegnungen ihren Knoten
+     * verloren - der Bildschirm war noch da und wurde von niemandem mehr
+     * gerufen. Inhalt, den es gibt und den niemand mehr sieht, ist schlimmer
+     * als keiner: er sieht im Quelltext nach Arbeit aus.
+     */
+    P.neuerLauf();
+    const w = P.offeneWahlen().find(x => x.kampf);
+    P.waehle(w);
+    P.meldeAusgang(true);
+    pkBetreteAbschnitt();
+    if (!document.querySelector('.pk-dienst')) return 'kein Heerlager nach dem Sieg';
+    const alt = Math.random;
+    Math.random = () => 0;                  // Begegnung erzwingen
+    try { document.querySelector('#pk-weiter').click(); } finally { Math.random = alt; }
+    const wahlen = document.querySelectorAll('.pk-tafel .pk-wahl');
+    if (wahlen.length < 2) return 'die Begegnung bot ' + wahlen.length + ' Wahlen';
+    wahlen[0].click();
+    return document.querySelector('.pk-folge') ? true : 'die Wahl zeigte keine Folge';
+  });
+
   pruefe('Die Vorratsleiste zeigt nur, was es wirklich gibt', () => {
     P.neuerLauf();
     P.neuerVorrat();

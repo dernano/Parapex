@@ -14155,8 +14155,12 @@ function pkFolge(text) {
 }
 
 // ---------- Begegnung ----------
+/* Wie oft auf dem Weg vom Lager etwas dazwischenkommt. */
+const PK_BEGEGNUNG_CHANCE = 0.45;
+
 function pkZeigeBegegnung() {
   const e = ziehBegegnung();
+  if (!e) { pkWeiter(); return; }
   const t = pkTafel(
     '<h2>' + e.titel + '</h2>' +
     '<p class="pk-vor">' + e.text + '</p>' +
@@ -14185,9 +14189,9 @@ function pkZeigeLaufEnde() {
   klang(sieg ? 'sieg' : 'burg');
   const siege = l.verlauf.filter(v => v.sieg).length;
   const t = pkTafel(
-    '<h2>' + (sieg ? 'Der Akt ist gehalten' : 'Die Burg ist gefallen') + '</h2>' +
+    '<h2>' + (sieg ? 'Der Feldzug ist gehalten' : 'Die Burg ist gefallen') + '</h2>' +
     '<p class="pk-vor">' + (sieg
-      ? 'Elf Stationen, der Belagerungsmeister zuletzt. Die Mauern stehen noch.'
+      ? l.anten + ' Heere, ' + l.schlachten + ' Schlachten. Die Mauern stehen noch.'
       : 'In Ante ' + l.ante + ' von ' + l.anten + ' kam der Sturm durch.') + '</p>' +
     '<div class="pk-abrechnung">' +
       '<span>Gewonnene Kämpfe <b>' + siege + '</b></span>' +
@@ -14471,6 +14475,14 @@ function pkZeichneLager() {
     const wahl = offeneWahlen()[0];
     if (wahl) waehle(wahl);
     raeumeLager();
+    /*
+     * Auf dem Weg vom Lager zur naechsten Stellung kann eine Begegnung
+     * liegen. Beim Umbau auf die Belagerung hatten die sechs Begegnungen
+     * ihren Knoten verloren und waren damit unerreichbar - Inhalt, den es
+     * gibt und den niemand mehr sieht. Hier ist ihr Platz: zwischen zwei
+     * Schlachten, wenn das Lager abgebrochen ist.
+     */
+    if (Math.random() < PK_BEGEGNUNG_CHANCE) { pkZeigeBegegnung(); return; }
     pkWeiter();
   });
   t.querySelector('#pk-deck-ansehen').addEventListener('click', () => pkZeigeDeck(pkZeichneLager));
