@@ -941,6 +941,90 @@ const ergebnis = await seite.evaluate(() => {
     return true;
   });
 
+  // ---------- Das Feuern ----------
+  /*
+   * Der Fehler, den diese drei Pruefungen festhalten: beim Schuss sank der
+   * ganze TURM um vier Pixel ab, und die Besatzung sank mit ihm. Eine Figur,
+   * die sich beim Schiessen in den Boden duckt, sieht aufgemalt aus - und
+   * man sieht es, ohne sagen zu koennen, warum.
+   */
+  pruefe('Ein Turm sinkt beim Schuss nicht ab', () => {
+    P.neuerLauf();
+    const w = P.offeneWahlen().find(x => x.kampf);
+    const r = P.waehle(w);
+    pkRaeumeTafel();
+    pkStarteKampf(w, r.kampf);
+    const k = P.derKampf;
+    k.tuerme[0].einheit = P.neueEinheit('kanonier-12');
+    k.tuerme[0].einzug = 0;
+    const ruhig = turmKrone(k.tuerme[0]);
+    pkSpielTurmFeuert(0, { wucht: 1 });
+    if (k.tuerme[0].spann <= 0) return 'der Schuss lief gar nicht an';
+    return gleich(turmKrone(k.tuerme[0]), ruhig, 'Kronenhöhe während des Schusses');
+  });
+
+  pruefe('Die Besatzung behält ihren Fußpunkt', () => {
+    const k = P.derKampf;
+    const t = k.tuerme[0];
+    const hoehe = turmKrone(t);
+    const vorher = batallionStellungen(t, hoehe, 3.2).map(st => st.x + ',' + st.y).join(' ');
+    pkSpielTurmFeuert(0, { wucht: 1 });
+    const nachher = batallionStellungen(t, turmKrone(t), 3.2).map(st => st.x + ',' + st.y).join(' ');
+    return gleich(nachher, vorher, 'Fußpunkte');
+  });
+
+  pruefe('Das Geschoss verlässt die Waffe, nicht die Mitte der Kachel', () => {
+    const k = P.derKampf;
+    for (const g of ['bogen', 'armbrust', 'artillerie', 'kanonier']) {
+      const t = k.tuerme[0];
+      t.einheit = P.neueEinheit(g + '-11');
+      t.einzug = 0;
+      const p = einheitProfil(t.einheit);
+      const m = muendungsOrt(t, p);
+      const mitteX = isoX(t.col + 1, t.row + 1);
+      const mitteY = isoY(t.col + 1, t.row + 1);
+      if (Math.abs(m.x - mitteX) < 2 && Math.abs(m.y - mitteY) < 2) {
+        return g + ': die Mündung liegt auf der Kachelmitte';
+      }
+      // Und sie liegt OBEN, nicht am Fuss der Mauer.
+      if (m.y > mitteY - 20) return g + ': die Mündung liegt zu tief (' + Math.round(mitteY - m.y) + ' px)';
+    }
+    return true;
+  });
+
+  pruefe('Der Rückstoß geht dem Schuss entgegen', () => {
+    const k = P.derKampf;
+    /*
+     * In einer isometrischen Ansicht ist "zurueck" nicht `nach unten`. Der
+     * Gegner steht im Osten der Karte, und das heisst im BILD: rechts UND
+     * tiefer. Der Rueckstoss muss also nach links oben gehen, nicht nach
+     * unten - genau das war vorher falsch.
+     */
+    for (const t of k.tuerme) {
+      const r2 = feuerrichtung(t);
+      if (!(r2.x > 0 && r2.y > 0)) {
+        return 'Turm ' + t.nr + ' schiesst nach (' + r2.x.toFixed(2) + ', ' + r2.y.toFixed(2) + ')';
+      }
+    }
+    const ri = feuerrichtung(k.tuerme[0]);
+    if (Math.abs(Math.hypot(ri.x, ri.y) - 1) > 0.01) return 'die Richtung ist kein Einheitsvektor';
+    // Der Stoß ist vor dem Lösen null und danach nicht.
+    if (stossKurve(0.1) !== 0) return 'es stößt schon vor dem Lösen';
+    if (!(stossKurve(FEUER_LOS + 0.001) > 0.9)) return 'beim Lösen fehlt der Stoß';
+    /*
+     * Und die Figur kippt GEGEN den Schuss. `mitNeigung` verschiebt den Kopf
+     * um -weite, wer nach rechts schiesst muss also eine positive Weite
+     * bekommen. Ein verdrehtes Vorzeichen sieht aus, als würde der Schütze
+     * in den Schuss hineinfallen.
+     */
+    const p = einheitProfil(k.tuerme[0].einheit);
+    const nachRechts = neigungWeite(p, { x: 0.4, y: 0.9 }, 1, 3.2);
+    const nachLinks = neigungWeite(p, { x: -0.4, y: 0.9 }, 1, 3.2);
+    if (!(nachRechts > 0)) return 'Schuss nach rechts kippt die Figur nach rechts';
+    if (!(nachLinks < 0)) return 'Schuss nach links kippt die Figur nach links';
+    return gleich(neigungWeite(p, ri, 0, 3.2), 0, 'Neigung ohne Stoß');
+  });
+
   // ---------- Der Spielstand ----------
   pruefe('Der Spielstand geht in den Speicher des Browsers und kommt zurück', () => {
     /*

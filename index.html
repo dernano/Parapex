@@ -6153,24 +6153,37 @@ function staub(col, row, anzahl, farbe, hoch = 0) {
   }
 }
 
-/*
- * Das Muendungsfeuer. Es sitzt VOR der Besatzung, nicht in ihr: bisher
- * entstand es in der Mitte der Kachel, also genau hinter dem Rohr, und war
- * im Bild ein heller Fleck auf der Brust des Kanoniers. Es fliegt nach
- * Osten, wohin geschossen wird, und ist nach einer Achtelsekunde vorbei -
- * ein Blitz, keine Wolke.
+/**
+ * Das Muendungsfeuer an einem BILDPUNKT, in Schussrichtung.
+ *
+ * Vorher stand es auf einem festen Punkt neben der Kachelmitte und blies
+ * immer nach rechts. Jetzt sitzt es dort, wo das Rohr gerade endet, und der
+ * Feuerstrahl folgt der Richtung, in die geschossen wird - dieselbe
+ * Projektion, die auch die Kugel fliegen laesst.
  */
-function muendungsfeuer(col, row, hoch, kraft) {
+function muendungsBlitz(x, y, kraft, ri) {
   if (wenigerBewegung) return;
-  const n = Math.round(4 + kraft * 4);
+  const n = Math.round(5 + kraft * 5);
   for (let i = 0; i < n; i++) {
+    // Ein Kegel um die Schussrichtung: in der Achse schnell, an den Raendern kurz
+    const streu = (Math.random() - 0.5) * 0.7;
+    const sx = ri.x * Math.cos(streu) - ri.y * Math.sin(streu);
+    const sy = ri.x * Math.sin(streu) + ri.y * Math.cos(streu);
+    const weit = (14 + Math.random() * 26) * (1 + kraft * 0.4);
     staubkoerner.push({
-      col, row, hoch, farbe: i % 3 ? '#ffe9a8' : '#fff6d8',
-      dx: 16 + Math.random() * 30,
-      dy: -7 + Math.random() * 14,
+      px: x, py: y, farbe: i % 3 ? '#ffe9a8' : '#fff6d8',
+      dx: sx * weit, dy: sy * weit - 3,
       t: 0, dauer: 0.13 + Math.random() * 0.1,
       gr: 2 + Math.random() * 3 * kraft,
       blitzt: true,
+    });
+  }
+  // Und ein kurzer Rueckstrahl aus der Kammer - Pulver geht nicht nur vorwaerts.
+  for (let i = 0; i < 3; i++) {
+    staubkoerner.push({
+      px: x, py: y, farbe: '#ffd08a',
+      dx: -ri.x * (6 + Math.random() * 8), dy: -ri.y * (6 + Math.random() * 8) - 5,
+      t: 0, dauer: 0.1 + Math.random() * 0.08, gr: 2, blitzt: true,
     });
   }
   if (staubkoerner.length > KOERNER_HOECHSTENS) {
@@ -6182,12 +6195,15 @@ function muendungsfeuer(col, row, hoch, kraft) {
  * Rauch ist kein Staub. Staub fliegt auseinander und faellt; Rauch steigt,
  * wird groesser und bleibt. Die Muendungswolke ist das Einzige, was nach dem
  * Schuss noch dasteht - ohne sie ist eine Bombarde ein kurzes gelbes Blinken.
+ *
+ * An einem BILDPUNKT, nicht an einer Kachel: die Muendung eines Rohrs, das
+ * beim Schuss zurueckl&auml;uft, liegt auf keinem Rasterpunkt.
  */
-function rauch(col, row, hoch, anzahl, farbe = '#c8c0b2') {
+function rauchAm(x, y, anzahl, farbe = '#c8c0b2') {
   if (wenigerBewegung) return;
   for (let i = 0; i < anzahl; i++) {
     staubkoerner.push({
-      col, row, hoch, farbe,
+      px: x, py: y, farbe,
       dx: (Math.random() - 0.3) * 18,
       dy: -16 - Math.random() * 22,
       t: 0, dauer: 0.85 + Math.random() * 0.7,
@@ -6199,6 +6215,7 @@ function rauch(col, row, hoch, anzahl, farbe = '#c8c0b2') {
     staubkoerner.splice(0, staubkoerner.length - KOERNER_HOECHSTENS);
   }
 }
+
 
 // Langsam ziehende Wolkenschatten und ein paar Flusen in der Luft.
 const wolken = Array.from({ length: 4 }, (_, i) => ({
@@ -6374,6 +6391,7 @@ function zeigePfeil(vonCol, vonRow, zuCol, zuRow, farbe, versatz, art, wie) {
     // geht flach und schnell, ein Trebuchetstein hoch und langsam.
     hoehe: w.hoehe === undefined ? 1 : w.hoehe,
     dicke: w.dicke || 1,
+    abX: w.abX || 0, abY: w.abY || 0,
     t: 0, dauer: w.dauer || PFEIL_DAUER });
 }
 
@@ -8123,15 +8141,21 @@ function schattenUnterFigur(x, y, s, zug = 1) {
  * stehen, lagen zwei Bogen uebereinander und die aufgezogene Sehne sah aus wie
  * ein Riss quer durch den Mann.
  */
-const ohneBogenMerker = new Map();
-function ohneBogen(figur) {
-  let fertig = ohneBogenMerker.get(figur);
+const ohneWaffeMerker = new Map();
+function ohneWaffe(figur, muster) {
+  const schluessel = muster.source;
+  let nach = ohneWaffeMerker.get(figur);
+  if (!nach) { nach = new Map(); ohneWaffeMerker.set(figur, nach); }
+  let fertig = nach.get(schluessel);
   if (!fertig) {
-    fertig = figur.map(zeile => zeile.replace(/[yY]/g, '.'));
-    ohneBogenMerker.set(figur, fertig);
+    fertig = figur.map(zeile => zeile.replace(muster, '.'));
+    nach.set(schluessel, fertig);
   }
   return fertig;
 }
+const OHNE_BOGEN = /[yY]/g;
+const OHNE_ARMBRUST = /[MY]/g;
+function ohneBogen(figur) { return ohneWaffe(figur, OHNE_BOGEN); }
 
 /**
  * Ein Bogen im Anschlag, gezeichnet statt gepixelt: nur so laesst sich die
@@ -8177,6 +8201,324 @@ function zeichneBogen(x, y, s, zug) {
     ctx.fill();
   }
   ctx.restore();
+}
+
+/* ============================================================
+ *  F E U E R N :   D A S   G E R A E T   B E W E G T   S I C H
+ * ============================================================
+ *
+ * Vorher sank beim Schuss der ganze TURM um vier Pixel ab, und die Besatzung
+ * sank mit ihm. Dazu bekam jede Figur einen eigenen Versatz, der sie als
+ * Ganzes verschob. Das ist genau die Bewegung, die eine Figur aufgemalt
+ * aussehen laesst: wer schiesst, sackt nicht in den Boden.
+ *
+ * Die Regel dieses ganzen Abschnitts steht in einem Satz:
+ *
+ *   DER FUSSPUNKT BLEIBT, WO ER IST. Das GERAET bewegt sich.
+ *
+ * Der Umriss darf sich verschieben - der Oberkoerper lehnt in den Rueckstoss.
+ * Die Sohle steht still. Technisch ist das eine SCHERUNG um die Fusslinie:
+ * Punkte auf Fusshoehe bleiben liegen, alles darueber wandert um so weiter,
+ * je hoeher es sitzt. Der Kontaktschatten liegt ohnehin am Boden und bewegt
+ * sich nie mit.
+ *
+ * Und der Rueckstoss geht dahin, wo er hingehoert: dem Schuss entgegen.
+ * "Zurueck" ist in einer isometrischen Ansicht nicht `nach unten` - es ist
+ * die Gegenrichtung des Schusses in BILDKOORDINATEN, und die rechnet
+ * dieselbe Projektion aus, die auch die Burg malt.
+ */
+
+/* Wohin geschossen wird. Der Gegner steht im Osten, halbe Hoehe. */
+const ZIEL_COL = () => COLS - 2;
+const ZIEL_ROW = () => Math.round(ROWS / 2);
+
+/**
+ * Die Schussrichtung eines Turms als Einheitsvektor in BILDpunkten.
+ * @param {any} t
+ */
+function feuerrichtung(t) {
+  const vx = isoX(ZIEL_COL(), ZIEL_ROW()) - isoX(t.col + 1, t.row + 1);
+  const vy = isoY(ZIEL_COL(), ZIEL_ROW()) - isoY(t.col + 1, t.row + 1);
+  const l = Math.hypot(vx, vy) || 1;
+  return { x: vx / l, y: vy / l };
+}
+
+/** Wie weit der Schussvorgang fortgeschritten ist: 0 beim Anlegen, 1 am Ende. */
+function feuerLauf(t) {
+  if (!t || !t.spann) return -1;
+  return 1 - Math.max(0, Math.min(1, t.spann / SPANN_DAUER));
+}
+
+const FEUER_LOS = SPANN_LOS / SPANN_DAUER;   // wann der Schuss bricht
+
+/**
+ * Der Rueckstoss ueber die Zeit: null bis zum Loslassen, dann ein harter
+ * Schlag, der mit einem Nachschwingen ausklingt. Ohne das Nachschwingen
+ * springt das Geraet zurueck, als waere nichts gewesen.
+ */
+function stossKurve(lauf) {
+  if (lauf < FEUER_LOS) return 0;
+  const nach = (lauf - FEUER_LOS) / (1 - FEUER_LOS);
+  return Math.cos(nach * Math.PI * 2.2) * (1 - nach) * (1 - nach);
+}
+
+/** Das Anlegen vor dem Schuss: von null auf eins, weich. */
+function zielKurve(lauf) {
+  if (lauf < 0) return 0;
+  if (lauf >= FEUER_LOS) return 1;
+  return weich(lauf / FEUER_LOS);
+}
+
+/**
+ * Wie weit sich der Oberkoerper beim Schuss zurueckneigt, in Bildpunkten.
+ *
+ * Das Vorzeichen ist hier die ganze Aussage, und es ist leicht zu verdrehen:
+ * `mitNeigung` verschiebt den KOPF um `-weite`. Wer nach rechts schiesst,
+ * muss also nach links kippen, und das heisst: weite POSITIV. Andersherum
+ * lehnt sich die Figur in den Schuss hinein, als wuerde sie geschoben statt
+ * gestossen - und genau so sah es aus.
+ *
+ * @param {any} p Profil @param {{x:number,y:number}} ri Schussrichtung im Bild
+ * @param {number} stoss 0..1 @param {number} s Massstab
+ */
+function neigungWeite(p, ri, stoss, s) {
+  return ri.x * stoss * (0.6 + p.kraft * 1.6) * s * 0.5;
+}
+
+/**
+ * Etwas zeichnen, das sich um seine FUSSLINIE neigt.
+ *
+ * Alles, was `was()` malt, wird so geschert, dass die Hoehe `fussY` liegen
+ * bleibt und alles darueber um `weite` Bildpunkte je voller Figurhoehe
+ * wandert. Genau so lehnt sich ein Mensch: die Fuesse bleiben, die Schultern
+ * gehen mit.
+ */
+function mitNeigung(fussX, fussY, hoehe, weite, was) {
+  if (!weite) { was(); return; }
+  ctx.save();
+  ctx.translate(fussX, fussY);
+  // Scherung: x' = x + c * y. Bei y = 0 (Fusshoehe) aendert sich nichts.
+  ctx.transform(1, 0, weite / Math.max(1, hoehe), 1, 0, 0);
+  ctx.translate(-fussX, -fussY);
+  was();
+  ctx.restore();
+}
+
+/* ---------- Die Armbrust ---------- */
+/*
+ * Sie liegt waagerecht in den Haenden und zeigt in die Schussrichtung. Beim
+ * Loesen schlaegt sie der Richtung entgegen zurueck und kippt die Nase hoch -
+ * eine Armbrust hat Gewicht, und das soll man sehen.
+ */
+function zeichneArmbrust(x, y, s, lauf, ri) {
+  const stoss = stossKurve(lauf);
+  const an = zielKurve(lauf);
+  const zug = lauf < 0 ? 0 : (lauf < FEUER_LOS ? 1 : 0);
+  // Der Griffpunkt: auf Brusthoehe, ein Stueck in Schussrichtung vor dem Mann.
+  const gx = x + ri.x * 1.2 * s - ri.x * stoss * 1.5 * s;
+  const gy = y - 6.6 * s - an * 0.5 * s - ri.y * stoss * 1.5 * s;
+  const w = Math.atan2(ri.y, ri.x) - stoss * 0.22;   // die Nase kippt hoch
+  ctx.save();
+  ctx.translate(gx, gy);
+  ctx.rotate(w);
+  ctx.lineCap = 'round';
+  // Der Schaft
+  ctx.fillStyle = PAL.Y;
+  ctx.fillRect(-2.6 * s, -0.42 * s, 5.4 * s, 0.85 * s);
+  ctx.fillStyle = PAL.y;
+  ctx.fillRect(-2.6 * s, 0.1 * s, 5.4 * s, 0.34 * s);
+  // Der stählerne Bogen quer dazu, vorn am Schaft
+  ctx.strokeStyle = PAL.M;
+  ctx.lineWidth = Math.max(1.2, s * 0.42);
+  ctx.beginPath();
+  ctx.moveTo(2.0 * s, -2.1 * s);
+  ctx.quadraticCurveTo(2.9 * s, 0, 2.0 * s, 2.1 * s);
+  ctx.stroke();
+  // Die Sehne - gespannt nach hinten, nach dem Schuss vorn am Bogen
+  ctx.strokeStyle = 'rgba(240,236,220,0.9)';
+  ctx.lineWidth = Math.max(0.9, s * 0.26);
+  const sx = zug ? -0.9 * s : 2.2 * s;
+  ctx.beginPath();
+  ctx.moveTo(2.0 * s, -2.1 * s);
+  ctx.lineTo(sx, 0);
+  ctx.lineTo(2.0 * s, 2.1 * s);
+  ctx.stroke();
+  // Der aufgelegte Bolzen, solange sie geladen ist
+  if (zug) {
+    ctx.fillStyle = '#cbd3dc';
+    ctx.fillRect(-0.6 * s, -0.26 * s, 3.4 * s, 0.52 * s);
+  }
+  ctx.restore();
+}
+
+/* ---------- Das Wurfgeraet der Artillerie ---------- */
+/*
+ * Hier bewegt sich nicht die Mannschaft, sondern die MASCHINE. Der Wurfarm
+ * liegt gespannt nach hinten, schnellt beim Loesen durch seinen Bogen und
+ * schlaegt oben an den Querbalken - genau das ist die Bewegung, an der man
+ * einen Onager erkennt.
+ */
+function zeichneWurfgeraet(x, y, s, lauf, ri) {
+  const gespannt = -2.25;          // Bogenmass: Arm liegt hinten
+  const durch = -0.35;             // und schlaegt nach vorn an
+  let arm = gespannt;
+  if (lauf >= 0) {
+    if (lauf < FEUER_LOS) arm = gespannt - zielKurve(lauf) * 0.25;
+    else {
+      const nach = (lauf - FEUER_LOS) / (1 - FEUER_LOS);
+      // Schnell durch, dann zurueck in die Ladestellung
+      const schlag = Math.min(1, nach * 3.2);
+      arm = gespannt + (durch - gespannt) * weich(schlag)
+        - (durch - gespannt) * Math.max(0, nach - 0.45) / 0.55 * 0.72;
+    }
+  }
+  const w = Math.atan2(ri.y, ri.x);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // Der Rahmen: zwei Kufen und ein Querbalken, in der Bildschraege
+  ctx.strokeStyle = '#4a3520';
+  ctx.lineWidth = Math.max(1.6, s * 0.62);
+  const rx = Math.cos(w), ry = Math.sin(w);
+  const qx = -ry, qy = rx;                    // quer zur Schussrichtung
+  const punkt = (a, b) => [rx * a * s + qx * b * s, ry * a * s + qy * b * s];
+  const [ax, ay] = punkt(-3.2, -1.5), [bx, by] = punkt(2.6, -1.5);
+  const [cx2, cy2] = punkt(-3.2, 1.5), [dx, dy] = punkt(2.6, 1.5);
+  ctx.beginPath();
+  ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+  ctx.moveTo(cx2, cy2); ctx.lineTo(dx, dy);
+  ctx.stroke();
+  // Die beiden Staender und der Anschlagbalken
+  const [sx1, sy1] = punkt(0.4, -1.5), [sx2, sy2] = punkt(0.4, 1.5);
+  ctx.strokeStyle = PAL.Y;
+  ctx.lineWidth = Math.max(1.4, s * 0.55);
+  ctx.beginPath();
+  ctx.moveTo(sx1, sy1); ctx.lineTo(sx1, sy1 - 3.1 * s);
+  ctx.moveTo(sx2, sy2); ctx.lineTo(sx2, sy2 - 3.1 * s);
+  ctx.moveTo(sx1, sy1 - 3.1 * s); ctx.lineTo(sx2, sy2 - 3.1 * s);
+  ctx.stroke();
+  // Der Wurfarm, gelagert in der Mitte der Kufen
+  const [dx0, dy0] = punkt(-0.6, 0);
+  ctx.save();
+  ctx.translate(dx0, dy0 - 0.6 * s);
+  ctx.rotate(w + arm);
+  ctx.strokeStyle = PAL.Y;
+  ctx.lineWidth = Math.max(1.5, s * 0.6);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(4.6 * s, 0);
+  ctx.stroke();
+  // Die Schale am Ende - mit Stein, solange nicht geworfen ist
+  ctx.fillStyle = PAL.y;
+  ctx.beginPath();
+  ctx.arc(4.8 * s, 0, 0.9 * s, 0, Math.PI * 2);
+  ctx.fill();
+  if (lauf < FEUER_LOS) {
+    ctx.fillStyle = '#9a8058';
+    ctx.beginPath();
+    ctx.arc(5.0 * s, -0.7 * s, 0.85 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.restore();
+}
+
+/* ---------- Die Bombarde ---------- */
+/*
+ * Ein Rohr auf einem Holzbett. Es laeuft beim Schuss der Schussrichtung
+ * ENTGEGEN zurueck und kriecht dann wieder vor - nicht die Mannschaft,
+ * sondern das Rohr. Wer zwoelf Zentner Bronze abfeuert, bewegt die Bronze.
+ */
+function zeichneBombarde(x, y, s, lauf, ri, kraft) {
+  const stoss = stossKurve(lauf);
+  const zurueck = stoss * (1.6 + kraft * 1.6) * s;
+  const w = Math.atan2(ri.y, ri.x);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(w);
+  // Das Bett bleibt stehen - es ist am Turm verkeilt.
+  ctx.fillStyle = PAL.y;
+  ctx.fillRect(-3.4 * s, -0.5 * s, 7.2 * s, 1.5 * s);
+  ctx.fillStyle = PAL.Y;
+  ctx.fillRect(-3.4 * s, -0.5 * s, 7.2 * s, 0.5 * s);
+  // Zwei Raeder, angedeutet
+  ctx.fillStyle = PAL.k;
+  ctx.beginPath(); ctx.arc(-2.1 * s, 1.0 * s, 0.85 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.1 * s, 1.0 * s, 0.85 * s, 0, Math.PI * 2); ctx.fill();
+  // Das Rohr laeuft zurueck
+  ctx.translate(-zurueck, -stoss * 0.35 * s);
+  ctx.rotate(-stoss * 0.10);
+  const g = ctx.createLinearGradient(0, -1.5 * s, 0, 1.2 * s);
+  g.addColorStop(0, '#a89468');
+  g.addColorStop(0.35, '#7a6544');
+  g.addColorStop(0.8, '#4a3d2a');
+  g.addColorStop(1, '#2e261a');
+  ctx.fillStyle = g;
+  // Hinten dicker als vorn: die Kammer haelt den Druck
+  ctx.beginPath();
+  ctx.moveTo(-3.0 * s, -1.35 * s);
+  ctx.lineTo(4.3 * s, -0.95 * s);
+  ctx.lineTo(4.3 * s, 0.95 * s);
+  ctx.lineTo(-3.0 * s, 1.35 * s);
+  ctx.closePath();
+  ctx.fill();
+  // Zwei Ringe und die Muendungswulst
+  ctx.fillStyle = '#d8c48a';
+  ctx.fillRect(-1.2 * s, -1.25 * s, 0.45 * s, 2.5 * s);
+  ctx.fillRect(1.6 * s, -1.1 * s, 0.45 * s, 2.2 * s);
+  ctx.fillRect(4.0 * s, -1.1 * s, 0.6 * s, 2.2 * s);
+  // Das dunkle Loch der Muendung - daran erkennt man ein Rohr auf Anhieb
+  ctx.fillStyle = '#17120c';
+  ctx.beginPath();
+  ctx.ellipse(4.5 * s, 0, 0.3 * s, 0.85 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Das Geraet eines Turms - eines je Turm, nicht eines je Mann. Die Mannschaft
+ * BEDIENT es; bewegen tut sich die Maschine.
+ */
+function zeichneGeraet(p, x, y, lauf, ri) {
+  const s = p.massstab * (p.geraet.mass || 1);
+  /*
+   * Die Bruestung schneidet alles unterhalb der Kronenkante weg - das ist
+   * richtig fuer Fuesse und falsch fuer ein Geraet: von einer Bombarde war
+   * nur ein dunkler Streifen zu sehen, der Rest lag hinter der Zinne. Es
+   * steht deshalb ein Stueck hoeher, als seine Stellung vorgibt: auf der
+   * Bruestung, nicht dahinter.
+   */
+  const hoch = (p.geraet.hoch || 1.7) * s;
+  if (p.waffe === 'wurfgeraet') zeichneWurfgeraet(x, y - hoch, s, lauf, ri);
+  else if (p.waffe === 'bombarde') zeichneBombarde(x, y - hoch, s, lauf, ri, p.kraft);
+}
+
+/**
+ * Wo das Geschoss den Turm verlaesst - in Bildpunkten.
+ *
+ * Nicht die Mitte der Kachel, nicht die Fuesse, nicht irgendein Punkt am
+ * Rand: die MUENDUNG. Ein Pfeil, der aus dem Bauch des Schuetzen kommt,
+ * sieht falsch aus, auch wenn man nicht sagen kann, warum.
+ */
+function muendungsOrt(t, p) {
+  const H = MODELL_HOEHE[t.modell || 'wachturm'] + WALL_HOEHE;
+  const ri = feuerrichtung(t);
+  const s = p.massstab;
+  if (p.geraet) {
+    const gs = s * (p.geraet.mass || 1);
+    const gx = isoX(t.col + p.geraet.dc, t.row + p.geraet.dr);
+    const gy = isoY(t.col + p.geraet.dc, t.row + p.geraet.dr) - H;
+    // Beim Wurfgeraet sitzt die Schale oben am Arm, beim Rohr vorn an der Muendung.
+    return p.waffe === 'bombarde'
+      ? { x: gx + ri.x * 4.4 * gs, y: gy + ri.y * 4.4 * gs - 2.4 * gs }
+      : { x: gx + ri.x * 1.6 * gs, y: gy - 5.1 * gs };
+  }
+  // Handwaffen: die Faust des mittleren Manns.
+  const st = batallionStellungen(t, H, s)[2];
+  return p.waffe === 'armbrust'
+    ? { x: st.x + ri.x * 3.6 * s, y: st.y - 6.6 * s + ri.y * 3.6 * s }
+    : { x: st.x + 4.9 * s, y: st.y - 7.0 * s };
 }
 
 /**
@@ -8950,9 +9292,19 @@ function drawVignette() {
 function pfeilOrt(p, f) {
   const c = p.vonCol + (p.zuCol - p.vonCol) * f;
   const r = p.vonRow + (p.zuRow - p.vonRow) * f;
+  /*
+   * `abX`/`abY` sind der Abstand zwischen der Muendung und dem Punkt, an dem
+   * die Bahn sonst begonnen haette. Sie laufen ueber den Flug auf null - das
+   * Geschoss verlaesst also die Waffe und findet danach in seine Bahn. Ohne
+   * das kam jeder Pfeil aus der Mitte der Kachel, also aus dem Bauch des
+   * Schuetzen, und man sah dem Bild an, dass etwas nicht stimmte, ohne sagen
+   * zu koennen, was.
+   */
+  const ab = (1 - f) * (1 - f);
   return [
-    isoX(c, r) + (p.versatz || 0) * (1 - f),
-    isoY(c, r) + TH / 2 - 22 - Math.sin(f * Math.PI) * 16 * (p.hoehe === undefined ? 1 : p.hoehe),
+    isoX(c, r) + (p.versatz || 0) * (1 - f) + (p.abX || 0) * ab,
+    isoY(c, r) + TH / 2 - 22 - Math.sin(f * Math.PI) * 16 * (p.hoehe === undefined ? 1 : p.hoehe)
+      + (p.abY || 0) * ab,
   ];
 }
 
@@ -9076,8 +9428,13 @@ function drawStaub() {
       : (1 - f) * 0.8;
     ctx.fillStyle = k.farbe;
     const gr = k.steigt ? Math.max(1, Math.round(k.gr * (0.55 + f * 1.3))) : k.gr;
-    const x = isoX(k.col, k.row) + k.dx * f;
-    const y = isoY(k.col, k.row) + TH / 2 - (k.hoch || 0) + k.dy * f;
+    /*
+     * Ein Korn haengt entweder an einer KACHEL oder an einem BILDPUNKT. Das
+     * Muendungsfeuer braucht das zweite: die Muendung eines Rohrs, das beim
+     * Schuss zurueckl&auml;uft, liegt nicht auf einem Rasterpunkt.
+     */
+    const x = (k.px !== undefined ? k.px : isoX(k.col, k.row)) + k.dx * f;
+    const y = (k.py !== undefined ? k.py : isoY(k.col, k.row) + TH / 2 - (k.hoch || 0)) + k.dy * f;
     ctx.fillRect(Math.round(x), Math.round(y), gr, gr);
   }
   ctx.globalAlpha = 1;
@@ -9405,9 +9762,8 @@ function updateAnimations(dt) {
         staub(t.col + 1, t.row + 1, 10, STEINSTAUB);
       }
     }
-    t.rueckstoss = Math.max(0, (t.rueckstoss || 0) - dt * 6);
+    // Eine Uhr fuer den ganzen Schuss - siehe `feuerLauf`.
     if (t.spann > 0) t.spann = Math.max(0, t.spann - dt);
-    if (t.stoss > 0) t.stoss = Math.max(0, t.stoss - dt * 5.5);
     if (t.einzug > 0) {
       t.einzug = Math.max(0, t.einzug - dt);
       // Der Aufschlag: wenn der letzte Mann steht, staubt die Krone - und zwar
@@ -10982,7 +11338,13 @@ function pkZeichneTurm(t) {
    * dann hat der Turm zwar eine Nummer und eine Einheit, aber kein Feld.
    */
   if (t.col === undefined || t.row === undefined) return;
-  const H = MODELL_HOEHE[t.modell || 'wachturm'] + WALL_HOEHE - (t.rueckstoss || 0) * 4;
+  /*
+   * Hier stand `- (t.rueckstoss || 0) * 4`, und das war der ganze Fehler: der
+   * TURM sank beim Schuss ab, und weil die Besatzung ihre Hoehe von ihm
+   * bekommt, sank sie mit. Mauerwerk bewegt sich nicht, wenn oben jemand
+   * schiesst. Der Rueckstoss sitzt jetzt im Geraet, wo er hingehoert.
+   */
+  const H = MODELL_HOEHE[t.modell || 'wachturm'] + WALL_HOEHE;
   drawBauSchatten(t.col, t.row, t.w, t.h, H * 0.8);
   drawBlock(t.col, t.row, t.w, t.h, WALL_HOEHE, STOFF.stein.f);
   zeichneModell(t.modell || 'wachturm', t.col, t.row, 1, Math.round(WALL_HOEHE));
@@ -11012,9 +11374,21 @@ function pkZeichneTurm(t) {
      * Mauer.
      */
     const p = einheitProfil(t.einheit);
-    const spannt = p.spannt && t.spann > 0;
+    const lauf = feuerLauf(t);                 // -1 = ruht
+    const feuert = lauf >= 0;
+    const ri = feuerrichtung(t);
+    const stoss = feuert ? Math.max(0, stossKurve(lauf)) : 0;
+    const spannt = p.waffe === 'bogen' && feuert;
     const stellungen = batallionStellungen(t, H, p.massstab);
     const ez = t.einzug || 0;
+
+    /*
+     * Die Figur ohne ihr Geraet: an seine Stelle tritt eine gezeichnete
+     * Waffe, die sich bewegen kann. Bliebe der gepixelte Strich stehen, laege
+     * die gezeichnete darueber und der Mann haette zwei Bogen.
+     */
+    const figur = spannt ? ohneBogen(p.figur)
+      : (p.waffe === 'armbrust' ? ohneWaffe(p.figur, OHNE_ARMBRUST) : p.figur);
 
     /*
      * Drei Dinge machen aus aufgeklebten Pixeln eine Besatzung, die auf einem
@@ -11034,7 +11408,17 @@ function pkZeichneTurm(t) {
     ctx.rect(0, 0, SZENE_B, Math.round(cy + 5));
     ctx.clip();
 
+    /*
+     * Wo ein Geraet steht, steht kein dritter Mann: die Maschine nimmt die
+     * mittlere Stellung, die beiden anderen bedienen sie von den Flanken.
+     */
+    const geraetOrt = p.geraet
+      ? { x: isoX(t.col + p.geraet.dc, t.row + p.geraet.dr),
+          y: isoY(t.col + p.geraet.dc, t.row + p.geraet.dr) - H }
+      : null;
+
     stellungen.forEach((st, n) => {
+      if (geraetOrt && n === 2) return;       // der Platz gehoert der Maschine
       const zug = einzugAnteil(ez, n, p);
       if (zug <= 0) return;
       // (2) Atem: ein Pixel auf und ab, je Mann und Turm anders gestimmt, damit
@@ -11044,22 +11428,35 @@ function pkZeichneTurm(t) {
         : 0;
       // Der Einzug: aus der Luft herunter, mit weichem Ausklang.
       const fall = (1 - zug) * (1 - zug) * 34;
-      // Der Stoss wirft die Figur zurueck, also nach links und leicht hoch -
-      // der Gegner steht im Osten, das Geraet tritt nach Westen aus.
-      const stoss = t.stoss || 0;
-      const y = st.y + atem - fall - stoss * 1.4;
-      const x = st.x - stoss * 2.6;
+      const y = st.y + atem - fall;
+      const x = st.x;
 
       // (1) Der Kontaktschatten steht am Boden, nicht an der Figur - er
       //     wandert beim Atmen und beim Fallen NICHT mit.
       schattenUnterFigur(st.x, st.y, st.s, zug);
 
-      ctx.globalAlpha = Math.min(1, zug * 1.6);
-      drawSprite(spannt ? ohneBogen(p.figur) : p.figur, x, y, st.s,
-        ctx, gattungPalette(t.einheit.gattung));
-      if (spannt) zeichneBogen(x, y, st.s, bogenZug(t.spann));
-      ctx.globalAlpha = 1;
+      /*
+       * DIE SOHLE BLEIBT, DIE SCHULTER GEHT MIT. Der Rueckstoss neigt die
+       * Figur um ihre eigene Fusslinie - gegen die Schussrichtung, in
+       * Bildkoordinaten gerechnet. Wer eine Bombarde bedient, lehnt sich
+       * merklich; wer eine Sehne loest, kaum.
+       */
+      const lehne = neigungWeite(p, ri, stoss, st.s);
+      mitNeigung(st.x, st.y, p.figur.length * st.s, lehne, () => {
+        ctx.globalAlpha = Math.min(1, zug * 1.6);
+        drawSprite(figur, x, y, st.s, ctx, gattungPalette(t.einheit.gattung));
+        // Die Handwaffen gehoeren zum Mann und bewegen sich mit ihm.
+        if (spannt) zeichneBogen(x, y, st.s, bogenZug(t.spann));
+        else if (p.waffe === 'armbrust') zeichneArmbrust(x, y, st.s, lauf, ri);
+        ctx.globalAlpha = 1;
+      });
     });
+
+    // Die Maschine steht einen Schritt vor der Mannschaft, also zuletzt gemalt.
+    if (geraetOrt && einzugAnteil(ez, 2, p) > 0) {
+      schattenUnterFigur(geraetOrt.x, geraetOrt.y, p.massstab * 1.5, einzugAnteil(ez, 2, p));
+      zeichneGeraet(p, geraetOrt.x, geraetOrt.y, lauf, ri);
+    }
     ctx.restore();
     // Ein Meister traegt eine Fahne mehr - das Rangabzeichen der Burg.
     drawBanner(cx + 22, cy - 2, GATTUNGEN[t.einheit.gattung].farbe);
@@ -12743,6 +13140,7 @@ function einheitStufe(rang) {
 const GATTUNG_PROFIL = {
   bogen: {
     figuren: [FIG_BOGEN, FIG_BOGEN, FIG_WALDLAEUFER, FIG_WALDLAEUFER, FIG_WALDLAEUFER],
+    waffe: 'bogen',
     spannt: true,                 // zieht sichtbar die Sehne
     geschoss: 'pfeil',
     farbe: '#f0e2bd',
@@ -12754,6 +13152,7 @@ const GATTUNG_PROFIL = {
   },
   armbrust: {
     figuren: [FIG_ARMBRUST, FIG_ARMBRUST, FIG_ARMBRUSTER, FIG_ARMBRUSTER, FIG_ARMBRUSTER],
+    waffe: 'armbrust',
     geschoss: 'bolzen',
     farbe: '#cdd5de',
     ton: 'spannen', tonFern: 'schuss',
@@ -12764,6 +13163,15 @@ const GATTUNG_PROFIL = {
   },
   artillerie: {
     figuren: [FIG_SCHLEUDER, FIG_SCHLEUDER, FIG_SCHLEUDER, FIG_SPEER, FIG_SPEER],
+    // Ein Geraet je Turm, nicht je Mann: die Mannschaft BEDIENT es.
+    /*
+     * Ein Onager je Turm, und er steht in der MITTE - dort, wo sonst der
+     * dritte Mann stuende. Die Mannschaft flankiert ihn und bedient ihn.
+     * Vorher stand er klein hinter den drei Figuren und war schlicht nicht
+     * zu sehen: ein Belagerungsgeraet, das kleiner ist als seine Bedienung,
+     * liest sich als Gepaeck.
+     */
+    waffe: 'wurfgeraet', geraet: { dc: 1.20, dr: 1.20, mass: 1.75 },
     geschoss: 'stein',
     farbe: '#9a8058',
     ton: 'einschlag', tonFern: 'einschlag',
@@ -12774,6 +13182,7 @@ const GATTUNG_PROFIL = {
   },
   kanonier: {
     figuren: [FIG_FACKEL, FIG_FACKEL, FIG_FACKEL, FIG_MEISTER, FIG_MEISTER],
+    waffe: 'bombarde', geraet: { dc: 1.20, dr: 1.20, mass: 1.6 },
     muendung: true,               // Feuerblitz an der Muendung
     geschoss: 'kugel',
     farbe: '#3a3430',
@@ -12806,6 +13215,8 @@ function einheitProfil(einheit) {
     figur: g.figuren[nr] || g.figuren[0],
     massstab: BESATZUNG_MASS,
     spannt: Boolean(g.spannt),
+    waffe: g.waffe || 'bogen',
+    geraet: g.geraet || null,
     muendung: Boolean(g.muendung),
     geschoss: g.geschoss,
     farbe: g.farbe,
@@ -12997,27 +13408,27 @@ function pkSpielTurmFeuert(i, { vorlauf = 0, wucht = 1, dicht = false } = {}) {
     const el = pkTuermeEl[i];
     pkZucke(el, 'feuert', 300);
 
-    // Der Bogen spannt sichtbar, alles andere hat einen Rueckstoss.
-    if (p.spannt) turm.spann = SPANN_DAUER;
-    turm.rueckstoss = Math.max(turm.rueckstoss || 0, p.ruecklauf * (dicht ? 0.6 : 1));
     /*
-     * Und die BESATZUNG bekommt ihren eigenen Stoss. Vorher sackte nur der
-     * Turm ab, und die Figuren sanken mit ihm, als waeren sie aufgemalt. Wer
-     * eine Bombarde abfeuert, wird zurueckgeworfen; wer eine Sehne loest,
-     * kaum. Der Stoss folgt darum dem Ruecklauf des Geraets.
+     * EINE Uhr fuer den ganzen Schuss. Sie laeuft von `SPANN_DAUER` auf null;
+     * daraus liest jede Waffe ihren eigenen Ablauf ab - der Bogen seinen Zug,
+     * die Armbrust ihren Rueckschlag, der Wurfarm seinen Bogen, das Rohr
+     * seinen Ruecklauf. Vorher gab es drei Zahlen (`spann`, `rueckstoss`,
+     * `stoss`), von denen zwei die FIGUR bewegten statt der Waffe.
      */
-    turm.stoss = Math.min(1.4, (turm.stoss || 0) + p.ruecklauf * 0.14 * (dicht ? 0.5 : 1));
+    turm.spann = SPANN_DAUER;
 
-    // Muendungsfeuer: nur die Kanoniere, und es waechst mit dem Rang. Es steht
-    // auf Kronenhoehe, wo das Rohr liegt - nicht am Fuss der Mauer.
+    // Muendungsfeuer: nur die Kanoniere, und es waechst mit dem Rang.
     if (p.muendung) {
-      const krone = turmKrone(turm);
-      // Bei dichtem Feuer die Haelfte: fuenf Tuerme mal vierzig Schuesse
-      // waeren sonst eine Rauchwand, hinter der die Burg verschwindet.
-      // Vor der Besatzung und auf Rohrhoehe, nicht in der Mitte der Kachel.
-      const mCol = turm.col + 1.45, mRow = turm.row + 1, mHoch = krone + 10;
-      muendungsfeuer(mCol, mRow, mHoch, p.kraft * (dicht ? 0.6 : 1));
-      schirmBlitz(0.04 * p.kraft * Math.min(2, wucht));
+      /*
+       * Das Muendungsfeuer steht jetzt AN DER MUENDUNG - dem vorderen Ende
+       * des Rohrs, das sich beim Schuss bewegt -, nicht auf einem fest
+       * gesetzten Punkt neben der Kachelmitte.
+       */
+      spaeter(SPANN_LOS, () => {
+        const m = muendungsOrt(turm, p);
+        muendungsBlitz(m.x, m.y, p.kraft * (dicht ? 0.7 : 1), feuerrichtung(turm));
+        schirmBlitz(0.04 * p.kraft * Math.min(2, wucht));
+      });
       /*
        * Der Rauch kommt kurz nach dem Feuer und macht aus dem Blitz erst eine
        * Kanone. Er ist HELL - Pulverrauch ist weissgrau, und die dunkle
@@ -13028,16 +13439,33 @@ function pkSpielTurmFeuert(i, { vorlauf = 0, wucht = 1, dicht = false } = {}) {
        * eine Wolke, die steht, sagt mehr als vierzig, die sich ueberlagern.
        */
       if (!dicht || Math.random() < 0.34) {
-        spaeter(0.05, () => rauch(mCol, mRow, mHoch, Math.round(4 + p.kraft * 5), '#c8c0b2'));
+        spaeter(SPANN_LOS + 0.05, () => {
+          const q = muendungsOrt(turm, p);
+          rauchAm(q.x, q.y, Math.round(4 + p.kraft * 5), '#c8c0b2');
+        });
       }
     }
 
+    /*
+     * Das Geschoss verlaesst die WAFFE, nicht die Kachel. `muendungsOrt`
+     * rechnet aus, wo Sehne, Nuss, Schale oder Rohrmuendung im Bild liegen;
+     * die Bahn beginnt dort und findet ueber den Flug in ihre gewohnte Kurve.
+     *
+     * Und es fliegt erst, wenn der Schuss auch bricht - vorher steht der Arm
+     * noch hinten und die Sehne ist gespannt.
+     */
     const zuCol = COLS - 2, zuRow = Math.round(ROWS / 2);
     const geschosse = Math.min(3, 1 + Math.floor(Math.log2(wucht + 1)));
+    const basisX = isoX(turm.col + 1, turm.row + 1);
+    const basisY = isoY(turm.col + 1, turm.row + 1) + TH / 2 - 22;
     batallionPlaetze(3).slice(0, geschosse).forEach((versatz, n) => {
-      spaeter(n * 0.03, () => zeigePfeil(
-        turm.col + 1, turm.row + 1, zuCol, zuRow, p.farbe, versatz, p.geschoss,
-        { dauer: p.fliegt, hoehe: p.bogenhoehe, dicke: 0.7 + p.kraft * 0.5 }));
+      spaeter(SPANN_LOS + n * 0.03, () => {
+        const m = muendungsOrt(turm, p);
+        zeigePfeil(
+          turm.col + 1, turm.row + 1, zuCol, zuRow, p.farbe, versatz, p.geschoss,
+          { dauer: p.fliegt, hoehe: p.bogenhoehe, dicke: 0.7 + p.kraft * 0.5,
+            abX: m.x - basisX, abY: m.y - basisY });
+      });
     });
 
     // Der Einschlag am Ziel, wenn das Geschoss ankommt.
