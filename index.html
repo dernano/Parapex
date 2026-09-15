@@ -750,1492 +750,1544 @@
 
 
 <script>
-/* ============================================================
- *  P A R A P E X  —  K E R N
- * ============================================================
- *
- * Der neue Kampf. Fünf Türme, fünf Runden, ein Gegner mit einem einzigen
- * Stärkewert. Karten sind Einheiten, Einheiten stehen auf Türmen, die
- * Stellung der Türme zueinander ergibt Formationen, Formationen vervielfachen
- * die Wucht.
- *
- * Dieser Block hat KEINE Verbindung zur Anzeige. Er kennt kein Dokument,
- * keinen Zeichenkontext und keine Ereignisse des Browsers - er rechnet nur.
- * Die Oberfläche liest hinterher `derKampf` und die Rückgabe von
- * `berechneWucht`. Das ist Absicht: nur so lässt sich der Kern von aussen
- * prüfen (siehe `scripts/pruefe.mjs`), und nur so kann die Anzeige später
- * ausgetauscht werden, ohne die Regeln anzufassen.
- *
- * Alles, was Balance ist, steht in KERN. Nichts davon gehört in den Code
- * darunter; wer eine Zahl sucht, soll sie an einer Stelle finden.
- */
-
-const KERN = {
-  tuerme: 5,                  // so viele Stellungen hat die Burg
-  runden: 5,                  // so viele Runden hat ein Kampf
-  tatendrang: 5,              // je Runde, wird voll aufgefuellt
-  handGroesse: 7,             // so viele Karten liegen zu Rundenbeginn
-  kosten: {
-    einsetzen: 1,             // Einheit auf einen leeren Turm
-    ersetzen: 1,              // Einheit auf einen besetzten Turm
-    tauschen: 1,              // eine Handkarte gegen eine neue
-  },
-  /*
-   * Der Turmtyp ist mit dem vollen Blatt die eigentliche Fortschrittsachse.
-   * Vorher war er eine Nebensache: ein Deck aus zwoelf Karten hatte selten
-   * die passende Gattung zur Hand. Mit allen 52 Karten liegt immer ein
-   * Bogenschuetze fuer den Schuetzenturm bereit - der Ausbau wirkt also
-   * verlaesslich, und das macht ihn zur Achse, die den Akt traegt.
-   * Fuenf passende Tuerme sind 1,4^5, also gut das Fuenffache.
-   */
-  turmFaktor: 1.4,            // Turmtyp passt zur Gattung
-  signalMaxTiefe: 8,          // Schutz gegen sich selbst ausloesende Ketten
-  /*
-   * Die Grundsalve. Jede besetzte Stellung feuert einmal, auch ohne jede
-   * Formation - alles Weitere kommt aus FORMATIONEN dazu.
-   */
-  salvenGrund: 1,
-
-  /*
-   * Die Wappen. Ihre Werte sind gemessen gegen die Frage: ist ein Wappen so
-   * viel wert wie die beste Karte, die statt seiner im Angebot laege? In der
-   * ersten Fassung war es das nicht - der Bot, der nie ein Wappen nahm, kam
-   * in der Haelfte der Laeufe durch, der, der immer eines nahm, in einem
-   * Siebtel. Ein regelbrechendes Wappen darf keine Falle sein.
-   */
-  wappen: {
-    loewe: 3,                 // Rang des mittleren Turms mal drei
-    wolf: 0.6,                // je leerem Turm
-    schlange: 2,              // so viele Tauesche je Runde sind frei
-    drache: { jeder: 1, faktor: 2 },
-  },
-};
-
-// ---------- Gattungen ----------
-/*
- * Vier Gattungen, keine Kartenfarben. Sie sollen sich später mechanisch
- * unterscheiden, nicht nur farblich - die Formationen unten sind der Anfang
- * davon: Bogen zielt auf Wiederholung, Armbrust auf Wucht, Artillerie auf
- * Nachbarschaft, Kanonier auf Eskalation.
- */
-const GATTUNGEN = {
-  bogen:      { id: 'bogen',      name: 'Bogenschützen',    kurz: 'Bogen',      farbe: '#4f7a3a', hell: '#86b05c', zeichen: '🏹' },
-  armbrust:   { id: 'armbrust',   name: 'Armbrustschützen', kurz: 'Armbrust',   farbe: '#2f5fa8', hell: '#6d9ede', zeichen: '🎯' },
-  artillerie: { id: 'artillerie', name: 'Artillerie',       kurz: 'Artillerie', farbe: '#8a6a2a', hell: '#c9a04a', zeichen: '⚙' },
-  kanonier:   { id: 'kanonier',   name: 'Kanoniere',        kurz: 'Kanonier',   farbe: '#a0392a', hell: '#d96b42', zeichen: '💥' },
-};
-const GATTUNG_LISTE = Object.keys(GATTUNGEN);
-
-// ---------- Die Ränge ----------
-/*
- * Dreizehn Ränge je Gattung, vom Bauernjungen bis zum Marschall. Der Rang IST
- * die Grundwucht (siehe `grundwucht`) - eine Zahl, die man auf der Karte
- * liest, statt einer zweiten, die man nachschlagen muss.
- */
-const RANG_NAMEN = {
-  bogen: ['Bauernschütze', 'Jagdschütze', 'Burgschütze', 'Waldschütze', 'Langbogenschütze',
-    'Grenzschütze', 'Veteranenschütze', 'Meisterschütze', 'Falkenschütze', 'Königlicher Schütze',
-    'Schützenhauptmann', 'Meister des Langbogens', 'Marschall der Schützen'],
-  armbrust: ['Bolzenschütze', 'Wacharmbruster', 'Fußarmbruster', 'Burgarmbruster', 'Spannknecht',
-    'Schwerer Armbruster', 'Pavese-Schütze', 'Veteranenarmbruster', 'Arbalestschütze',
-    'Meisterarmbruster', 'Scharfschütze', 'Hauptmann der Armbrust', 'Meister der Arbalest'],
-  artillerie: ['Steinschleuderer', 'Geschützgehilfe', 'Seilspanner', 'Windenmeister',
-    'Springald-Besatzung', 'Ballisten-Besatzung', 'Onager-Besatzung', 'Mangonel-Besatzung',
-    'Petraria-Besatzung', 'Trebuchet-Besatzung', 'Meister der Balliste', 'Belagerungsingenieur',
-    'Meister der Artillerie'],
-  kanonier: ['Pulverjunge', 'Luntenknecht', 'Pulverträger', 'Büchsenknecht', 'Geschützlademeister',
-    'Handrohrschütze', 'Feldschlange-Schütze', 'Bombardenknecht', 'Kanonier', 'Schwerer Kanonier',
-    'Bombardenmeister', 'Geschützmeister', 'Meisterkanonier'],
-};
-
-/** Die 52 Grundkarten: vier Gattungen mal dreizehn Ränge. */
-function baueEinheitenPool() {
-  const pool = [];
-  for (const g of GATTUNG_LISTE) {
-    RANG_NAMEN[g].forEach((name, i) => {
-      const rang = i + 1;
-      pool.push({
-        id: g + '-' + rang,
-        gattung: g,
-        rang,
-        name,
-        grundwucht: rang,        // Rang ist Wucht. Steht so in der Spezifikation.
-        wuchtBonus: 0,           // hebt ein Ausbau (siehe `verbessereEinheit`)
-        stufe: 0,                // 0 = ungeschliffen, 1+ = verbessert
-        schlagwort: null,        // später: eigene Regeln je Karte
-        text: '',
-      });
-    });
-  }
-  return pool;
-}
-const EINHEITEN_POOL = baueEinheitenPool();
-
-/** Ein Abzug aus dem Pool, mit eigener Kennung - zwei gleiche Karten sind zwei. */
-let kernUid = 0;
-function neueEinheit(proto) {
-  const p = typeof proto === 'string' ? EINHEITEN_POOL.find(k => k.id === proto) : proto;
-  if (!p) return null;
-  return { ...p, uid: 'k' + (++kernUid) };
-}
-
-/*
- * Die Wucht einer Einheit hat drei Namen, und der Unterschied zwischen ihnen
- * ist der haeufigste Anlass fuer Verwirrung:
- *
- *   grundwucht   was der Rang mitbringt        (Bogen 9 -> 9)
- *   wuchtBonus   was Schliffe dazugelegt haben (+4)
- *   wirkwucht    was tatsaechlich einschlaegt  (13)
- *
- * GERECHNET WIRD IMMER MIT DER WIRKWUCHT, an jeder Stelle, in jeder Salve.
- * Geprueft: ein geschliffener Bogen-9 schlaegt auf dem Turm mit 13 ein, und
- * der Schliff ueberlebt den Weg Deck - Kampf - Hand - Turm. Was fehlte, war
- * die Anzeige: auf der Karte stand nur die 9, und darum sah es aus, als ginge
- * der Schliff verloren. Deshalb heissen die Dinge jetzt, was sie sind.
- */
-function wirkwucht(karte) {
-  if (!karte) return 0;
-  return Math.max(0, karte.grundwucht + (karte.wuchtBonus || 0));
-}
-const grundwucht = wirkwucht;        // alter Name, damit nichts bricht
-function bonusWucht(karte) { return (karte && karte.wuchtBonus) || 0; }
-
-/** Verbessern hebt die Wucht, nicht den Rang: der Rang bleibt Formationssache. */
-function verbessereEinheit(karte, um = 2) {
-  karte.stufe = (karte.stufe || 0) + 1;
-  karte.wuchtBonus = (karte.wuchtBonus || 0) + um;
-  return karte;
-}
-
-/*
- * Das Startdeck ist das ganze Blatt: alle 52 Karten, vier Gattungen mal
- * dreizehn Ränge.
- *
- * Das dreht die Richtung des Spiels um. Vorher wuchs ein Deck aus zwölf
- * mageren Karten nach oben; jetzt liegt alles von Anfang an da, und der Lauf
- * besteht darin, es zu VERSCHMÄLERN - die Bauernschützen auszumustern, damit
- * die Marschälle öfter kommen. Ein Deck aus 52 Karten zieht sieben davon, und
- * welche sieben das sind, entscheidet die Zusammensetzung.
- *
- * Damit ist Ausmustern kein Trostpreis mehr, sondern die schärfste Belohnung
- * im Spiel, und eine hinzugefügte Karte die schwächste. Die Preise und
- * Angebote in LAUF tragen dem Rechnung.
- */
-const START_DECK = EINHEITEN_POOL.map(k => k.id);
-
-// ---------- Turmtypen ----------
-/*
- * Die fünf Stellungen bleiben über den Lauf; ihr TYP ist die langfristige
- * Fortschrittsachse. Ein Typ ist bewusst kein blosser Prozentsatz: `faktor`
- * ist nur die einfachste Form, `proTurm` darf jede Regel sein.
- */
-const TURMTYPEN = {
-  wachturm:      { id: 'wachturm',      name: 'Wachturm',      modell: 'wachturm',   text: 'Keine Sonderregel.' },
-  schuetzenturm: { id: 'schuetzenturm', name: 'Schützenturm',  modell: 'turmwache',  gattung: 'bogen',      faktor: KERN.turmFaktor, text: 'Bogenschützen +40 % Wucht.' },
-  ballistenturm: { id: 'ballistenturm', name: 'Ballistenturm', modell: 'steinturm',  gattung: 'armbrust',   faktor: KERN.turmFaktor, text: 'Armbrustschützen +40 % Wucht.' },
-  geschuetzturm: { id: 'geschuetzturm', name: 'Geschützturm',  modell: 'doppelturm', gattung: 'artillerie', faktor: KERN.turmFaktor, text: 'Artillerie +40 % Wucht.' },
-  pulverturm:    { id: 'pulverturm',    name: 'Pulverturm',    modell: 'bergfried',  gattung: 'kanonier',   faktor: KERN.turmFaktor, text: 'Kanoniere +40 % Wucht.' },
-};
-const TURM_START = ['wachturm', 'wachturm', 'wachturm', 'wachturm', 'wachturm'];
-
-/** Was der Turmtyp mit der Wucht seiner Einheit macht. */
-function turmFaktor(turm) {
-  const typ = TURMTYPEN[turm.typ] || TURMTYPEN.wachturm;
-  if (!turm.einheit || !typ.gattung) return 1;
-  return turm.einheit.gattung === typ.gattung ? (typ.faktor || 1) : 1;
-}
-
-// ---------- Gegner ----------
-/*
- * Ein Kampf hat EINEN Gegner mit einem Stärkewert. Dass auf dem Feld acht
- * Räuber stehen, ist Bild und nicht Mechanik: sie teilen sich den Wert, haben
- * keine eigenen Züge und kein eigenes Ziel. Damit fällt der lange Gegnerzug
- * weg, der die halbe Kampfzeit gefressen hat.
- *
- * `regeln` ist der Platz für Sonderregeln (Schildwall, Sturmtrupp, Nebelheer).
- * Sie sind noch nicht ausgeführt, aber der Gegner trägt sie schon, damit
- * Bosse später Entscheidungen erzeugen können statt nur mehr Stärke.
- */
-/*
- * Die Staerke des n-ten KAMPFES - nicht der n-ten Station. Diese Zahlen sind
- * gemessen, nicht gesetzt: `scripts/kurve.mjs` laesst den Bot gegen einen
- * Gegner spielen, der nicht faellt, und zaehlt mit, wie viel Wucht ein
- * vernuenftig gespieltes Deck am n-ten Kampf ueber fuenf Runden zusammen-
- * bringt. Die Tabelle liegt darunter - anfangs bei knapp der Haelfte, zuletzt
- * bei drei Vierteln. Wer sie aendert, misst vorher nach.
- *
- * Mit dem vollen Blatt aus 52 Karten liegt die Wucht von Anfang an hoch und
- * steigt ueber den Akt kaum: gemessen 3270 im ersten Kampf und 3260 im
- * siebten. Der Grund steht in SPIELBESCHREIBUNG.md - die Rangachse ist ab
- * Kampf eins fast ausgereizt, und alles, was nur EINEN Turm vervielfacht,
- * verduennt sich auf ein Fuenftel und wird von den Formationen geschlagen.
- * Die Tabelle traegt deshalb den Spannungsbogen allein: von gut vierzig
- * Prozent der mittleren Wucht bis knapp darueber beim Belagerungsmeister.
- */
-const FEIND_STAERKE = [1300, 1600, 1900, 2100, 2350, 2600, 2850, 3100, 3400, 3700];
-const FEIND_BOSS_FAKTOR = 1.22;    // was der Belagerungsmeister auf seinen Platz drauflegt
-
-const FEIND_VORLAGEN = [
-  { id: 'raeuber',   name: 'Räuberhorde',      figuren: 8, typ: 'spaeher' },
-  { id: 'soeldner',  name: 'Söldnerzug',       figuren: 6, typ: 'armbrust' },
-  { id: 'ritterzug', name: 'Ritterzug',        figuren: 5, typ: 'ritter' },
-  { id: 'belagerer', name: 'Belagerungspark',  figuren: 4, typ: 'ritter' },
-];
-
-function feindStaerke(kampfNr, boss) {
-  const i = Math.max(1, Math.min(FEIND_STAERKE.length, kampfNr)) - 1;
-  return Math.round(FEIND_STAERKE[i] * (boss ? FEIND_BOSS_FAKTOR : 1));
-}
-
-function baueFeind(kampfNr, { boss = false, vorlage = null, zuschlag = 1 } = {}) {
-  const v = vorlage
-    ? FEIND_VORLAGEN.find(f => f.id === vorlage) || FEIND_VORLAGEN[0]
-    : FEIND_VORLAGEN[Math.min(FEIND_VORLAGEN.length - 1, Math.floor((kampfNr - 1) / 2))];
-  const hp = Math.round(feindStaerke(kampfNr, boss) * zuschlag);
-  return { id: v.id, name: boss ? 'Belagerungsmeister' : v.name, figuren: v.figuren, typ: v.typ,
-    hp, maxHp: hp, regeln: [] };
-}
-
-// ---------- Wappen ----------
-/*
- * Wappen sind keine Karten. Sie liegen neben dem Kampf und brechen Regeln -
- * darum geben sie bewusst keine kleinen Prozentboni, sondern ändern, wie
- * gerechnet wird. Jedes Wappen ist ein Datensatz mit Haken; der Kampf kennt
- * keinen einzigen Wappennamen.
- */
-const WAPPEN = {
-  loewe: {
-    id: 'loewe', name: 'Wappen des Löwen', zeichen: '🦁', tinktur: '#a8791c',
-    text: 'Der mittlere Turm zählt seinen Rang dreifach.',
-    rangFaktor: (turm, i) => (i === Math.floor(KERN.tuerme / 2) ? KERN.wappen.loewe : 1),
-  },
-  doppeladler: {
-    /*
-     * Frueher schloss dieses Wappen die Turmreihe zum Ring - sinnvoll,
-     * solange Formationen an Nachbarschaft haengen. Seit sie ueber die MENGE
-     * der besetzten Stellungen gehen, gibt es keine Nachbarn mehr, und der
-     * Doppeladler waere ein Wappen ohne Wirkung geworden.
-     *
-     * Er behaelt sein Bild und bekommt eine Wirkung, die dazu passt: zwei
-     * Koepfe, eine Einheit. Die Einheit auf der ersten Stellung zaehlt beim
-     * Erkennen doppelt - sie kann also mit sich selbst ein Paar bilden, ein
-     * Regiment vervollstaendigen oder eine Luecke in einer Folge fuellen.
-     */
-    id: 'doppeladler', name: 'Wappen des Doppeladlers', zeichen: '🦅', tinktur: '#4a4f5c',
-    text: 'Die Einheit auf Turm 1 zählt für Formationen doppelt.',
-    zaehltDoppelt: 0,
-  },
-  wolf: {
-    id: 'wolf', name: 'Wappen des Wolfs', zeichen: '🐺', tinktur: '#3c5a72',
-    text: 'Je leerem Turm +60 % Gesamtwucht.',
-    gesamtFaktor: (ctx) => 1 + KERN.wappen.wolf * ctx.tuerme.filter(t => !t.einheit).length,
-  },
-  eber: {
-    id: 'eber', name: 'Wappen des Ebers', zeichen: '🐗', tinktur: '#6b3a2a',
-    text: 'Eine ersetzte Einheit feuert ein letztes Mal.',
-    horcht: { einheitErsetzt: (daten) => { if (daten.alt) schiesseEinzeln(daten.alt, daten.turm, 'Wappen des Ebers'); } },
-  },
-  schlange: {
-    id: 'schlange', name: 'Wappen der Schlange', zeichen: '🐍', tinktur: '#2f6a4a',
-    text: 'Die ersten zwei Kartentausche jeder Runde kosten nichts.',
-    tauschRabatt: (kampf) => (kampf.tauschInRunde < KERN.wappen.schlange ? KERN.kosten.tauschen : 0),
-  },
-  drache: {
-    id: 'drache', name: 'Wappen des Drachen', zeichen: '🐉', tinktur: '#7a2a3a',
-    text: 'Jeder Nachschuss zählt doppelt.',
-    retriggerFaktor: (nummer) => (nummer % KERN.wappen.drache.jeder === 0 ? KERN.wappen.drache.faktor : 1),
-  },
-};
-const WAPPEN_LISTE = Object.keys(WAPPEN);
-const WAPPEN_PLAETZE = 5;
-
-// ---------- Signale ----------
-/*
- * Ein kleiner Ereignisbus. Wappen, Turmtypen und später Karten hängen sich
- * hier ein, statt dass der Kampf ihre Namen kennt - sonst steht am Ende ein
- * if/else-Block mit fünfzig Wappen-Kennungen mitten in der Regel.
- *
- * `signalTiefe` ist der Schutz gegen Ketten, die sich selbst auslösen: ein
- * Wappen, das auf `einheitFeuert` hört und dabei feuern lässt, würde sonst
- * das Blatt bis zum Stapelüberlauf beschäftigen.
- */
-const SIGNALE = ['rundeBeginnt', 'karteGezogen', 'karteGetauscht', 'einheitGesetzt',
-  'einheitErsetzt', 'einheitEntfernt', 'formationAktiv', 'einheitFeuert', 'nachschuss',
-  'salve', 'rundeEndet', 'feindBesiegt', 'kampfEndet'];
-
-let signalHoerer = {};
-let signalTiefe = 0;
-let signalUeberlauf = 0;
-
-function hoereSignal(name, was) {
-  if (!signalHoerer[name]) signalHoerer[name] = [];
-  signalHoerer[name].push(was);
-}
-
-function sendeSignal(name, daten = {}) {
-  if (signalTiefe >= KERN.signalMaxTiefe) { signalUeberlauf++; return; }
-  signalTiefe++;
-  try {
-    for (const was of signalHoerer[name] || []) was(daten);
-  } finally { signalTiefe--; }
-}
-
-function leereSignale() { signalHoerer = {}; signalTiefe = 0; signalUeberlauf = 0; }
-
-// ---------- Formationen ----------
-/*
- * Fuenf besetzte Tuerme sind ein Blatt. Was darin steckt, erkennt man wie in
- * einem Kartenspiel: gleiche Gattung, gleiche Raenge, eine Folge von Raengen -
- * und das Beste ist beides zugleich.
- *
- * DIE STELLUNG DER TUERME SPIELT KEINE ROLLE. Das ist der wichtigste
- * Unterschied zur ersten Fassung. Dort zaehlte Nachbarschaft, und damit war
- * "drei Bogenschuetzen" mal eine Formation und mal nicht, je nachdem, auf
- * welchen Tuermen sie zufaellig standen. Wer fuenf Bogenschuetzen aufstellt,
- * soll etwas Grosses bekommen - immer, ohne sie vorher sortieren zu muessen.
- *
- * FAMILIEN. Die Formationen stehen in drei Familien, und aus jeder gilt nur
- * die HOECHSTE erreichte. Fuenf gleiche Gattungen sind eine Reine Garde und
- * nicht zusaetzlich ein Regiment und ein Grosses Regiment - sonst waere jede
- * gute Aufstellung ein Stapel aus sechs Auszeichnungen, und niemand koennte
- * mehr abschaetzen, was eine davon wert ist.
- *
- * DER LOHN SIND SALVEN, keine Faktoren. Das ist das ganze Denkmodell:
- * bessere Formation, mehr Salven, und eine Salve ist ein Schuss, den man
- * sieht. Wer +7 Salven liest, weiss, was gleich passiert.
- */
-const FORMATIONS_FAMILIEN = {
-  gattung: 'Gattung',
-  rang: 'Rang',
-  folge: 'Rangfolge',
-  grund: 'Grundstellung',
-};
-
-/*
- * Jede Familie traegt ihr eigenes Zeichen, und die Marken in der Leiste
- * tragen es mit. Vorher sahen alle Formationen gleich aus - vier goldene
- * Plaettchen, die man einzeln lesen musste, um zu wissen, WORAN man gerade
- * baut. Mit dem Zeichen erkennt man die Familie, bevor man den Namen liest,
- * und weiss damit sofort, was eine bessere Karte an dieser Stelle brauchte.
- */
-/*
- * Vorher stand hier ein gekreuztes Schwert fuer die Rangfamilie. Im Bild war
- * es ein duennes Kreuz - und damit kaum vom Mal-Zeichen der Salvenzahl
- * gleich daneben zu unterscheiden.
- */
-const FAMILIEN_ZEICHEN = {
-  gattung: '⚑',       // eine Fahne: alle unter derselben
-  rang: '‖',          // zwei gleiche, die nebeneinander stehen
-  folge: '➤',         // die Spitze: Rang um Rang nach oben
-  grund: '⛨',         // der Schild: alle fuenf Stellungen stehen
-};
-
-/*
- * Die Werte sind Stellschrauben und stehen bewusst hier oben beieinander.
- * `salven` ist der Grundwert, `jeStufe` was eine spaetere Aufwertung der
- * Formation dazugibt (siehe `formationsSalven`) - das Geruest dafuer steht,
- * die Ausbau-Oekonomie kommt spaeter.
- */
-const FORMATIONEN = [
-  // ---- Grundstellung ----
-  {
-    id: 'geschlosseneFront', name: 'Geschlossene Front', familie: 'grund', rang: 1,
-    salven: 1, jeStufe: 1,
-    text: 'Alle fünf Stellungen besetzt.',
-    finde: (h) => (h.anzahl === KERN.tuerme ? { tuerme: h.alle } : null),
-  },
-
-  // ---- Familie: gleiche Gattung ----
-  {
-    id: 'regiment', name: 'Regiment', familie: 'gattung', rang: 1,
-    salven: 2, jeStufe: 1,
-    text: 'Drei Einheiten derselben Gattung.',
-    finde: (h) => h.gleicheGattung(3),
-  },
-  {
-    id: 'grossesRegiment', name: 'Großes Regiment', familie: 'gattung', rang: 2,
-    salven: 4, jeStufe: 2,
-    text: 'Vier Einheiten derselben Gattung.',
-    finde: (h) => h.gleicheGattung(4),
-  },
-  {
-    id: 'reineGarde', name: 'Reine Garde', familie: 'gattung', rang: 3,
-    salven: 7, jeStufe: 3,
-    text: 'Alle fünf Stellungen mit derselben Gattung.',
-    finde: (h) => (h.anzahl === KERN.tuerme ? h.gleicheGattung(5) : null),
-  },
-
-  // ---- Familie: gleiche Raenge ----
-  {
-    id: 'doppelposten', name: 'Doppelposten', familie: 'rang', rang: 1,
-    salven: 1, jeStufe: 1,
-    text: 'Zwei Einheiten desselben Rangs.',
-    finde: (h) => h.gleicherRang(2),
-  },
-  {
-    id: 'doppelteWache', name: 'Doppelte Wache', familie: 'rang', rang: 2,
-    salven: 2, jeStufe: 1,
-    text: 'Zwei verschiedene Paare.',
-    finde: (h) => h.zweiPaare(),
-  },
-  {
-    id: 'drillingsposten', name: 'Drillingsposten', familie: 'rang', rang: 3,
-    salven: 3, jeStufe: 2,
-    text: 'Drei Einheiten desselben Rangs.',
-    finde: (h) => h.gleicherRang(3),
-  },
-  {
-    id: 'viererblock', name: 'Viererblock', familie: 'rang', rang: 4,
-    salven: 10, jeStufe: 4,
-    text: 'Vier Einheiten desselben Rangs.',
-    finde: (h) => h.gleicherRang(4),
-  },
-
-  // ---- Familie: Rangfolge ----
-  {
-    id: 'vormarsch', name: 'Vormarsch', familie: 'folge', rang: 1,
-    salven: 2, jeStufe: 1,
-    text: 'Drei aufeinanderfolgende Ränge.',
-    finde: (h) => h.folge(3),
-  },
-  {
-    id: 'grosserVormarsch', name: 'Großer Vormarsch', familie: 'folge', rang: 2,
-    salven: 4, jeStufe: 2,
-    text: 'Vier aufeinanderfolgende Ränge.',
-    finde: (h) => h.folge(4),
-  },
-  {
-    id: 'perfekterVormarsch', name: 'Perfekter Vormarsch', familie: 'folge', rang: 3,
-    salven: 7, jeStufe: 3,
-    text: 'Fünf aufeinanderfolgende Ränge.',
-    finde: (h) => h.folge(5),
-  },
-
-  /*
-   * Die Kroenung. Sie loest Gattungs- UND Rangfolgen-Familie zugleich ab -
-   * darum steht sie in beiden und traegt `loest` - und ist das Seltenste, was
-   * sich aus einem Blatt von 52 Karten bauen laesst: fuenf Karten einer
-   * Gattung in ununterbrochener Folge.
-   */
-  {
-    id: 'koeniglicherAufmarsch', name: 'Königlicher Aufmarsch', familie: 'gattung', rang: 9,
-    loest: ['folge'], kroenung: true,
-    salven: 15, jeStufe: 5,
-    text: 'Fünf aufeinanderfolgende Ränge derselben Gattung.',
-    finde: (h) => {
-      if (h.anzahl !== KERN.tuerme) return null;
-      const gattung = h.gleicheGattung(5);
-      const folge = h.folge(5);
-      return gattung && folge ? { tuerme: h.alle } : null;
-    },
-  },
-
-  /*
-   * Die Spitze. Ein Koeniglicher Aufmarsch kann bei 2 anfangen; die Garde ist
-   * der eine Aufmarsch, der oben endet - 9, 10, 11, 12, 13 in einer Gattung.
-   * Sie steht in derselben Familie wie der Aufmarsch und eine Stufe darueber,
-   * also gilt immer nur eine von beiden, nie beide. Das ist das Seltenste, was
-   * fuenf Stellungen hergeben, und es soll sich auch so anfuehlen.
-   */
-  {
-    id: 'koeniglicheGarde', name: 'Königliche Garde', familie: 'gattung', rang: 10,
-    loest: ['folge'], kroenung: true, garde: true,
-    salven: 25, jeStufe: 8,
-    text: 'Neun bis König in einer Gattung.',
-    finde: (h) => {
-      if (h.anzahl !== KERN.tuerme) return null;
-      if (!h.gleicheGattung(KERN.tuerme)) return null;
-      const raenge = new Set(h.karten.map(k => k.rang));
-      for (const r of KOENIGSRAENGE) if (!raenge.has(r)) return null;
-      return { tuerme: h.alle };
-    },
-  },
-];
-
-/* Die Raenge, aus denen eine Koenigliche Garde besteht - Neun bis Koenig. */
-const KOENIGSRAENGE = [9, 10, 11, 12, 13];
-
-/*
- * Das Blatt: die besetzten Stellungen, aufbereitet zum Mustersuchen. Alles
- * hier arbeitet auf MENGEN, nicht auf Nachbarschaft - deshalb ist
- * `7 / 3 / 6 / 12 / 5` genau dieselbe Folge wie `5 / 6 / 7`.
- */
-function baueBlatt(tuerme, wappen = []) {
-  const rangFaktoren = wappen.map(w => WAPPEN[w] && WAPPEN[w].rangFaktor).filter(Boolean);
-  const doppelt = wappen
-    .map(w => (WAPPEN[w] ? WAPPEN[w].zaehltDoppelt : undefined))
-    .filter(i => i !== undefined);
-  const alle = [];
-  const karten = [];
-  tuerme.forEach((t, i) => {
-    if (!t || !t.einheit) return;
-    const rang = Math.round(rangFaktoren.reduce((r, f) => r * (f(t, i) || 1), t.einheit.rang));
-    alle.push(i);
-    karten.push({ turm: i, rang, gattung: t.einheit.gattung });
-    // Ein Wappen kann eine Stellung doppelt zaehlen lassen. Die Kopie traegt
-    // denselben Turm - so leuchtet beim Zuenden die richtige Stellung auf.
-    if (doppelt.includes(i)) karten.push({ turm: i, rang, gattung: t.einheit.gattung, kopie: true });
-  });
-
-  /** Die n haeufigste Gattung - wenn sie mindestens n mal vorkommt. */
-  const gleicheGattung = (n) => {
-    const nach = {};
-    for (const k of karten) (nach[k.gattung] || (nach[k.gattung] = [])).push(k.turm);
-    for (const g in nach) if (nach[g].length >= n) return { tuerme: nach[g], gattung: g };
-    return null;
-  };
-
-  const nachRang = () => {
-    const nach = {};
-    for (const k of karten) (nach[k.rang] || (nach[k.rang] = [])).push(k.turm);
-    return nach;
-  };
-
-  /** Der hoechste Rang, der mindestens n mal vorkommt. */
-  const gleicherRang = (n) => {
-    const nach = nachRang();
-    let beste = null;
-    for (const r in nach) {
-      if (nach[r].length < n) continue;
-      if (!beste || Number(r) > beste.rang) beste = { tuerme: nach[r].slice(0, n), rang: Number(r) };
-    }
-    return beste;
-  };
-
-  /** Zwei verschiedene Raenge, die je zweimal vorkommen. */
-  const zweiPaare = () => {
-    const nach = nachRang();
-    const paare = Object.keys(nach).filter(r => nach[r].length >= 2)
-      .sort((a, b) => Number(b) - Number(a));
-    if (paare.length < 2) return null;
-    return { tuerme: [...nach[paare[0]].slice(0, 2), ...nach[paare[1]].slice(0, 2)] };
-  };
-
-  /*
-   * Die laengste ununterbrochene Rangfolge. Gleiche Raenge zaehlen einmal -
-   * `8 / 8 / 9 / 10` ist eine Folge von drei, keine von vier.
-   */
-  const folge = (n) => {
-    const raenge = [...new Set(karten.map(k => k.rang))].sort((a, b) => a - b);
-    let beste = [];
-    let lauf = [];
-    for (let i = 0; i < raenge.length; i++) {
-      if (i && raenge[i] === raenge[i - 1] + 1) lauf.push(raenge[i]);
-      else lauf = [raenge[i]];
-      if (lauf.length > beste.length) beste = lauf.slice();
-    }
-    if (beste.length < n) return null;
-    // Die letzten n der Folge nehmen: die hoechsten Raenge sind die wertvollsten.
-    const genommen = beste.slice(-n);
-    const tuerme = genommen.map(r => karten.find(k => k.rang === r).turm);
-    return { tuerme, raenge: genommen };
-  };
-
-  // `anzahl` zaehlt Stellungen, nicht Karten: eine Kopie besetzt keinen Turm.
-  return { tuerme, karten, alle, anzahl: alle.length,
-    gleicheGattung, gleicherRang, zweiPaare, folge };
-}
-
-/*
- * Was eine Formation an Salven bringt. Die Stufe kommt aus dem Lauf, wenn es
- * ihn gibt - so lassen sich einzelne Formationen spaeter dauerhaft aufwerten,
- * ohne dass hier etwas umgebaut werden muesste.
- */
-function formationsStufe(id) {
-  return (derLauf && derLauf.formationsStufen && derLauf.formationsStufen[id]) || 1;
-}
-
-function formationsSalven(f, stufe) {
-  return f.salven + (stufe - 1) * (f.jeStufe || 0);
-}
-
-/*
- * Erkennen. Erst alles sammeln, was zutrifft, dann je Familie nur die hoechste
- * stehen lassen - und was eine Kroenung abloest, faellt mit.
- */
-function erkenneFormationen(tuerme, wappen = []) {
-  const blatt = baueBlatt(tuerme, wappen);
-  if (!blatt.anzahl) return [];
-
-  const treffer = [];
-  for (const f of FORMATIONEN) {
-    const t = f.finde(blatt);
-    if (!t) continue;
-    const stufe = formationsStufe(f.id);
-    treffer.push({
-      id: f.id, name: f.name, text: f.text, familie: f.familie, rang: f.rang,
-      kroenung: Boolean(f.kroenung), garde: Boolean(f.garde), loest: f.loest || [],
-      tuerme: t.tuerme || blatt.alle,
-      stufe, salven: formationsSalven(f, stufe),
-    });
-  }
-
-  // Je Familie die hoechste.
-  const beste = {};
-  for (const t of treffer) {
-    if (!beste[t.familie] || t.rang > beste[t.familie].rang) beste[t.familie] = t;
-  }
-  const raus = Object.values(beste);
-  // Was eine Kroenung abloest, faellt heraus.
-  const abgeloest = new Set();
-  for (const t of raus) for (const fam of t.loest) abgeloest.add(fam);
-  return raus.filter(t => !abgeloest.has(t.familie))
-    .sort((a, b) => b.salven - a.salven);
-}
-
-/** Wie viele Salven die ganze Burg feuert: eine Grundsalve plus alles, was die Formationen geben. */
-function salvenZahl(formationen) {
-  return KERN.salvenGrund + formationen.reduce((s, f) => s + f.salven, 0);
-}
-
-// ---------- Wucht ----------
-/*
- * Die Wucht einer Salve ist einfach geworden, und das ist der Punkt:
- *
- *   je Turm:  (Rang + Schliff) x Turmtyp
- *   Summe  x  Salvenzahl  x  Wappen
- *
- * Die Salvenzahl ist eine Grundsalve plus, was die Formationen geben. Sie ist
- * KEIN Rechentrick: jede Salve ist ein Schuss, den die Anzeige auch zeigt.
- * Wer `7 Salven` liest, sieht sieben Mal feuern.
- *
- * Vorher stand hier eine Kette aus Faktoren je Turm, Nachschuessen und
- * Gesamtfaktoren. Sie rechnete richtig, aber niemand konnte sie im Kopf
- * mitfuehren - und was man nicht mitfuehren kann, kann man auch nicht planen.
- */
-function berechneWucht(tuerme, wappen = []) {
-  const formationen = erkenneFormationen(tuerme, wappen);
-  const besetzt = tuerme.map((t, i) => (t.einheit ? i : -1)).filter(i => i >= 0);
-  const salven = salvenZahl(formationen);
-
-  const posten = besetzt.map(i => {
-    const t = tuerme[i];
-    const basis = wirkwucht(t.einheit);
-    const tf = turmFaktor(t);
-    return { turm: i, name: t.einheit.name, gattung: t.einheit.gattung, rang: t.einheit.rang,
-      // Beide Zahlen mitfuehren: die Anzeige soll `9 +4` schreiben koennen,
-      // ohne selbst zu rechnen.
-      grund: t.einheit.grundwucht, bonus: bonusWucht(t.einheit),
-      basis, turmFaktor: tf, wucht: basis * tf, faktoren: [], schuesse: salven };
-  });
-
-  const schritte = [];
-  const grundsumme = posten.reduce((s, p) => s + p.wucht, 0);
-  schritte.push({ art: 'grund', name: 'Wucht je Salve', wert: null, wucht: grundsumme });
-
-  for (const f of formationen) {
-    schritte.push({ art: 'formation', id: f.id, name: f.name, wert: '+' + f.salven,
-      salven: f.salven, wucht: grundsumme * salven });
-  }
-  schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
-    salven, wucht: grundsumme * salven });
-
-  let gesamt = grundsumme * salven;
-  const ctx = { tuerme, wappen };
-  for (const w of wappen) {
-    const fn = WAPPEN[w] && WAPPEN[w].gesamtFaktor;
-    if (!fn) continue;
-    const faktor = fn(ctx) || 1;
-    if (faktor === 1) continue;
-    gesamt *= faktor;
-    schritte.push({ art: 'wappen', id: w, name: WAPPEN[w].name, wert: '×' + faktor, wucht: gesamt });
-  }
-
-  return {
-    posten, formationen, schritte, salven,
-    grund: posten.reduce((s, p) => s + p.basis, 0),
-    jeSalve: Math.round(grundsumme),
-    wucht: Math.round(gesamt),
-  };
-}
-
-// ---------- Der Kampf ----------
-/*
- * Fünf Runden, mehr gibt es nicht. Der Gegner hat einen Wert, der Spieler hat
- * Tatendrang, und die einzige Frage ist: reicht die Wucht, die ich in fünf
- * Runden aufbaue? Es gibt keinen Block, keine Verteidigungskarte und keinen
- * Grund, Zeit zu schinden.
- */
-let derKampf = null;
-
-function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null } = {}) {
-  leereSignale();
-  /*
-   * `stellungen` sind die Turmobjekte, die die Anzeige ohnehin schon hat -
-   * mit Feld, Modell und allem, was zum Zeichnen gehört. Der Kern hängt seine
-   * eigenen Felder daran, statt eigene Objekte zu bauen: so gibt es EIN
-   * Turmobjekt und nicht zwei, die auseinanderlaufen können.
-   */
-  const tuerme = (stellungen || Array.from({ length: KERN.tuerme }, () => ({})))
-    .slice(0, KERN.tuerme)
-    .map((t, i) => Object.assign(t, { nr: i + 1, typ: t.typ || turmTypen[i] || 'wachturm', einheit: null }));
-  const k = {
-    runde: 1,
-    rundenMax: KERN.runden,
-    tatendrang: KERN.tatendrang,
-    tatendrangMax: KERN.tatendrang,
-    tauschInRunde: 0,
-    tuerme,
-    zug: (deck || START_DECK.map(id => neueEinheit(id))).slice(),
-    hand: [],
-    ablage: [],
-    wappen: wappen.slice(0, WAPPEN_PLAETZE),
-    feind: feind || baueFeind(1),
-    ende: null,           // null | 'sieg' | 'niederlage'
-    log: [],              // was in dieser Runde geschah, für Anzeige und Prüfung
-  };
-  derKampf = k;
-  mischeZug();
-  // Wappen hängen sich ein, sobald der Kampf steht - nicht der Kampf kennt sie.
-  for (const w of k.wappen) {
-    const horcht = WAPPEN[w] && WAPPEN[w].horcht;
-    for (const name in horcht || {}) hoereSignal(name, horcht[name]);
-  }
-  sendeSignal('rundeBeginnt', { runde: 1 });
-  zieheAuf(KERN.handGroesse);
-  return k;
-}
-
-function mischeZug() {
-  const k = derKampf;
-  for (let i = k.zug.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [k.zug[i], k.zug[j]] = [k.zug[j], k.zug[i]];
-  }
-}
-
-/** Eine Karte vom Zugstapel. Ist er leer, wird die Ablage zum neuen Stapel. */
-function ziehe() {
-  const k = derKampf;
-  if (!k.zug.length) {
-    if (!k.ablage.length) return null;
-    k.zug = k.ablage;
-    k.ablage = [];
-    mischeZug();
-  }
-  const karte = k.zug.pop();
-  if (karte) { k.hand.push(karte); sendeSignal('karteGezogen', { karte }); }
-  return karte;
-}
-
-function zieheAuf(anzahl) {
-  let gezogen = 0;
-  while (derKampf.hand.length < anzahl) {
-    if (!ziehe()) break;
-    gezogen++;
-  }
-  return gezogen;
-}
-
-/** Reicht der Tatendrang für diese Handlung? */
-function kostetZuViel(kosten) { return kosten > derKampf.tatendrang; }
-
-/**
- * Eine Einheit auf einen Turm. Steht dort schon jemand, wird er ersetzt und
- * wandert in die Ablage - die Wahrscheinlichkeiten im Stapel verschieben sich
- * dadurch während des Kampfes, und das ist beabsichtigt.
- *
- * Die neue Einheit feuert sofort einmal. Der Rest ihrer Wucht kommt am
- * Rundenende mit der Salve.
- */
-function setzeEinheit(index, karte) {
-  const k = derKampf;
-  if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
-  const turm = k.tuerme[index];
-  if (!turm) return { ok: false, grund: 'Diesen Turm gibt es nicht.' };
-  const inHand = k.hand.find(c => c.uid === karte.uid);
-  if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
-  const kosten = turm.einheit ? KERN.kosten.ersetzen : KERN.kosten.einsetzen;
-  if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
-
-  k.tatendrang -= kosten;
-  k.hand = k.hand.filter(c => c.uid !== karte.uid);
-  const alt = turm.einheit;
-  turm.einheit = inHand;
-  if (alt) {
-    k.ablage.push(alt);
-    sendeSignal('einheitErsetzt', { turm: index, alt, neu: inHand });
-    sendeSignal('einheitEntfernt', { turm: index, einheit: alt });
-  }
-  sendeSignal('einheitGesetzt', { turm: index, einheit: inHand });
-  const schaden = schiesseEinzeln(inHand, index, 'Einsatz');
-  return { ok: true, kosten, ersetzt: alt, schaden };
-}
-
-/**
- * Ein einzelner Schuss - beim Einsetzen, und für Wappen, die eine Einheit
- * ausserhalb der Salve feuern lassen. Rechnet mit derselben Kette wie die
- * Salve, nur für einen Turm.
- */
-function schiesseEinzeln(einheit, index, quelle) {
-  const k = derKampf;
-  if (!k || k.ende) return 0;
-  const turm = k.tuerme[index] || { typ: 'wachturm', einheit };
-  const wucht = Math.round(grundwucht(einheit) * turmFaktor({ ...turm, einheit }));
-  sendeSignal('einheitFeuert', { turm: index, einheit, wucht, quelle });
-  trefferAufFeind(wucht, quelle);
-  k.log.push({ art: 'schuss', quelle, turm: index, einheit: einheit.name, wucht });
-  return wucht;
-}
-
-/** Eine Handkarte gegen eine neue tauschen. Das ist der Ersatz fürs Abwerfen. */
-function tauscheHandkarte(karte) {
-  const k = derKampf;
-  if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
-  const inHand = k.hand.find(c => c.uid === karte.uid);
-  if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
-  const kosten = Math.max(0, KERN.kosten.tauschen - tauschRabatt());
-  if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
-
-  k.tatendrang -= kosten;
-  k.tauschInRunde++;
-  k.hand = k.hand.filter(c => c.uid !== karte.uid);
-  k.ablage.push(inHand);
-  const neu = ziehe();
-  sendeSignal('karteGetauscht', { alt: inHand, neu });
-  return { ok: true, kosten, neu };
-}
-
-/** Was der Tausch gerade billiger ist - das Schlangenwappen zahlt den ersten. */
-/*
- * Mehrere Handkarten auf einmal tauschen. Jede kostet fuer sich, der Rabatt
- * der Schlange greift also nur auf die ersten.
- *
- * Die Reihenfolge ist der ganze Trick: erst kommen die getauschten Karten
- * BEISEITE, dann wird nachgezogen, und erst danach wandern sie in die Ablage.
- * Wuerde man sie sofort ablegen, koennte ein leerer Zugstapel sie mitmischen
- * und man zoege genau die Karte wieder, die man gerade loswerden wollte.
- * Dasselbe gilt fuer den Nachzug: vier Karten zu tauschen heisst vier neue,
- * auch wenn der Stapel dazwischen neu gemischt werden muss.
- */
-function tauscheHandkarten(karten) {
-  const k = derKampf;
-  if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
-  const liste = (karten || []).map(c => k.hand.find(h => h.uid === c.uid)).filter(Boolean);
-  if (!liste.length) return { ok: false, grund: 'Keine Karte gewählt.' };
-  const kosten = tauschKostenFuer(liste.length);
-  if (kostetZuViel(kosten)) {
-    return { ok: false, grund: 'Dafür fehlen ' + (kosten - k.tatendrang) + ' Tatendrang.' };
-  }
-
-  k.tatendrang -= kosten;
-  k.tauschInRunde += liste.length;
-  const weg = new Set(liste.map(c => c.uid));
-  k.hand = k.hand.filter(c => !weg.has(c.uid));
-  const neu = [];
-  for (let i = 0; i < liste.length; i++) {
-    const g = ziehe();
-    if (g) neu.push(g);
-  }
-  k.ablage.push(...liste);          // erst JETZT, nach dem Nachziehen
-  sendeSignal('karteGetauscht', { alt: liste, neu });
-  return { ok: true, kosten, alt: liste, neu };
-}
-
-/*
- * Was n Tausche zusammen kosten. Der Rabatt der Schlange gilt je Tausch und
- * nur solange er reicht - drei Karten bei zwei freien Tauschen kosten eins.
- */
-function tauschKostenFuer(n) {
-  const k = derKampf;
-  if (!k) return n * KERN.kosten.tauschen;
-  let summe = 0;
-  const gemerkt = k.tauschInRunde;
-  for (let i = 0; i < n; i++) {
-    k.tauschInRunde = gemerkt + i;
-    summe += Math.max(0, KERN.kosten.tauschen - tauschRabatt());
-  }
-  k.tauschInRunde = gemerkt;
-  return summe;
-}
-
-function tauschRabatt() {
-  const k = derKampf;
-  return k.wappen.reduce((r, w) => {
-    const fn = WAPPEN[w] && WAPPEN[w].tauschRabatt;
-    return Math.max(r, fn ? fn(k) : 0);
-  }, 0);
-}
-
-function tauschKosten() { return Math.max(0, KERN.kosten.tauschen - tauschRabatt()); }
-
-/** Schaden am Gegner, an einer einzigen Stelle - damit der Sieg nur hier fällt. */
-function trefferAufFeind(wucht, quelle) {
-  const k = derKampf;
-  if (!k || k.ende || wucht <= 0) return;
-  k.feind.hp = Math.max(0, k.feind.hp - wucht);
-  if (k.feind.hp <= 0 && !k.ende) {
-    k.ende = 'sieg';
-    sendeSignal('feindBesiegt', { quelle });
-    sendeSignal('kampfEndet', { ende: 'sieg' });
-  }
-}
-
-/**
- * Runde beenden: die ganze Besatzung feuert gemeinsam, dann wird abgerechnet.
- * Nach der fünften Runde ist Schluss - wer den Gegner bis dahin nicht
- * niedergerungen hat, hat verloren. Es gibt keine sechste.
- */
-function beendeRunde() {
-  const k = derKampf;
-  if (!k || k.ende) return { ende: k && k.ende };
-
-  const abrechnung = berechneWucht(k.tuerme, k.wappen);
-  sendeSignal('salve', { wucht: abrechnung.wucht });
-  trefferAufFeind(abrechnung.wucht, 'Salve');
-  k.log.push({ art: 'salve', runde: k.runde, wucht: abrechnung.wucht });
-  sendeSignal('rundeEndet', { runde: k.runde, wucht: abrechnung.wucht });
-
-  if (k.ende === 'sieg') return { ende: 'sieg', abrechnung };
-  if (k.runde >= k.rundenMax) {
-    k.ende = 'niederlage';
-    sendeSignal('kampfEndet', { ende: 'niederlage' });
-    return { ende: 'niederlage', abrechnung };
-  }
-
-  // Nächste Runde: Hand abwerfen, neu ziehen, Tatendrang auffüllen.
-  k.ablage.push(...k.hand);
-  k.hand = [];
-  k.runde++;
-  k.tatendrang = k.tatendrangMax;
-  k.tauschInRunde = 0;
-  sendeSignal('rundeBeginnt', { runde: k.runde });
-  zieheAuf(KERN.handGroesse);
-  return { ende: null, abrechnung, runde: k.runde };
-}
-
-/**
- * Was die Burg wöge, wenn diese Karte auf diesem Turm stünde. Für die
- * Vorschau, während eine Karte über einem Turm hängt - der Spieler soll
- * Kombinationen sehen, statt sie im Kopf auszurechnen.
- */
-function vorschau(index, karte) {
-  const k = derKampf;
-  const probe = k.tuerme.map((t, i) => (i === index ? { ...t, einheit: karte } : { ...t }));
-  return berechneWucht(probe, k.wappen);
-}
-
-/** Der Kampf ist vorbei: die Besatzung räumt die Türme, die Gebäude bleiben. */
-function raeumeKampf() {
-  if (!derKampf) return;
-  for (const t of derKampf.tuerme) t.einheit = null;
-  leereSignale();
-}
-
-// ---------- Der Lauf ----------
-/*
- * Ein Lauf ist die Kette aus Kämpfen, Händlern und Ereignissen, über die ein
- * Deck wächst. Der Kampf weiss davon nichts: er bekommt Deck, Wappen und
- * Turmtypen übergeben und gibt nur zurück, ob er gewonnen wurde. Alles, was
- * über einen Kampf hinaus bestehen bleibt, liegt hier - und nur hier.
- *
- * Drei Achsen wachsen mit:
- *
- *   das DECK    - neue Karten, geschliffene Karten, entfernte Karten
- *   die WAPPEN  - fünf Plätze, jedes bricht eine Regel
- *   die TÜRME   - fünf Stellungen, ihr Typ ist die dritte Achse
- *
- * Absichtlich getrennt: das Deck ist die breite Achse, die Wappen die scharfe,
- * die Türme die langsame. Wer alles in eine Gattung steckt, baut einen Turm,
- * der einmal umfällt; wer breit baut, trifft keine Formation.
- */
-const LAUF = {
-  stationen: 11,
-  leben: 1,                   // verlorene Kaempfe, die ein Lauf uebersteht
-  sold: {
-    start: 0,
-    kampf: 25, elite: 45, boss: 120,
-    jeRestrunde: 8,           // je Runde, die man nicht gebraucht hat
-  },
-  preise: { karte: 45, wappen: 130, ausbau: 95, entfernen: 60, schliff: 75 },
-  belohnung: { auswahl: 3, wappenAb: 2 },
-  /*
-   * Wie viele Karten eine Ausmusterung nimmt. Mit einem Blatt aus 52 Karten
-   * ist eine einzelne Karte kein Angebot, sondern ein Rundungsfehler: sie
-   * hebt den Schnitt des Decks um zwei Hundertstel. In Schueben wird daraus
-   * das, was das Verschmaelern sein soll - die Bauernschuetzen gehen, damit
-   * die Marschaelle oefter kommen.
-   */
-  ausmustern: { belohnung: 4, haendler: 3 },
-  /*
-   * Der Rang, den eine Belohnungskarte im Schnitt hat: `ab` beim ersten
-   * Kampf, dann `je` Rang je weiterem. Ueber acht Kaempfe reicht das von
-   * Rang 3 bis an die Spitze - der Grund, warum ein Deck ueberhaupt waechst.
-   */
-  rangKurve: { ab: 2, je: 1.4 },
-  schliff: 2,                 // was ein Schliff an Wucht bringt
-  /*
-   * Das Muster eines Akts. Elf Knoten: acht Kaempfe (davon zwei Elite und ein
-   * Boss), zwei Haendler, zwei Ereignisse. Der erste Haendler kommt spaet
-   * genug, dass man Sold hat, und frueh genug, dass er den Lauf noch dreht.
-   */
-  muster: ['kampf', 'kampf', 'ereignis', 'haendler', 'kampf', 'elite',
-    'ereignis', 'kampf', 'haendler', 'elite', 'boss'],
-};
-
-const KNOTEN_ARTEN = {
-  kampf:    { id: 'kampf',    name: 'Angriff',      zeichen: '⚔' },
-  elite:    { id: 'elite',    name: 'Sturmtrupp',   zeichen: '☠', zuschlag: 1.18 },
-  boss:     { id: 'boss',     name: 'Belagerung',   zeichen: '♛' },
-  haendler: { id: 'haendler', name: 'Händler',      zeichen: '⚖' },
-  ereignis: { id: 'ereignis', name: 'Begegnung',    zeichen: '❖' },
-};
-const KNOTEN_KAMPF = ['kampf', 'elite', 'boss'];
-
-let derLauf = null;
-
-function neuerLauf({ stationen = LAUF.stationen, muster = LAUF.muster } = {}) {
-  derLauf = {
-    station: 1,
-    stationen,
-    /*
-     * Jeder Knoten kennt seine Nummer IM AKT und, wenn er ein Kampf ist,
-     * seine Nummer UNTER DEN KAEMPFEN. Das ist nicht dasselbe: an Station 5
-     * steht der dritte Kampf, weil dazwischen ein Haendler und eine Begegnung
-     * liegen. Die Staerke des Gegners haengt am dritten Kampf, nicht an der
-     * fuenften Station - sonst springt sie ueber die Knoten ohne Kampf hinweg
-     * und der Spieler faellt in ein Loch, das nur die Tabelle kennt.
-     */
-    knoten: (() => {
-      let kampfNr = 0;
-      return Array.from({ length: stationen }, (_, i) => {
-        const art = muster[i] || 'kampf';
-        const kampf = KNOTEN_KAMPF.includes(art);
-        if (kampf) kampfNr++;
-        return { nr: i + 1, art, kampfNr: kampf ? kampfNr : 0, erledigt: false };
-      });
-    })(),
-    deck: START_DECK.map(id => neueEinheit(id)),
-    wappen: [],
-    turmTypen: TURM_START.slice(),
-    /*
-     * Je Formation eine Stufe. Sie steht schon hier, damit eine spaetere
-     * Belohnung ("Manoever: Reine Garde") nur einen Eintrag hochzaehlen muss,
-     * statt dass die Kampfrechnung dafuer umgebaut wird.
-     */
-    formationsStufen: {},
-    sold: LAUF.sold.start,
-    leben: LAUF.leben,
-    ende: null,                 // null | 'sieg' | 'niederlage'
-    verlauf: [],                // was an jedem Knoten geschah
-  };
-  return derLauf;
-}
-
-/** Der Knoten, vor dem der Lauf gerade steht. */
-function derKnoten() {
-  return derLauf ? derLauf.knoten[derLauf.station - 1] || null : null;
-}
-
-/*
- * Einen Kampf aus dem Lauf heraus beginnen. Der Lauf reicht durch, was er
- * hat - der Kampf baut daraus seinen eigenen Zustand und fasst den Lauf nie
- * an. Das Deck wird kopiert: was im Kampf ersetzt wird und in der Ablage
- * landet, darf das Deck des Laufs nicht verändern.
- */
-function beginneKampfAmKnoten(stellungen = null) {
-  const kn = derKnoten();
-  if (!kn) return null;
-  if (!KNOTEN_KAMPF.includes(kn.art)) return null;
-  const boss = kn.art === 'boss';
-  const feind = baueFeind(kn.kampfNr, { boss, zuschlag: KNOTEN_ARTEN[kn.art].zuschlag || 1 });
-  if (kn.art === 'elite') feind.name = 'Sturmtrupp';
-  return neuerKampf({
-    feind,
-    deck: derLauf.deck.map(k => ({ ...k })),
-    wappen: derLauf.wappen.slice(),
-    turmTypen: derLauf.turmTypen.slice(),
-    stellungen,
-  });
-}
-
-/*
- * Der Kampf ist entschieden. Hier - und nur hier - wird der Lauf fortgeschrieben:
- * Sold, Leben, Station. Die Belohnung wird nur gebaut, nicht schon vergeben;
- * welches der Angebote genommen wird, entscheidet der Spieler.
- */
-function werteKampfAus(kampf = derKampf) {
-  const kn = derKnoten();
-  if (!derLauf || !kn || !kampf) return null;
-  const sieg = kampf.ende === 'sieg';
-  if (!sieg) {
-    derLauf.leben--;
-    if (derLauf.leben <= 0) derLauf.ende = 'niederlage';
-    derLauf.verlauf.push({ nr: kn.nr, art: kn.art, sieg: false });
-    return { sieg: false, sold: 0, belohnung: null, ende: derLauf.ende };
-  }
-  const restrunden = Math.max(0, kampf.rundenMax - kampf.runde);
-  const sold = (LAUF.sold[kn.art] || LAUF.sold.kampf) + restrunden * LAUF.sold.jeRestrunde;
-  derLauf.sold += sold;
-  kn.erledigt = true;
-  derLauf.verlauf.push({ nr: kn.nr, art: kn.art, sieg: true, sold, runden: kampf.runde });
-  const belohnung = baueBelohnung(kn);
-  if (kn.art === 'boss') derLauf.ende = 'sieg';
-  return { sieg: true, sold, restrunden, belohnung, ende: derLauf.ende };
-}
-
-/*
- * Die Angebote nach einem Sieg. Drei Stück, jedes von einer anderen Achse,
- * damit die Wahl wirklich eine ist: eine Karte macht das Deck breiter, ein
- * Ausbau macht einen Turm schärfer, ein Wappen bricht eine Regel.
- */
-function baueBelohnung(knoten) {
-  const nr = knoten.kampfNr || 1;
-  /*
-   * Drei Plaetze, vier Bewerber - aus jeder Achse einer, und einer bleibt
-   * jedes Mal draussen. Das ist der Grund, warum die Wahl eine ist: Ausbau,
-   * Ausmustern und Wappen sind die drei Achsen, an denen ein Lauf mit vollem
-   * Blatt ueberhaupt noch waechst, und man bekommt nie alle drei zugleich.
+  /* ---- gebaut aus quelle/ · nicht von Hand aendern ---- */
+  // ===== quelle/kern/regeln.js =====
+  /* ============================================================
+   *  P A R A P E X  —  K E R N
+   * ============================================================
    *
-   * Vorher stand hier fest "erst eine Karte, dann Ausbau, dann Ausmustern" -
-   * damit war die dritte Reihe voll, bevor das Wappen an der Reihe war, und
-   * der Bot kam ueber einen ganzen Akt auf 0,3 Wappen. Ein Angebot, das nie
-   * erscheint, ist kein Angebot.
+   * Der neue Kampf. Fünf Türme, fünf Runden, ein Gegner mit einem einzigen
+   * Stärkewert. Karten sind Einheiten, Einheiten stehen auf Türmen, die
+   * Stellung der Türme zueinander ergibt Formationen, Formationen vervielfachen
+   * die Wucht.
+   *
+   * Dieser Block hat KEINE Verbindung zur Anzeige. Er kennt kein Dokument,
+   * keinen Zeichenkontext und keine Ereignisse des Browsers - er rechnet nur.
+   * Die Oberfläche liest hinterher `derKampf` und die Rückgabe von
+   * `berechneWucht`. Das ist Absicht: nur so lässt sich der Kern von aussen
+   * prüfen (siehe `scripts/pruefe.mjs`), und nur so kann die Anzeige später
+   * ausgetauscht werden, ohne die Regeln anzufassen.
+   *
+   * Alles, was Balance ist, steht in KERN. Nichts davon gehört in den Code
+   * darunter; wer eine Zahl sucht, soll sie an einer Stelle finden.
    */
-  const bewerber = [
-    angebotAusbau(),
-    (derLauf.deck.length > KERN.handGroesse + 4 ? angebotAusmustern() : null),
-    (knoten.nr >= LAUF.belohnung.wappenAb ? angebotWappen() : null),
-    angebotKarte(nr),
-  ].filter(Boolean);
-  for (let i = bewerber.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [bewerber[i], bewerber[j]] = [bewerber[j], bewerber[i]];
-  }
-  const angebote = bewerber.slice(0, LAUF.belohnung.auswahl);
-  while (angebote.length < LAUF.belohnung.auswahl) angebote.push(angebotKarte(nr));
-  return { angebote };
-}
 
-/*
- * Ausmustern als Belohnung. Das Ziel steht schon fest: die schwaechste Karte
- * im Deck. Eine Auswahl waere hier eine zweite Entscheidung in einer
- * Entscheidung, und die schwaechste Karte ist ohnehin fast immer die richtige.
- */
-function angebotAusmustern(zahl = LAUF.ausmustern.belohnung) {
-  const schwach = schwaechsteKarten(zahl);
-  if (!schwach.length) return null;
-  const namen = schwach.length > 2
-    ? schwach.length + ' schwächste Karten'
-    : schwach.map(k => k.name).join(' und ');
-  return { art: 'entfernen', karten: schwach, name: namen + ' ausmustern',
-    text: schwach.map(k => k.rang + ' ' + k.name).join(', ') +
-      ' verlassen das Deck. Ein dünnes Deck zieht öfter, was man will.' };
-}
+  const KERN = {
+    tuerme: 5,                  // so viele Stellungen hat die Burg
+    runden: 5,                  // so viele Runden hat ein Kampf
+    tatendrang: 5,              // je Runde, wird voll aufgefuellt
+    handGroesse: 7,             // so viele Karten liegen zu Rundenbeginn
+    kosten: {
+      einsetzen: 1,             // Einheit auf einen leeren Turm
+      ersetzen: 1,              // Einheit auf einen besetzten Turm
+      tauschen: 1,              // eine Handkarte gegen eine neue
+    },
+    /*
+     * Der Turmtyp ist mit dem vollen Blatt die eigentliche Fortschrittsachse.
+     * Vorher war er eine Nebensache: ein Deck aus zwoelf Karten hatte selten
+     * die passende Gattung zur Hand. Mit allen 52 Karten liegt immer ein
+     * Bogenschuetze fuer den Schuetzenturm bereit - der Ausbau wirkt also
+     * verlaesslich, und das macht ihn zur Achse, die den Akt traegt.
+     * Fuenf passende Tuerme sind 1,4^5, also gut das Fuenffache.
+     */
+    turmFaktor: 1.4,            // Turmtyp passt zur Gattung
+    signalMaxTiefe: 8,          // Schutz gegen sich selbst ausloesende Ketten
+    /*
+     * Die Grundsalve. Jede besetzte Stellung feuert einmal, auch ohne jede
+     * Formation - alles Weitere kommt aus FORMATIONEN dazu.
+     */
+    salvenGrund: 1,
 
-/** Die n schwaechsten Karten des Decks - das Ziel jeder Ausmusterung. */
-function schwaechsteKarten(n) {
-  return derLauf.deck.slice()
-    .sort((a, b) => grundwucht(a) - grundwucht(b))
-    .slice(0, Math.max(0, Math.min(n, derLauf.deck.length - KERN.handGroesse)));
-}
-
-/*
- * Der Rang einer Belohnungskarte wächst mit der Station. Das ist die stille
- * Fortschrittskurve: an Station 2 liegen Ränge um 3, an Station 10 um 11.
- * Ohne das müsste der Spieler zwölf Runden lang mit Bauernschützen spielen.
- */
-function belohnungsRang(kampfNr) {
-  const mitte = Math.min(13, Math.round(LAUF.rangKurve.ab + LAUF.rangKurve.je * kampfNr));
-  const streu = Math.floor(Math.random() * 5) - 2;    // -2 .. +2
-  return Math.max(1, Math.min(13, mitte + streu));
-}
-
-/*
- * Der Kampf, auf den sich eine Belohnung bezieht: der letzte gespielte. An
- * einem Haendler oder in einer Begegnung ist das der Kampf davor - dort soll
- * nicht schlechtere Ware liegen, nur weil zwischendurch nicht gekaempft wurde.
- */
-function kampfNrJetzt() {
-  if (!derLauf) return 1;
-  let letzte = 1;
-  for (const kn of derLauf.knoten) {
-    if (kn.kampfNr) letzte = kn.kampfNr;
-    if (kn.nr >= derLauf.station) break;
-  }
-  return letzte;
-}
-
-function angebotKarte(station) {
-  const g = GATTUNG_LISTE[Math.floor(Math.random() * GATTUNG_LISTE.length)];
-  const einheit = neueEinheit(g + '-' + belohnungsRang(station));
-  return { art: 'karte', einheit, name: einheit.name,
-    text: GATTUNGEN[g].name + ' · Rang ' + einheit.rang + ' — kommt ins Deck.' };
-}
-
-function angebotWappen() {
-  if (derLauf.wappen.length >= WAPPEN_PLAETZE) return null;
-  const offen = WAPPEN_LISTE.filter(id => !derLauf.wappen.includes(id));
-  if (!offen.length) return null;
-  const id = offen[Math.floor(Math.random() * offen.length)];
-  return { art: 'wappen', wappen: id, name: WAPPEN[id].name, text: WAPPEN[id].text };
-}
-
-/*
- * Ein Ausbau trifft einen Turm, der noch Wachturm ist - und wenn es keinen
- * mehr gibt, einen, dessen Typ sich noch ändern lässt. Ein zweites Mal
- * denselben Typ auf denselben Turm zu legen, wäre ein leeres Angebot.
- */
-function angebotAusbau() {
-  if (!derLauf) return null;
-  const roh = derLauf.turmTypen
-    .map((t, i) => ({ i, t }))
-    .filter(x => x.t === 'wachturm');
-  const ziel = (roh.length ? roh : derLauf.turmTypen.map((t, i) => ({ i, t })))
-    [Math.floor(Math.random() * (roh.length || derLauf.turmTypen.length))];
-  if (!ziel) return null;
-  const typen = Object.keys(TURMTYPEN).filter(t => t !== 'wachturm' && t !== ziel.t);
-  if (!typen.length) return null;
-  const typ = typen[Math.floor(Math.random() * typen.length)];
-  return { art: 'ausbau', turm: ziel.i, typ, name: TURMTYPEN[typ].name + ' auf Turm ' + (ziel.i + 1),
-    text: TURMTYPEN[typ].text };
-}
-
-/** Ein Angebot annehmen. Was hier hineingeht, bleibt für den ganzen Lauf. */
-function nimmAngebot(angebot) {
-  if (!derLauf || !angebot) return { ok: false, grund: 'Kein Angebot.' };
-  if (angebot.art === 'karte') { derLauf.deck.push(angebot.einheit); return { ok: true }; }
-  if (angebot.art === 'wappen') return fuegeWappenHinzu(angebot.wappen);
-  if (angebot.art === 'ausbau') return baueTurmAus(angebot.turm, angebot.typ);
-  if (angebot.art === 'entfernen' && angebot.karten) {
-    let n = 0;
-    for (const k of angebot.karten) if (entferneKarte(k.uid).ok) n++;
-    return n ? { ok: true, zahl: n } : { ok: false, grund: 'Das Deck wäre zu dünn.' };
-  }
-  if (angebot.art === 'sold') { derLauf.sold += angebot.sold; return { ok: true }; }
-  return { ok: false, grund: 'Unbekanntes Angebot.' };
-}
-
-function fuegeWappenHinzu(id) {
-  if (!WAPPEN[id]) return { ok: false, grund: 'Dieses Wappen gibt es nicht.' };
-  if (derLauf.wappen.includes(id)) return { ok: false, grund: 'Das Wappen hängt schon.' };
-  if (derLauf.wappen.length >= WAPPEN_PLAETZE) return { ok: false, grund: 'Alle fünf Plätze sind belegt.' };
-  derLauf.wappen.push(id);
-  return { ok: true };
-}
-
-function baueTurmAus(index, typ) {
-  if (!TURMTYPEN[typ]) return { ok: false, grund: 'Diesen Turmtyp gibt es nicht.' };
-  if (index < 0 || index >= derLauf.turmTypen.length) return { ok: false, grund: 'Diesen Turm gibt es nicht.' };
-  derLauf.turmTypen[index] = typ;
-  return { ok: true };
-}
-
-function entferneKarte(uid) {
-  const i = derLauf.deck.findIndex(k => k.uid === uid);
-  if (i < 0) return { ok: false, grund: 'Diese Karte ist nicht im Deck.' };
-  if (derLauf.deck.length <= KERN.handGroesse) return { ok: false, grund: 'Das Deck wäre zu dünn.' };
-  const [weg] = derLauf.deck.splice(i, 1);
-  return { ok: true, karte: weg };
-}
-
-function schleifeKarte(uid) {
-  const k = derLauf.deck.find(c => c.uid === uid);
-  if (!k) return { ok: false, grund: 'Diese Karte ist nicht im Deck.' };
-  verbessereEinheit(k, LAUF.schliff);
-  return { ok: true, karte: k };
-}
-
-// ---------- Der Händler ----------
-/*
- * Der Händler ist der Ort, an dem Sold wieder zu Entscheidung wird. Sein
- * Bestand wird einmal gebaut und bleibt dann stehen - wer nicht kauft, soll
- * nicht neu würfeln dürfen, bis ihm etwas passt.
- */
-function oeffneHaendler() {
-  if (!derLauf) return null;
-  const nr = kampfNrJetzt();
-  const posten = [];
-  for (let i = 0; i < 3; i++) {
-    const a = angebotKarte(nr);
-    posten.push({ ...a, preis: Math.round(LAUF.preise.karte * (0.6 + a.einheit.rang / 10)) });
-  }
-  const w = angebotWappen();
-  if (w) posten.push({ ...w, preis: LAUF.preise.wappen });
-  const aus = angebotAusbau();
-  if (aus) posten.push({ ...aus, preis: LAUF.preise.ausbau });
-  const weg = angebotAusmustern(LAUF.ausmustern.haendler);
-  if (weg) posten.push({ ...weg, name: 'Ausmustern', preis: LAUF.preise.entfernen });
-  posten.push({ art: 'schliff', name: 'Eine Karte schleifen',
-    text: '+' + LAUF.schliff + ' Wucht, dauerhaft.', preis: LAUF.preise.schliff });
-  derLauf.haendler = { posten, gekauft: [] };
-  return derLauf.haendler;
-}
-
-/*
- * Kaufen. `wahl` ist die Karte, auf die sich der Posten bezieht, wenn er eine
- * braucht - Ausmustern und Schleifen ohne Ziel wäre ein Kauf ins Leere.
- */
-function kaufe(index, wahl = null) {
-  const h = derLauf && derLauf.haendler;
-  if (!h) return { ok: false, grund: 'Kein Händler offen.' };
-  const p = h.posten[index];
-  if (!p) return { ok: false, grund: 'Diesen Posten gibt es nicht.' };
-  if (h.gekauft.includes(index)) return { ok: false, grund: 'Schon gekauft.' };
-  if (derLauf.sold < p.preis) return { ok: false, grund: 'Nicht genug Sold.' };
-
-  let r;
-  if (p.art === 'entfernen') r = entferneKarte(wahl && wahl.uid);
-  else if (p.art === 'schliff') r = schleifeKarte(wahl && wahl.uid);
-  else r = nimmAngebot(p);
-  if (!r.ok) return r;
-
-  derLauf.sold -= p.preis;
-  h.gekauft.push(index);
-  return { ok: true, posten: p, sold: derLauf.sold };
-}
-
-// ---------- Begegnungen ----------
-/*
- * Ereignisse sind der billigste Weg, einen Lauf ungleich zu machen: kein
- * Kampf, aber eine Entscheidung mit Folgen. Sie stehen als Daten da, damit
- * ein neues Ereignis eine Zeile ist und kein Eingriff.
- *
- * `bedingung` hält Ereignisse zurück, die gerade nichts bewirken könnten -
- * ein Wappenangebot ohne freien Platz ist kein Ereignis, sondern ein Ärgernis.
- */
-const BEGEGNUNGEN = [
-  {
-    id: 'waffenschmiede', titel: 'Die verlassene Waffenschmiede',
-    text: 'Zwischen kalten Essen liegt brauchbarer Stahl. Die Schmiede ist leer, der Amboss nicht.',
-    wahlen: [
-      { text: 'Zwei Karten schleifen', wirkung: () => {
-        const ziele = zufaelligeKarten(2);
-        ziele.forEach(k => verbessereEinheit(k, LAUF.schliff));
-        return ziele.length ? ziele.map(k => k.name).join(' und ') + ' geschliffen.' : 'Nichts zu schleifen.';
-      } },
-      { text: 'Den Stahl verkaufen (+70 Sold)', wirkung: () => { derLauf.sold += 70; return '70 Sold.'; } },
-    ],
-  },
-  {
-    id: 'soeldner', titel: 'Söldner am Wegrand',
-    text: 'Vier Mann ohne Herrn. Sie fragen nicht, wofür gekämpft wird, sondern wofür bezahlt.',
-    wahlen: [
-      { text: 'Anwerben (−60 Sold, starke Karte)', bedingung: () => derLauf.sold >= 60,
-        wirkung: () => {
-          derLauf.sold -= 60;
-          const k = neueEinheit(GATTUNG_LISTE[Math.floor(Math.random() * 4)] + '-' +
-            Math.min(13, belohnungsRang(kampfNrJetzt()) + 2));
-          derLauf.deck.push(k);
-          return k.name + ' tritt ein.';
-        } },
-      { text: 'Weiterziehen', wirkung: () => 'Sie sehen euch nach.' },
-    ],
-  },
-  {
-    id: 'kartenlager', titel: 'Der überfüllte Wehrgang',
-    text: 'Zu viele Hände, zu wenig Zinnen. Wer bleibt, steht im Weg.',
-    wahlen: [
-      { text: 'Die schwächste Karte ausmustern', bedingung: () => derLauf.deck.length > KERN.handGroesse,
-        wirkung: () => {
-          const schwach = derLauf.deck.slice().sort((a, b) => grundwucht(a) - grundwucht(b))[0];
-          entferneKarte(schwach.uid);
-          return schwach.name + ' geht.';
-        } },
-      { text: 'Alle behalten (+40 Sold aus dem Sold der Abgänger)', wirkung: () => { derLauf.sold += 40; return '40 Sold.'; } },
-    ],
-  },
-  {
-    id: 'banner', titel: 'Das alte Banner',
-    text: 'Im Gewölbe hängt ein Wappen, das hier niemand mehr führt. Staub, aber kein Rost.',
-    bedingung: () => derLauf.wappen.length < WAPPEN_PLAETZE && derLauf.wappen.length < WAPPEN_LISTE.length,
-    wahlen: [
-      { text: 'Aufhängen', wirkung: () => {
-        const a = angebotWappen();
-        if (!a) return 'Kein Platz mehr.';
-        fuegeWappenHinzu(a.wappen);
-        return a.name + ' hängt.';
-      } },
-      { text: 'Einschmelzen (+90 Sold)', wirkung: () => { derLauf.sold += 90; return '90 Sold.'; } },
-    ],
-  },
-  {
-    id: 'baumeister', titel: 'Der wandernde Baumeister',
-    text: 'Er misst eure Mauern mit den Augen und schüttelt den Kopf. Dann bietet er an zu bleiben.',
-    wahlen: [
-      { text: 'Einen Turm ausbauen lassen', wirkung: () => {
-        const a = angebotAusbau();
-        if (!a) return 'Er findet nichts zu tun.';
-        baueTurmAus(a.turm, a.typ);
-        return a.name + '.';
-      } },
-      { text: 'Ihn bezahlen und ziehen lassen (+50 Sold)', wirkung: () => { derLauf.sold += 50; return '50 Sold.'; } },
-    ],
-  },
-  {
-    id: 'spaeher', titel: 'Ein gefangener Späher',
-    text: 'Er weiss, wann der nächste Stoss kommt. Er weiss auch, was ein solches Wissen wert ist.',
-    wahlen: [
-      { text: 'Aushorchen (+100 Sold)', wirkung: () => { derLauf.sold += 100; return '100 Sold.'; } },
-      { text: 'Laufen lassen und zwei Karten ziehen', wirkung: () => {
-        const neu = [angebotKarte(kampfNrJetzt()), angebotKarte(kampfNrJetzt())];
-        neu.forEach(a => derLauf.deck.push(a.einheit));
-        return neu.map(a => a.name).join(' und ') + ' schliessen sich an.';
-      } },
-    ],
-  },
-];
-
-function zufaelligeKarten(n) {
-  const kopie = derLauf.deck.slice();
-  const raus = [];
-  while (raus.length < n && kopie.length) {
-    raus.push(kopie.splice(Math.floor(Math.random() * kopie.length), 1)[0]);
-  }
-  return raus;
-}
-
-function ziehBegegnung() {
-  const moeglich = BEGEGNUNGEN.filter(e => !e.bedingung || e.bedingung());
-  const liste = moeglich.length ? moeglich : BEGEGNUNGEN;
-  const e = liste[Math.floor(Math.random() * liste.length)];
-  return {
-    ...e,
-    wahlen: e.wahlen.filter(w => !w.bedingung || w.bedingung()),
+    /*
+     * Die Wappen. Ihre Werte sind gemessen gegen die Frage: ist ein Wappen so
+     * viel wert wie die beste Karte, die statt seiner im Angebot laege? In der
+     * ersten Fassung war es das nicht - der Bot, der nie ein Wappen nahm, kam
+     * in der Haelfte der Laeufe durch, der, der immer eines nahm, in einem
+     * Siebtel. Ein regelbrechendes Wappen darf keine Falle sein.
+     */
+    wappen: {
+      loewe: 3,                 // Rang des mittleren Turms mal drei
+      wolf: 0.6,                // je leerem Turm
+      schlange: 2,              // so viele Tauesche je Runde sind frei
+      drache: { jeder: 1, faktor: 2 },
+    },
   };
-}
 
-function waehleInBegegnung(ereignis, index) {
-  const w = ereignis && ereignis.wahlen[index];
-  if (!w) return { ok: false, grund: 'Diese Wahl gibt es nicht.' };
-  return { ok: true, folge: w.wirkung() };
-}
-
-/** Knoten abhaken und weiterziehen. Am letzten Knoten endet der Lauf. */
-function verlasseKnoten() {
-  if (!derLauf) return null;
-  const kn = derKnoten();
-  if (kn) kn.erledigt = true;
-  derLauf.haendler = null;
-  if (derLauf.station >= derLauf.stationen) {
-    if (!derLauf.ende) derLauf.ende = 'sieg';
-    return { ende: derLauf.ende };
-  }
-  derLauf.station++;
-  return { ende: null, station: derLauf.station, knoten: derKnoten() };
-}
-
-/* Für die Prüfskripte: der Kern ist von aussen ansprechbar. */
-if (typeof window !== 'undefined') {
-  window.PARAPEX = {
-    KERN, GATTUNGEN, RANG_NAMEN, EINHEITEN_POOL, START_DECK, TURMTYPEN, TURM_START,
-    FORMATIONEN, FORMATIONS_FAMILIEN, FAMILIEN_ZEICHEN, KOENIGSRAENGE, WAPPEN, SIGNALE, FEIND_STAERKE,
-    baueBlatt, salvenZahl, formationsSalven,
-    neueEinheit, grundwucht, wirkwucht, bonusWucht, verbessereEinheit, baueFeind, feindStaerke,
-    erkenneFormationen, berechneWucht, vorschau,
-    neuerKampf, setzeEinheit, tauscheHandkarte, tauscheHandkarten, tauschKosten,
-    tauschKostenFuer, beendeRunde,
-    ziehe, zieheAuf, raeumeKampf, hoereSignal, sendeSignal,
-    kampf: () => derKampf,
-    ueberlauf: () => signalUeberlauf,
-    // Der Lauf: alles, was einen Kampf ueberdauert.
-    LAUF, KNOTEN_ARTEN, BEGEGNUNGEN, WAPPEN_PLAETZE, WAPPEN_LISTE, GATTUNG_LISTE,
-    neuerLauf, derKnoten, beginneKampfAmKnoten, werteKampfAus, baueBelohnung,
-    nimmAngebot, fuegeWappenHinzu, baueTurmAus, entferneKarte, schleifeKarte,
-    oeffneHaendler, kaufe, ziehBegegnung, waehleInBegegnung, verlasseKnoten,
-    lauf: () => derLauf,
+  // ===== quelle/kern/einheiten.js =====
+  // ---------- Gattungen ----------
+  /*
+   * Vier Gattungen, keine Kartenfarben. Sie sollen sich später mechanisch
+   * unterscheiden, nicht nur farblich - die Formationen unten sind der Anfang
+   * davon: Bogen zielt auf Wiederholung, Armbrust auf Wucht, Artillerie auf
+   * Nachbarschaft, Kanonier auf Eskalation.
+   */
+  const GATTUNGEN = {
+    bogen:      { id: 'bogen',      name: 'Bogenschützen',    kurz: 'Bogen',      farbe: '#4f7a3a', hell: '#86b05c', zeichen: '🏹' },
+    armbrust:   { id: 'armbrust',   name: 'Armbrustschützen', kurz: 'Armbrust',   farbe: '#2f5fa8', hell: '#6d9ede', zeichen: '🎯' },
+    artillerie: { id: 'artillerie', name: 'Artillerie',       kurz: 'Artillerie', farbe: '#8a6a2a', hell: '#c9a04a', zeichen: '⚙' },
+    kanonier:   { id: 'kanonier',   name: 'Kanoniere',        kurz: 'Kanonier',   farbe: '#a0392a', hell: '#d96b42', zeichen: '💥' },
   };
-}
+  const GATTUNG_LISTE = Object.keys(GATTUNGEN);
+
+  // ---------- Die Ränge ----------
+  /*
+   * Dreizehn Ränge je Gattung, vom Bauernjungen bis zum Marschall. Der Rang IST
+   * die Grundwucht (siehe `grundwucht`) - eine Zahl, die man auf der Karte
+   * liest, statt einer zweiten, die man nachschlagen muss.
+   */
+  const RANG_NAMEN = {
+    bogen: ['Bauernschütze', 'Jagdschütze', 'Burgschütze', 'Waldschütze', 'Langbogenschütze',
+      'Grenzschütze', 'Veteranenschütze', 'Meisterschütze', 'Falkenschütze', 'Königlicher Schütze',
+      'Schützenhauptmann', 'Meister des Langbogens', 'Marschall der Schützen'],
+    armbrust: ['Bolzenschütze', 'Wacharmbruster', 'Fußarmbruster', 'Burgarmbruster', 'Spannknecht',
+      'Schwerer Armbruster', 'Pavese-Schütze', 'Veteranenarmbruster', 'Arbalestschütze',
+      'Meisterarmbruster', 'Scharfschütze', 'Hauptmann der Armbrust', 'Meister der Arbalest'],
+    artillerie: ['Steinschleuderer', 'Geschützgehilfe', 'Seilspanner', 'Windenmeister',
+      'Springald-Besatzung', 'Ballisten-Besatzung', 'Onager-Besatzung', 'Mangonel-Besatzung',
+      'Petraria-Besatzung', 'Trebuchet-Besatzung', 'Meister der Balliste', 'Belagerungsingenieur',
+      'Meister der Artillerie'],
+    kanonier: ['Pulverjunge', 'Luntenknecht', 'Pulverträger', 'Büchsenknecht', 'Geschützlademeister',
+      'Handrohrschütze', 'Feldschlange-Schütze', 'Bombardenknecht', 'Kanonier', 'Schwerer Kanonier',
+      'Bombardenmeister', 'Geschützmeister', 'Meisterkanonier'],
+  };
+
+  /** Die 52 Grundkarten: vier Gattungen mal dreizehn Ränge. */
+  function baueEinheitenPool() {
+    const pool = [];
+    for (const g of GATTUNG_LISTE) {
+      RANG_NAMEN[g].forEach((name, i) => {
+        const rang = i + 1;
+        pool.push({
+          id: g + '-' + rang,
+          gattung: g,
+          rang,
+          name,
+          grundwucht: rang,        // Rang ist Wucht. Steht so in der Spezifikation.
+          wuchtBonus: 0,           // hebt ein Ausbau (siehe `verbessereEinheit`)
+          stufe: 0,                // 0 = ungeschliffen, 1+ = verbessert
+          schlagwort: null,        // später: eigene Regeln je Karte
+          text: '',
+        });
+      });
+    }
+    return pool;
+  }
+  const EINHEITEN_POOL = baueEinheitenPool();
+
+  /** Ein Abzug aus dem Pool, mit eigener Kennung - zwei gleiche Karten sind zwei. */
+  let kernUid = 0;
+  function neueEinheit(proto) {
+    const p = typeof proto === 'string' ? EINHEITEN_POOL.find(k => k.id === proto) : proto;
+    if (!p) return null;
+    return { ...p, uid: 'k' + (++kernUid) };
+  }
+
+  /*
+   * Die Wucht einer Einheit hat drei Namen, und der Unterschied zwischen ihnen
+   * ist der haeufigste Anlass fuer Verwirrung:
+   *
+   *   grundwucht   was der Rang mitbringt        (Bogen 9 -> 9)
+   *   wuchtBonus   was Schliffe dazugelegt haben (+4)
+   *   wirkwucht    was tatsaechlich einschlaegt  (13)
+   *
+   * GERECHNET WIRD IMMER MIT DER WIRKWUCHT, an jeder Stelle, in jeder Salve.
+   * Geprueft: ein geschliffener Bogen-9 schlaegt auf dem Turm mit 13 ein, und
+   * der Schliff ueberlebt den Weg Deck - Kampf - Hand - Turm. Was fehlte, war
+   * die Anzeige: auf der Karte stand nur die 9, und darum sah es aus, als ginge
+   * der Schliff verloren. Deshalb heissen die Dinge jetzt, was sie sind.
+   */
+  function wirkwucht(karte) {
+    if (!karte) return 0;
+    return Math.max(0, karte.grundwucht + (karte.wuchtBonus || 0));
+  }
+  const grundwucht = wirkwucht;        // alter Name, damit nichts bricht
+  function bonusWucht(karte) { return (karte && karte.wuchtBonus) || 0; }
+
+  /** Verbessern hebt die Wucht, nicht den Rang: der Rang bleibt Formationssache. */
+  function verbessereEinheit(karte, um = 2) {
+    karte.stufe = (karte.stufe || 0) + 1;
+    karte.wuchtBonus = (karte.wuchtBonus || 0) + um;
+    return karte;
+  }
+
+  /*
+   * Das Startdeck ist das ganze Blatt: alle 52 Karten, vier Gattungen mal
+   * dreizehn Ränge.
+   *
+   * Das dreht die Richtung des Spiels um. Vorher wuchs ein Deck aus zwölf
+   * mageren Karten nach oben; jetzt liegt alles von Anfang an da, und der Lauf
+   * besteht darin, es zu VERSCHMÄLERN - die Bauernschützen auszumustern, damit
+   * die Marschälle öfter kommen. Ein Deck aus 52 Karten zieht sieben davon, und
+   * welche sieben das sind, entscheidet die Zusammensetzung.
+   *
+   * Damit ist Ausmustern kein Trostpreis mehr, sondern die schärfste Belohnung
+   * im Spiel, und eine hinzugefügte Karte die schwächste. Die Preise und
+   * Angebote in LAUF tragen dem Rechnung.
+   */
+  const START_DECK = EINHEITEN_POOL.map(k => k.id);
+
+  // ===== quelle/kern/tuerme.js =====
+  // ---------- Turmtypen ----------
+  /*
+   * Die fünf Stellungen bleiben über den Lauf; ihr TYP ist die langfristige
+   * Fortschrittsachse. Ein Typ ist bewusst kein blosser Prozentsatz: `faktor`
+   * ist nur die einfachste Form, `proTurm` darf jede Regel sein.
+   */
+  const TURMTYPEN = {
+    wachturm:      { id: 'wachturm',      name: 'Wachturm',      modell: 'wachturm',   text: 'Keine Sonderregel.' },
+    schuetzenturm: { id: 'schuetzenturm', name: 'Schützenturm',  modell: 'turmwache',  gattung: 'bogen',      faktor: KERN.turmFaktor, text: 'Bogenschützen +40 % Wucht.' },
+    ballistenturm: { id: 'ballistenturm', name: 'Ballistenturm', modell: 'steinturm',  gattung: 'armbrust',   faktor: KERN.turmFaktor, text: 'Armbrustschützen +40 % Wucht.' },
+    geschuetzturm: { id: 'geschuetzturm', name: 'Geschützturm',  modell: 'doppelturm', gattung: 'artillerie', faktor: KERN.turmFaktor, text: 'Artillerie +40 % Wucht.' },
+    pulverturm:    { id: 'pulverturm',    name: 'Pulverturm',    modell: 'bergfried',  gattung: 'kanonier',   faktor: KERN.turmFaktor, text: 'Kanoniere +40 % Wucht.' },
+  };
+  const TURM_START = ['wachturm', 'wachturm', 'wachturm', 'wachturm', 'wachturm'];
+
+  /** Was der Turmtyp mit der Wucht seiner Einheit macht. */
+  function turmFaktor(turm) {
+    const typ = TURMTYPEN[turm.typ] || TURMTYPEN.wachturm;
+    if (!turm.einheit || !typ.gattung) return 1;
+    return turm.einheit.gattung === typ.gattung ? (typ.faktor || 1) : 1;
+  }
+
+  // ===== quelle/kern/feinde.js =====
+  // ---------- Gegner ----------
+  /*
+   * Ein Kampf hat EINEN Gegner mit einem Stärkewert. Dass auf dem Feld acht
+   * Räuber stehen, ist Bild und nicht Mechanik: sie teilen sich den Wert, haben
+   * keine eigenen Züge und kein eigenes Ziel. Damit fällt der lange Gegnerzug
+   * weg, der die halbe Kampfzeit gefressen hat.
+   *
+   * `regeln` ist der Platz für Sonderregeln (Schildwall, Sturmtrupp, Nebelheer).
+   * Sie sind noch nicht ausgeführt, aber der Gegner trägt sie schon, damit
+   * Bosse später Entscheidungen erzeugen können statt nur mehr Stärke.
+   */
+  /*
+   * Die Staerke des n-ten KAMPFES - nicht der n-ten Station. Diese Zahlen sind
+   * gemessen, nicht gesetzt: `scripts/kurve.mjs` laesst den Bot gegen einen
+   * Gegner spielen, der nicht faellt, und zaehlt mit, wie viel Wucht ein
+   * vernuenftig gespieltes Deck am n-ten Kampf ueber fuenf Runden zusammen-
+   * bringt. Die Tabelle liegt darunter - anfangs bei knapp der Haelfte, zuletzt
+   * bei drei Vierteln. Wer sie aendert, misst vorher nach.
+   *
+   * Mit dem vollen Blatt aus 52 Karten liegt die Wucht von Anfang an hoch und
+   * steigt ueber den Akt kaum: gemessen 3270 im ersten Kampf und 3260 im
+   * siebten. Der Grund steht in SPIELBESCHREIBUNG.md - die Rangachse ist ab
+   * Kampf eins fast ausgereizt, und alles, was nur EINEN Turm vervielfacht,
+   * verduennt sich auf ein Fuenftel und wird von den Formationen geschlagen.
+   * Die Tabelle traegt deshalb den Spannungsbogen allein: von gut vierzig
+   * Prozent der mittleren Wucht bis knapp darueber beim Belagerungsmeister.
+   */
+  const FEIND_STAERKE = [1300, 1600, 1900, 2100, 2350, 2600, 2850, 3100, 3400, 3700];
+  const FEIND_BOSS_FAKTOR = 1.22;    // was der Belagerungsmeister auf seinen Platz drauflegt
+
+  const FEIND_VORLAGEN = [
+    { id: 'raeuber',   name: 'Räuberhorde',      figuren: 8, typ: 'spaeher' },
+    { id: 'soeldner',  name: 'Söldnerzug',       figuren: 6, typ: 'armbrust' },
+    { id: 'ritterzug', name: 'Ritterzug',        figuren: 5, typ: 'ritter' },
+    { id: 'belagerer', name: 'Belagerungspark',  figuren: 4, typ: 'ritter' },
+  ];
+
+  function feindStaerke(kampfNr, boss) {
+    const i = Math.max(1, Math.min(FEIND_STAERKE.length, kampfNr)) - 1;
+    return Math.round(FEIND_STAERKE[i] * (boss ? FEIND_BOSS_FAKTOR : 1));
+  }
+
+  function baueFeind(kampfNr, { boss = false, vorlage = null, zuschlag = 1 } = {}) {
+    const v = vorlage
+      ? FEIND_VORLAGEN.find(f => f.id === vorlage) || FEIND_VORLAGEN[0]
+      : FEIND_VORLAGEN[Math.min(FEIND_VORLAGEN.length - 1, Math.floor((kampfNr - 1) / 2))];
+    const hp = Math.round(feindStaerke(kampfNr, boss) * zuschlag);
+    return { id: v.id, name: boss ? 'Belagerungsmeister' : v.name, figuren: v.figuren, typ: v.typ,
+      hp, maxHp: hp, regeln: [] };
+  }
+
+  // ===== quelle/kern/wappen.js =====
+  // ---------- Wappen ----------
+  /*
+   * Wappen sind keine Karten. Sie liegen neben dem Kampf und brechen Regeln -
+   * darum geben sie bewusst keine kleinen Prozentboni, sondern ändern, wie
+   * gerechnet wird. Jedes Wappen ist ein Datensatz mit Haken; der Kampf kennt
+   * keinen einzigen Wappennamen.
+   */
+  /*
+   * Der Eber laesst eine abgeloeste Einheit ein letztes Mal feuern - aber WIE
+   * geschossen wird, weiss der Kampf und nicht das Wappen. Frueher rief das
+   * Wappen `schiesseEinzeln` direkt; in einer Datei faellt so etwas nicht auf,
+   * als Modul ist es ein Kreis: die Wappen haengen am Kampf, der Kampf an den
+   * Wappen. Jetzt reicht der Kampf seinen Schuss hier herein, und die Richtung
+   * stimmt wieder - unten weiss nichts von oben.
+   */
+  /** @type {(einheit: import('./typen.js').Einheit, turm: number, quelle: string) => number} */
+  let feuerEinzeln = () => 0;
+  /** @param {typeof feuerEinzeln} fn */
+  function setzeEinzelschuss(fn) { feuerEinzeln = fn; }
+
+  const WAPPEN = {
+    loewe: {
+      id: 'loewe', name: 'Wappen des Löwen', zeichen: '🦁', tinktur: '#a8791c',
+      text: 'Der mittlere Turm zählt seinen Rang dreifach.',
+      rangFaktor: (turm, i) => (i === Math.floor(KERN.tuerme / 2) ? KERN.wappen.loewe : 1),
+    },
+    doppeladler: {
+      /*
+       * Frueher schloss dieses Wappen die Turmreihe zum Ring - sinnvoll,
+       * solange Formationen an Nachbarschaft haengen. Seit sie ueber die MENGE
+       * der besetzten Stellungen gehen, gibt es keine Nachbarn mehr, und der
+       * Doppeladler waere ein Wappen ohne Wirkung geworden.
+       *
+       * Er behaelt sein Bild und bekommt eine Wirkung, die dazu passt: zwei
+       * Koepfe, eine Einheit. Die Einheit auf der ersten Stellung zaehlt beim
+       * Erkennen doppelt - sie kann also mit sich selbst ein Paar bilden, ein
+       * Regiment vervollstaendigen oder eine Luecke in einer Folge fuellen.
+       */
+      id: 'doppeladler', name: 'Wappen des Doppeladlers', zeichen: '🦅', tinktur: '#4a4f5c',
+      text: 'Die Einheit auf Turm 1 zählt für Formationen doppelt.',
+      zaehltDoppelt: 0,
+    },
+    wolf: {
+      id: 'wolf', name: 'Wappen des Wolfs', zeichen: '🐺', tinktur: '#3c5a72',
+      text: 'Je leerem Turm +60 % Gesamtwucht.',
+      gesamtFaktor: (ctx) => 1 + KERN.wappen.wolf * ctx.tuerme.filter(t => !t.einheit).length,
+    },
+    eber: {
+      id: 'eber', name: 'Wappen des Ebers', zeichen: '🐗', tinktur: '#6b3a2a',
+      text: 'Eine ersetzte Einheit feuert ein letztes Mal.',
+      horcht: { einheitErsetzt: (daten) => { if (daten.alt) feuerEinzeln(daten.alt, daten.turm, 'Wappen des Ebers'); } },
+    },
+    schlange: {
+      id: 'schlange', name: 'Wappen der Schlange', zeichen: '🐍', tinktur: '#2f6a4a',
+      text: 'Die ersten zwei Kartentausche jeder Runde kosten nichts.',
+      tauschRabatt: (kampf) => (kampf.tauschInRunde < KERN.wappen.schlange ? KERN.kosten.tauschen : 0),
+    },
+    drache: {
+      id: 'drache', name: 'Wappen des Drachen', zeichen: '🐉', tinktur: '#7a2a3a',
+      text: 'Jeder Nachschuss zählt doppelt.',
+      retriggerFaktor: (nummer) => (nummer % KERN.wappen.drache.jeder === 0 ? KERN.wappen.drache.faktor : 1),
+    },
+  };
+  const WAPPEN_LISTE = Object.keys(WAPPEN);
+  const WAPPEN_PLAETZE = 5;
+
+  // ===== quelle/kern/signale.js =====
+  // ---------- Signale ----------
+  /*
+   * Ein kleiner Ereignisbus. Wappen, Turmtypen und später Karten hängen sich
+   * hier ein, statt dass der Kampf ihre Namen kennt - sonst steht am Ende ein
+   * if/else-Block mit fünfzig Wappen-Kennungen mitten in der Regel.
+   *
+   * `signalTiefe` ist der Schutz gegen Ketten, die sich selbst auslösen: ein
+   * Wappen, das auf `einheitFeuert` hört und dabei feuern lässt, würde sonst
+   * das Blatt bis zum Stapelüberlauf beschäftigen.
+   */
+  const SIGNALE = ['rundeBeginnt', 'karteGezogen', 'karteGetauscht', 'einheitGesetzt',
+    'einheitErsetzt', 'einheitEntfernt', 'formationAktiv', 'einheitFeuert', 'nachschuss',
+    'salve', 'rundeEndet', 'feindBesiegt', 'kampfEndet'];
+
+  let signalHoerer = {};
+  let signalTiefe = 0;
+  let signalUeberlauf = 0;
+
+  function hoereSignal(name, was) {
+    if (!signalHoerer[name]) signalHoerer[name] = [];
+    signalHoerer[name].push(was);
+  }
+
+  function sendeSignal(name, daten = {}) {
+    if (signalTiefe >= KERN.signalMaxTiefe) { signalUeberlauf++; return; }
+    signalTiefe++;
+    try {
+      for (const was of signalHoerer[name] || []) was(daten);
+    } finally { signalTiefe--; }
+  }
+
+  function leereSignale() { signalHoerer = {}; signalTiefe = 0; signalUeberlauf = 0; }
+
+  // ===== quelle/kern/formationen.js =====
+  // ---------- Formationen ----------
+  /*
+   * Fuenf besetzte Tuerme sind ein Blatt. Was darin steckt, erkennt man wie in
+   * einem Kartenspiel: gleiche Gattung, gleiche Raenge, eine Folge von Raengen -
+   * und das Beste ist beides zugleich.
+   *
+   * DIE STELLUNG DER TUERME SPIELT KEINE ROLLE. Das ist der wichtigste
+   * Unterschied zur ersten Fassung. Dort zaehlte Nachbarschaft, und damit war
+   * "drei Bogenschuetzen" mal eine Formation und mal nicht, je nachdem, auf
+   * welchen Tuermen sie zufaellig standen. Wer fuenf Bogenschuetzen aufstellt,
+   * soll etwas Grosses bekommen - immer, ohne sie vorher sortieren zu muessen.
+   *
+   * FAMILIEN. Die Formationen stehen in drei Familien, und aus jeder gilt nur
+   * die HOECHSTE erreichte. Fuenf gleiche Gattungen sind eine Reine Garde und
+   * nicht zusaetzlich ein Regiment und ein Grosses Regiment - sonst waere jede
+   * gute Aufstellung ein Stapel aus sechs Auszeichnungen, und niemand koennte
+   * mehr abschaetzen, was eine davon wert ist.
+   *
+   * DER LOHN SIND SALVEN, keine Faktoren. Das ist das ganze Denkmodell:
+   * bessere Formation, mehr Salven, und eine Salve ist ein Schuss, den man
+   * sieht. Wer +7 Salven liest, weiss, was gleich passiert.
+   */
+  const FORMATIONS_FAMILIEN = {
+    gattung: 'Gattung',
+    rang: 'Rang',
+    folge: 'Rangfolge',
+    grund: 'Grundstellung',
+  };
+
+  /*
+   * Jede Familie traegt ihr eigenes Zeichen, und die Marken in der Leiste
+   * tragen es mit. Vorher sahen alle Formationen gleich aus - vier goldene
+   * Plaettchen, die man einzeln lesen musste, um zu wissen, WORAN man gerade
+   * baut. Mit dem Zeichen erkennt man die Familie, bevor man den Namen liest,
+   * und weiss damit sofort, was eine bessere Karte an dieser Stelle brauchte.
+   */
+  /*
+   * Vorher stand hier ein gekreuztes Schwert fuer die Rangfamilie. Im Bild war
+   * es ein duennes Kreuz - und damit kaum vom Mal-Zeichen der Salvenzahl
+   * gleich daneben zu unterscheiden.
+   */
+  const FAMILIEN_ZEICHEN = {
+    gattung: '⚑',       // eine Fahne: alle unter derselben
+    rang: '‖',          // zwei gleiche, die nebeneinander stehen
+    folge: '➤',         // die Spitze: Rang um Rang nach oben
+    grund: '⛨',         // der Schild: alle fuenf Stellungen stehen
+  };
+
+  /*
+   * Die Werte sind Stellschrauben und stehen bewusst hier oben beieinander.
+   * `salven` ist der Grundwert, `jeStufe` was eine spaetere Aufwertung der
+   * Formation dazugibt (siehe `formationsSalven`) - das Geruest dafuer steht,
+   * die Ausbau-Oekonomie kommt spaeter.
+   */
+  const FORMATIONEN = [
+    // ---- Grundstellung ----
+    {
+      id: 'geschlosseneFront', name: 'Geschlossene Front', familie: 'grund', rang: 1,
+      salven: 1, jeStufe: 1,
+      text: 'Alle fünf Stellungen besetzt.',
+      finde: (h) => (h.anzahl === KERN.tuerme ? { tuerme: h.alle } : null),
+    },
+
+    // ---- Familie: gleiche Gattung ----
+    {
+      id: 'regiment', name: 'Regiment', familie: 'gattung', rang: 1,
+      salven: 2, jeStufe: 1,
+      text: 'Drei Einheiten derselben Gattung.',
+      finde: (h) => h.gleicheGattung(3),
+    },
+    {
+      id: 'grossesRegiment', name: 'Großes Regiment', familie: 'gattung', rang: 2,
+      salven: 4, jeStufe: 2,
+      text: 'Vier Einheiten derselben Gattung.',
+      finde: (h) => h.gleicheGattung(4),
+    },
+    {
+      id: 'reineGarde', name: 'Reine Garde', familie: 'gattung', rang: 3,
+      salven: 7, jeStufe: 3,
+      text: 'Alle fünf Stellungen mit derselben Gattung.',
+      finde: (h) => (h.anzahl === KERN.tuerme ? h.gleicheGattung(5) : null),
+    },
+
+    // ---- Familie: gleiche Raenge ----
+    {
+      id: 'doppelposten', name: 'Doppelposten', familie: 'rang', rang: 1,
+      salven: 1, jeStufe: 1,
+      text: 'Zwei Einheiten desselben Rangs.',
+      finde: (h) => h.gleicherRang(2),
+    },
+    {
+      id: 'doppelteWache', name: 'Doppelte Wache', familie: 'rang', rang: 2,
+      salven: 2, jeStufe: 1,
+      text: 'Zwei verschiedene Paare.',
+      finde: (h) => h.zweiPaare(),
+    },
+    {
+      id: 'drillingsposten', name: 'Drillingsposten', familie: 'rang', rang: 3,
+      salven: 3, jeStufe: 2,
+      text: 'Drei Einheiten desselben Rangs.',
+      finde: (h) => h.gleicherRang(3),
+    },
+    {
+      id: 'viererblock', name: 'Viererblock', familie: 'rang', rang: 4,
+      salven: 10, jeStufe: 4,
+      text: 'Vier Einheiten desselben Rangs.',
+      finde: (h) => h.gleicherRang(4),
+    },
+
+    // ---- Familie: Rangfolge ----
+    {
+      id: 'vormarsch', name: 'Vormarsch', familie: 'folge', rang: 1,
+      salven: 2, jeStufe: 1,
+      text: 'Drei aufeinanderfolgende Ränge.',
+      finde: (h) => h.folge(3),
+    },
+    {
+      id: 'grosserVormarsch', name: 'Großer Vormarsch', familie: 'folge', rang: 2,
+      salven: 4, jeStufe: 2,
+      text: 'Vier aufeinanderfolgende Ränge.',
+      finde: (h) => h.folge(4),
+    },
+    {
+      id: 'perfekterVormarsch', name: 'Perfekter Vormarsch', familie: 'folge', rang: 3,
+      salven: 7, jeStufe: 3,
+      text: 'Fünf aufeinanderfolgende Ränge.',
+      finde: (h) => h.folge(5),
+    },
+
+    /*
+     * Die Kroenung. Sie loest Gattungs- UND Rangfolgen-Familie zugleich ab -
+     * darum steht sie in beiden und traegt `loest` - und ist das Seltenste, was
+     * sich aus einem Blatt von 52 Karten bauen laesst: fuenf Karten einer
+     * Gattung in ununterbrochener Folge.
+     */
+    {
+      id: 'koeniglicherAufmarsch', name: 'Königlicher Aufmarsch', familie: 'gattung', rang: 9,
+      loest: ['folge'], kroenung: true,
+      salven: 15, jeStufe: 5,
+      text: 'Fünf aufeinanderfolgende Ränge derselben Gattung.',
+      finde: (h) => {
+        if (h.anzahl !== KERN.tuerme) return null;
+        const gattung = h.gleicheGattung(5);
+        const folge = h.folge(5);
+        return gattung && folge ? { tuerme: h.alle } : null;
+      },
+    },
+
+    /*
+     * Die Spitze. Ein Koeniglicher Aufmarsch kann bei 2 anfangen; die Garde ist
+     * der eine Aufmarsch, der oben endet - 9, 10, 11, 12, 13 in einer Gattung.
+     * Sie steht in derselben Familie wie der Aufmarsch und eine Stufe darueber,
+     * also gilt immer nur eine von beiden, nie beide. Das ist das Seltenste, was
+     * fuenf Stellungen hergeben, und es soll sich auch so anfuehlen.
+     */
+    {
+      id: 'koeniglicheGarde', name: 'Königliche Garde', familie: 'gattung', rang: 10,
+      loest: ['folge'], kroenung: true, garde: true,
+      salven: 25, jeStufe: 8,
+      text: 'Neun bis König in einer Gattung.',
+      finde: (h) => {
+        if (h.anzahl !== KERN.tuerme) return null;
+        if (!h.gleicheGattung(KERN.tuerme)) return null;
+        const raenge = new Set(h.karten.map(k => k.rang));
+        for (const r of KOENIGSRAENGE) if (!raenge.has(r)) return null;
+        return { tuerme: h.alle };
+      },
+    },
+  ];
+
+  /* Die Raenge, aus denen eine Koenigliche Garde besteht - Neun bis Koenig. */
+  const KOENIGSRAENGE = [9, 10, 11, 12, 13];
+
+  /*
+   * Das Blatt: die besetzten Stellungen, aufbereitet zum Mustersuchen. Alles
+   * hier arbeitet auf MENGEN, nicht auf Nachbarschaft - deshalb ist
+   * `7 / 3 / 6 / 12 / 5` genau dieselbe Folge wie `5 / 6 / 7`.
+   */
+  function baueBlatt(tuerme, wappen = []) {
+    const rangFaktoren = wappen.map(w => WAPPEN[w] && WAPPEN[w].rangFaktor).filter(Boolean);
+    const doppelt = wappen
+      .map(w => (WAPPEN[w] ? WAPPEN[w].zaehltDoppelt : undefined))
+      .filter(i => i !== undefined);
+    const alle = [];
+    const karten = [];
+    tuerme.forEach((t, i) => {
+      if (!t || !t.einheit) return;
+      const rang = Math.round(rangFaktoren.reduce((r, f) => r * (f(t, i) || 1), t.einheit.rang));
+      alle.push(i);
+      karten.push({ turm: i, rang, gattung: t.einheit.gattung });
+      // Ein Wappen kann eine Stellung doppelt zaehlen lassen. Die Kopie traegt
+      // denselben Turm - so leuchtet beim Zuenden die richtige Stellung auf.
+      if (doppelt.includes(i)) karten.push({ turm: i, rang, gattung: t.einheit.gattung, kopie: true });
+    });
+
+    /** Die n haeufigste Gattung - wenn sie mindestens n mal vorkommt. */
+    const gleicheGattung = (n) => {
+      const nach = {};
+      for (const k of karten) (nach[k.gattung] || (nach[k.gattung] = [])).push(k.turm);
+      for (const g in nach) if (nach[g].length >= n) return { tuerme: nach[g], gattung: g };
+      return null;
+    };
+
+    const nachRang = () => {
+      const nach = {};
+      for (const k of karten) (nach[k.rang] || (nach[k.rang] = [])).push(k.turm);
+      return nach;
+    };
+
+    /** Der hoechste Rang, der mindestens n mal vorkommt. */
+    const gleicherRang = (n) => {
+      const nach = nachRang();
+      let beste = null;
+      for (const r in nach) {
+        if (nach[r].length < n) continue;
+        if (!beste || Number(r) > beste.rang) beste = { tuerme: nach[r].slice(0, n), rang: Number(r) };
+      }
+      return beste;
+    };
+
+    /** Zwei verschiedene Raenge, die je zweimal vorkommen. */
+    const zweiPaare = () => {
+      const nach = nachRang();
+      const paare = Object.keys(nach).filter(r => nach[r].length >= 2)
+        .sort((a, b) => Number(b) - Number(a));
+      if (paare.length < 2) return null;
+      return { tuerme: [...nach[paare[0]].slice(0, 2), ...nach[paare[1]].slice(0, 2)] };
+    };
+
+    /*
+     * Die laengste ununterbrochene Rangfolge. Gleiche Raenge zaehlen einmal -
+     * `8 / 8 / 9 / 10` ist eine Folge von drei, keine von vier.
+     */
+    const folge = (n) => {
+      const raenge = [...new Set(karten.map(k => k.rang))].sort((a, b) => a - b);
+      let beste = [];
+      let lauf = [];
+      for (let i = 0; i < raenge.length; i++) {
+        if (i && raenge[i] === raenge[i - 1] + 1) lauf.push(raenge[i]);
+        else lauf = [raenge[i]];
+        if (lauf.length > beste.length) beste = lauf.slice();
+      }
+      if (beste.length < n) return null;
+      // Die letzten n der Folge nehmen: die hoechsten Raenge sind die wertvollsten.
+      const genommen = beste.slice(-n);
+      const tuerme = genommen.map(r => karten.find(k => k.rang === r).turm);
+      return { tuerme, raenge: genommen };
+    };
+
+    // `anzahl` zaehlt Stellungen, nicht Karten: eine Kopie besetzt keinen Turm.
+    return { tuerme, karten, alle, anzahl: alle.length,
+      gleicheGattung, gleicherRang, zweiPaare, folge };
+  }
+
+  /*
+   * Was eine Formation an Salven bringt. Die Stufe kommt aus dem Lauf, wenn es
+   * ihn gibt - so lassen sich einzelne Formationen spaeter dauerhaft aufwerten,
+   * ohne dass hier etwas umgebaut werden muesste.
+   */
+  /*
+   * Dieselbe Umkehrung wie beim Eber: die Stufe einer Formation steht im LAUF,
+   * aber die Formationen sollen den Lauf nicht kennen - sonst haengt die
+   * Kampfrechnung am Deckbuilder. Der Lauf meldet sich hier an; ohne ihn (in
+   * einer Pruefung etwa) gilt ueberall Stufe eins.
+   */
+  let stufenquelle = () => null;
+  function setzeStufenquelle(fn) { stufenquelle = fn; }
+
+  function formationsStufe(id) {
+    const stufen = stufenquelle();
+    return (stufen && stufen[id]) || 1;
+  }
+
+  function formationsSalven(f, stufe) {
+    return f.salven + (stufe - 1) * (f.jeStufe || 0);
+  }
+
+  /*
+   * Erkennen. Erst alles sammeln, was zutrifft, dann je Familie nur die hoechste
+   * stehen lassen - und was eine Kroenung abloest, faellt mit.
+   */
+  function erkenneFormationen(tuerme, wappen = []) {
+    const blatt = baueBlatt(tuerme, wappen);
+    if (!blatt.anzahl) return [];
+
+    const treffer = [];
+    for (const f of FORMATIONEN) {
+      const t = f.finde(blatt);
+      if (!t) continue;
+      const stufe = formationsStufe(f.id);
+      treffer.push({
+        id: f.id, name: f.name, text: f.text, familie: f.familie, rang: f.rang,
+        kroenung: Boolean(f.kroenung), garde: Boolean(f.garde), loest: f.loest || [],
+        tuerme: t.tuerme || blatt.alle,
+        stufe, salven: formationsSalven(f, stufe),
+      });
+    }
+
+    // Je Familie die hoechste.
+    const beste = {};
+    for (const t of treffer) {
+      if (!beste[t.familie] || t.rang > beste[t.familie].rang) beste[t.familie] = t;
+    }
+    const raus = Object.values(beste);
+    // Was eine Kroenung abloest, faellt heraus.
+    const abgeloest = new Set();
+    for (const t of raus) for (const fam of t.loest) abgeloest.add(fam);
+    return raus.filter(t => !abgeloest.has(t.familie))
+      .sort((a, b) => b.salven - a.salven);
+  }
+
+  /** Wie viele Salven die ganze Burg feuert: eine Grundsalve plus alles, was die Formationen geben. */
+  function salvenZahl(formationen) {
+    return KERN.salvenGrund + formationen.reduce((s, f) => s + f.salven, 0);
+  }
+
+  // ===== quelle/kern/wucht.js =====
+  // ---------- Wucht ----------
+  /*
+   * Die Wucht einer Salve ist einfach geworden, und das ist der Punkt:
+   *
+   *   je Turm:  (Rang + Schliff) x Turmtyp
+   *   Summe  x  Salvenzahl  x  Wappen
+   *
+   * Die Salvenzahl ist eine Grundsalve plus, was die Formationen geben. Sie ist
+   * KEIN Rechentrick: jede Salve ist ein Schuss, den die Anzeige auch zeigt.
+   * Wer `7 Salven` liest, sieht sieben Mal feuern.
+   *
+   * Vorher stand hier eine Kette aus Faktoren je Turm, Nachschuessen und
+   * Gesamtfaktoren. Sie rechnete richtig, aber niemand konnte sie im Kopf
+   * mitfuehren - und was man nicht mitfuehren kann, kann man auch nicht planen.
+   */
+  function berechneWucht(tuerme, wappen = []) {
+    const formationen = erkenneFormationen(tuerme, wappen);
+    const besetzt = tuerme.map((t, i) => (t.einheit ? i : -1)).filter(i => i >= 0);
+    const salven = salvenZahl(formationen);
+
+    const posten = besetzt.map(i => {
+      const t = tuerme[i];
+      const basis = wirkwucht(t.einheit);
+      const tf = turmFaktor(t);
+      return { turm: i, name: t.einheit.name, gattung: t.einheit.gattung, rang: t.einheit.rang,
+        // Beide Zahlen mitfuehren: die Anzeige soll `9 +4` schreiben koennen,
+        // ohne selbst zu rechnen.
+        grund: t.einheit.grundwucht, bonus: bonusWucht(t.einheit),
+        basis, turmFaktor: tf, wucht: basis * tf, faktoren: [], schuesse: salven };
+    });
+
+    const schritte = [];
+    const grundsumme = posten.reduce((s, p) => s + p.wucht, 0);
+    schritte.push({ art: 'grund', name: 'Wucht je Salve', wert: null, wucht: grundsumme });
+
+    for (const f of formationen) {
+      schritte.push({ art: 'formation', id: f.id, name: f.name, wert: '+' + f.salven,
+        salven: f.salven, wucht: grundsumme * salven });
+    }
+    schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
+      salven, wucht: grundsumme * salven });
+
+    let gesamt = grundsumme * salven;
+    const ctx = { tuerme, wappen };
+    for (const w of wappen) {
+      const fn = WAPPEN[w] && WAPPEN[w].gesamtFaktor;
+      if (!fn) continue;
+      const faktor = fn(ctx) || 1;
+      if (faktor === 1) continue;
+      gesamt *= faktor;
+      schritte.push({ art: 'wappen', id: w, name: WAPPEN[w].name, wert: '×' + faktor, wucht: gesamt });
+    }
+
+    return {
+      posten, formationen, schritte, salven,
+      grund: posten.reduce((s, p) => s + p.basis, 0),
+      jeSalve: Math.round(grundsumme),
+      wucht: Math.round(gesamt),
+    };
+  }
+
+  // ===== quelle/kern/kampf.js =====
+  // ---------- Der Kampf ----------
+  /*
+   * Fünf Runden, mehr gibt es nicht. Der Gegner hat einen Wert, der Spieler hat
+   * Tatendrang, und die einzige Frage ist: reicht die Wucht, die ich in fünf
+   * Runden aufbaue? Es gibt keinen Block, keine Verteidigungskarte und keinen
+   * Grund, Zeit zu schinden.
+   */
+  let derKampf = null;
+
+  // Der Eber braucht einen Einzelschuss; hier bekommt er ihn.
+  setzeEinzelschuss((einheit, index, quelle) => schiesseEinzeln(einheit, index, quelle));
+
+  /** @param {import('./typen.js').Kampfauftrag} [auftrag] */
+  function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null } = {}) {
+    leereSignale();
+    /*
+     * `stellungen` sind die Turmobjekte, die die Anzeige ohnehin schon hat -
+     * mit Feld, Modell und allem, was zum Zeichnen gehört. Der Kern hängt seine
+     * eigenen Felder daran, statt eigene Objekte zu bauen: so gibt es EIN
+     * Turmobjekt und nicht zwei, die auseinanderlaufen können.
+     */
+    /*
+     * Ohne Stellungen von der Anzeige baut der Kern leere Huellen - und die sind
+     * eben NOCH keine Tuerme, sondern werden gleich zu welchen gemacht. Genau
+     * das sagt `Partial`; die Typpruefung hat es zu Recht angemahnt.
+     */
+    const roh = /** @type {Partial<import('./typen.js').Turm>[]} */ (
+      stellungen || Array.from({ length: KERN.tuerme }, () => ({})));
+    const tuerme = roh
+      .slice(0, KERN.tuerme)
+      .map((t, i) => Object.assign(t, { nr: i + 1, typ: t.typ || turmTypen[i] || 'wachturm', einheit: null }));
+    const k = {
+      runde: 1,
+      rundenMax: KERN.runden,
+      tatendrang: KERN.tatendrang,
+      tatendrangMax: KERN.tatendrang,
+      tauschInRunde: 0,
+      tuerme,
+      zug: (deck || START_DECK.map(id => neueEinheit(id))).slice(),
+      hand: [],
+      ablage: [],
+      wappen: wappen.slice(0, WAPPEN_PLAETZE),
+      feind: feind || baueFeind(1),
+      ende: null,           // null | 'sieg' | 'niederlage'
+      log: [],              // was in dieser Runde geschah, für Anzeige und Prüfung
+    };
+    derKampf = k;
+    mischeZug();
+    // Wappen hängen sich ein, sobald der Kampf steht - nicht der Kampf kennt sie.
+    for (const w of k.wappen) {
+      const horcht = WAPPEN[w] && WAPPEN[w].horcht;
+      for (const name in horcht || {}) hoereSignal(name, horcht[name]);
+    }
+    sendeSignal('rundeBeginnt', { runde: 1 });
+    zieheAuf(KERN.handGroesse);
+    return k;
+  }
+
+  function mischeZug() {
+    const k = derKampf;
+    for (let i = k.zug.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [k.zug[i], k.zug[j]] = [k.zug[j], k.zug[i]];
+    }
+  }
+
+  /** Eine Karte vom Zugstapel. Ist er leer, wird die Ablage zum neuen Stapel. */
+  function ziehe() {
+    const k = derKampf;
+    if (!k.zug.length) {
+      if (!k.ablage.length) return null;
+      k.zug = k.ablage;
+      k.ablage = [];
+      mischeZug();
+    }
+    const karte = k.zug.pop();
+    if (karte) { k.hand.push(karte); sendeSignal('karteGezogen', { karte }); }
+    return karte;
+  }
+
+  function zieheAuf(anzahl) {
+    let gezogen = 0;
+    while (derKampf.hand.length < anzahl) {
+      if (!ziehe()) break;
+      gezogen++;
+    }
+    return gezogen;
+  }
+
+  /** Reicht der Tatendrang für diese Handlung? */
+  function kostetZuViel(kosten) { return kosten > derKampf.tatendrang; }
+
+  /**
+   * Eine Einheit auf einen Turm. Steht dort schon jemand, wird er ersetzt und
+   * wandert in die Ablage - die Wahrscheinlichkeiten im Stapel verschieben sich
+   * dadurch während des Kampfes, und das ist beabsichtigt.
+   *
+   * Die neue Einheit feuert sofort einmal. Der Rest ihrer Wucht kommt am
+   * Rundenende mit der Salve.
+   */
+  function setzeEinheit(index, karte) {
+    const k = derKampf;
+    if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
+    const turm = k.tuerme[index];
+    if (!turm) return { ok: false, grund: 'Diesen Turm gibt es nicht.' };
+    const inHand = k.hand.find(c => c.uid === karte.uid);
+    if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
+    const kosten = turm.einheit ? KERN.kosten.ersetzen : KERN.kosten.einsetzen;
+    if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
+
+    k.tatendrang -= kosten;
+    k.hand = k.hand.filter(c => c.uid !== karte.uid);
+    const alt = turm.einheit;
+    turm.einheit = inHand;
+    if (alt) {
+      k.ablage.push(alt);
+      sendeSignal('einheitErsetzt', { turm: index, alt, neu: inHand });
+      sendeSignal('einheitEntfernt', { turm: index, einheit: alt });
+    }
+    sendeSignal('einheitGesetzt', { turm: index, einheit: inHand });
+    const schaden = schiesseEinzeln(inHand, index, 'Einsatz');
+    return { ok: true, kosten, ersetzt: alt, schaden };
+  }
+
+  /**
+   * Ein einzelner Schuss - beim Einsetzen, und für Wappen, die eine Einheit
+   * ausserhalb der Salve feuern lassen. Rechnet mit derselben Kette wie die
+   * Salve, nur für einen Turm.
+   */
+  function schiesseEinzeln(einheit, index, quelle) {
+    const k = derKampf;
+    if (!k || k.ende) return 0;
+    const turm = k.tuerme[index] || { typ: 'wachturm', einheit };
+    const wucht = Math.round(grundwucht(einheit) * turmFaktor({ ...turm, einheit }));
+    sendeSignal('einheitFeuert', { turm: index, einheit, wucht, quelle });
+    trefferAufFeind(wucht, quelle);
+    k.log.push({ art: 'schuss', quelle, turm: index, einheit: einheit.name, wucht });
+    return wucht;
+  }
+
+  /** Eine Handkarte gegen eine neue tauschen. Das ist der Ersatz fürs Abwerfen. */
+  function tauscheHandkarte(karte) {
+    const k = derKampf;
+    if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
+    const inHand = k.hand.find(c => c.uid === karte.uid);
+    if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
+    const kosten = Math.max(0, KERN.kosten.tauschen - tauschRabatt());
+    if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
+
+    k.tatendrang -= kosten;
+    k.tauschInRunde++;
+    k.hand = k.hand.filter(c => c.uid !== karte.uid);
+    k.ablage.push(inHand);
+    const neu = ziehe();
+    sendeSignal('karteGetauscht', { alt: inHand, neu });
+    return { ok: true, kosten, neu };
+  }
+
+  /** Was der Tausch gerade billiger ist - das Schlangenwappen zahlt den ersten. */
+  /*
+   * Mehrere Handkarten auf einmal tauschen. Jede kostet fuer sich, der Rabatt
+   * der Schlange greift also nur auf die ersten.
+   *
+   * Die Reihenfolge ist der ganze Trick: erst kommen die getauschten Karten
+   * BEISEITE, dann wird nachgezogen, und erst danach wandern sie in die Ablage.
+   * Wuerde man sie sofort ablegen, koennte ein leerer Zugstapel sie mitmischen
+   * und man zoege genau die Karte wieder, die man gerade loswerden wollte.
+   * Dasselbe gilt fuer den Nachzug: vier Karten zu tauschen heisst vier neue,
+   * auch wenn der Stapel dazwischen neu gemischt werden muss.
+   */
+  function tauscheHandkarten(karten) {
+    const k = derKampf;
+    if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
+    const liste = (karten || []).map(c => k.hand.find(h => h.uid === c.uid)).filter(Boolean);
+    if (!liste.length) return { ok: false, grund: 'Keine Karte gewählt.' };
+    const kosten = tauschKostenFuer(liste.length);
+    if (kostetZuViel(kosten)) {
+      return { ok: false, grund: 'Dafür fehlen ' + (kosten - k.tatendrang) + ' Tatendrang.' };
+    }
+
+    k.tatendrang -= kosten;
+    k.tauschInRunde += liste.length;
+    const weg = new Set(liste.map(c => c.uid));
+    k.hand = k.hand.filter(c => !weg.has(c.uid));
+    const neu = [];
+    for (let i = 0; i < liste.length; i++) {
+      const g = ziehe();
+      if (g) neu.push(g);
+    }
+    k.ablage.push(...liste);          // erst JETZT, nach dem Nachziehen
+    sendeSignal('karteGetauscht', { alt: liste, neu });
+    return { ok: true, kosten, alt: liste, neu };
+  }
+
+  /*
+   * Was n Tausche zusammen kosten. Der Rabatt der Schlange gilt je Tausch und
+   * nur solange er reicht - drei Karten bei zwei freien Tauschen kosten eins.
+   */
+  function tauschKostenFuer(n) {
+    const k = derKampf;
+    if (!k) return n * KERN.kosten.tauschen;
+    let summe = 0;
+    const gemerkt = k.tauschInRunde;
+    for (let i = 0; i < n; i++) {
+      k.tauschInRunde = gemerkt + i;
+      summe += Math.max(0, KERN.kosten.tauschen - tauschRabatt());
+    }
+    k.tauschInRunde = gemerkt;
+    return summe;
+  }
+
+  function tauschRabatt() {
+    const k = derKampf;
+    return k.wappen.reduce((r, w) => {
+      const fn = WAPPEN[w] && WAPPEN[w].tauschRabatt;
+      return Math.max(r, fn ? fn(k) : 0);
+    }, 0);
+  }
+
+  function tauschKosten() { return Math.max(0, KERN.kosten.tauschen - tauschRabatt()); }
+
+  /** Schaden am Gegner, an einer einzigen Stelle - damit der Sieg nur hier fällt. */
+  function trefferAufFeind(wucht, quelle) {
+    const k = derKampf;
+    if (!k || k.ende || wucht <= 0) return;
+    k.feind.hp = Math.max(0, k.feind.hp - wucht);
+    if (k.feind.hp <= 0 && !k.ende) {
+      k.ende = 'sieg';
+      sendeSignal('feindBesiegt', { quelle });
+      sendeSignal('kampfEndet', { ende: 'sieg' });
+    }
+  }
+
+  /**
+   * Runde beenden: die ganze Besatzung feuert gemeinsam, dann wird abgerechnet.
+   * Nach der fünften Runde ist Schluss - wer den Gegner bis dahin nicht
+   * niedergerungen hat, hat verloren. Es gibt keine sechste.
+   */
+  function beendeRunde() {
+    const k = derKampf;
+    if (!k || k.ende) return { ende: k && k.ende };
+
+    const abrechnung = berechneWucht(k.tuerme, k.wappen);
+    sendeSignal('salve', { wucht: abrechnung.wucht });
+    trefferAufFeind(abrechnung.wucht, 'Salve');
+    k.log.push({ art: 'salve', runde: k.runde, wucht: abrechnung.wucht });
+    sendeSignal('rundeEndet', { runde: k.runde, wucht: abrechnung.wucht });
+
+    if (k.ende === 'sieg') return { ende: 'sieg', abrechnung };
+    if (k.runde >= k.rundenMax) {
+      k.ende = 'niederlage';
+      sendeSignal('kampfEndet', { ende: 'niederlage' });
+      return { ende: 'niederlage', abrechnung };
+    }
+
+    // Nächste Runde: Hand abwerfen, neu ziehen, Tatendrang auffüllen.
+    k.ablage.push(...k.hand);
+    k.hand = [];
+    k.runde++;
+    k.tatendrang = k.tatendrangMax;
+    k.tauschInRunde = 0;
+    sendeSignal('rundeBeginnt', { runde: k.runde });
+    zieheAuf(KERN.handGroesse);
+    return { ende: null, abrechnung, runde: k.runde };
+  }
+
+  /**
+   * Was die Burg wöge, wenn diese Karte auf diesem Turm stünde. Für die
+   * Vorschau, während eine Karte über einem Turm hängt - der Spieler soll
+   * Kombinationen sehen, statt sie im Kopf auszurechnen.
+   */
+  function vorschau(index, karte) {
+    const k = derKampf;
+    const probe = k.tuerme.map((t, i) => (i === index ? { ...t, einheit: karte } : { ...t }));
+    return berechneWucht(probe, k.wappen);
+  }
+
+  /** Der Kampf ist vorbei: die Besatzung räumt die Türme, die Gebäude bleiben. */
+  function raeumeKampf() {
+    if (!derKampf) return;
+    for (const t of derKampf.tuerme) t.einheit = null;
+    leereSignale();
+  }
+
+  // ===== quelle/kern/lauf.js =====
+  // ---------- Der Lauf ----------
+  /*
+   * Ein Lauf ist die Kette aus Kämpfen, Händlern und Ereignissen, über die ein
+   * Deck wächst. Der Kampf weiss davon nichts: er bekommt Deck, Wappen und
+   * Turmtypen übergeben und gibt nur zurück, ob er gewonnen wurde. Alles, was
+   * über einen Kampf hinaus bestehen bleibt, liegt hier - und nur hier.
+   *
+   * Drei Achsen wachsen mit:
+   *
+   *   das DECK    - neue Karten, geschliffene Karten, entfernte Karten
+   *   die WAPPEN  - fünf Plätze, jedes bricht eine Regel
+   *   die TÜRME   - fünf Stellungen, ihr Typ ist die dritte Achse
+   *
+   * Absichtlich getrennt: das Deck ist die breite Achse, die Wappen die scharfe,
+   * die Türme die langsame. Wer alles in eine Gattung steckt, baut einen Turm,
+   * der einmal umfällt; wer breit baut, trifft keine Formation.
+   */
+  const LAUF = {
+    stationen: 11,
+    leben: 1,                   // verlorene Kaempfe, die ein Lauf uebersteht
+    sold: {
+      start: 0,
+      kampf: 25, elite: 45, boss: 120,
+      jeRestrunde: 8,           // je Runde, die man nicht gebraucht hat
+    },
+    preise: { karte: 45, wappen: 130, ausbau: 95, entfernen: 60, schliff: 75 },
+    belohnung: { auswahl: 3, wappenAb: 2 },
+    /*
+     * Wie viele Karten eine Ausmusterung nimmt. Mit einem Blatt aus 52 Karten
+     * ist eine einzelne Karte kein Angebot, sondern ein Rundungsfehler: sie
+     * hebt den Schnitt des Decks um zwei Hundertstel. In Schueben wird daraus
+     * das, was das Verschmaelern sein soll - die Bauernschuetzen gehen, damit
+     * die Marschaelle oefter kommen.
+     */
+    ausmustern: { belohnung: 4, haendler: 3 },
+    /*
+     * Der Rang, den eine Belohnungskarte im Schnitt hat: `ab` beim ersten
+     * Kampf, dann `je` Rang je weiterem. Ueber acht Kaempfe reicht das von
+     * Rang 3 bis an die Spitze - der Grund, warum ein Deck ueberhaupt waechst.
+     */
+    rangKurve: { ab: 2, je: 1.4 },
+    schliff: 2,                 // was ein Schliff an Wucht bringt
+    /*
+     * Das Muster eines Akts. Elf Knoten: acht Kaempfe (davon zwei Elite und ein
+     * Boss), zwei Haendler, zwei Ereignisse. Der erste Haendler kommt spaet
+     * genug, dass man Sold hat, und frueh genug, dass er den Lauf noch dreht.
+     */
+    muster: ['kampf', 'kampf', 'ereignis', 'haendler', 'kampf', 'elite',
+      'ereignis', 'kampf', 'haendler', 'elite', 'boss'],
+  };
+
+  const KNOTEN_ARTEN = {
+    kampf:    { id: 'kampf',    name: 'Angriff',      zeichen: '⚔' },
+    elite:    { id: 'elite',    name: 'Sturmtrupp',   zeichen: '☠', zuschlag: 1.18 },
+    boss:     { id: 'boss',     name: 'Belagerung',   zeichen: '♛' },
+    haendler: { id: 'haendler', name: 'Händler',      zeichen: '⚖' },
+    ereignis: { id: 'ereignis', name: 'Begegnung',    zeichen: '❖' },
+  };
+  const KNOTEN_KAMPF = ['kampf', 'elite', 'boss'];
+
+  let derLauf = null;
+
+  // Die Formationen fragen hier nach ihren Stufen, statt den Lauf zu kennen.
+  setzeStufenquelle(() => (derLauf ? derLauf.formationsStufen : null));
+
+  function neuerLauf({ stationen = LAUF.stationen, muster = LAUF.muster } = {}) {
+    derLauf = {
+      station: 1,
+      stationen,
+      /*
+       * Jeder Knoten kennt seine Nummer IM AKT und, wenn er ein Kampf ist,
+       * seine Nummer UNTER DEN KAEMPFEN. Das ist nicht dasselbe: an Station 5
+       * steht der dritte Kampf, weil dazwischen ein Haendler und eine Begegnung
+       * liegen. Die Staerke des Gegners haengt am dritten Kampf, nicht an der
+       * fuenften Station - sonst springt sie ueber die Knoten ohne Kampf hinweg
+       * und der Spieler faellt in ein Loch, das nur die Tabelle kennt.
+       */
+      knoten: (() => {
+        let kampfNr = 0;
+        return Array.from({ length: stationen }, (_, i) => {
+          const art = muster[i] || 'kampf';
+          const kampf = KNOTEN_KAMPF.includes(art);
+          if (kampf) kampfNr++;
+          return { nr: i + 1, art, kampfNr: kampf ? kampfNr : 0, erledigt: false };
+        });
+      })(),
+      deck: START_DECK.map(id => neueEinheit(id)),
+      wappen: [],
+      turmTypen: TURM_START.slice(),
+      /*
+       * Je Formation eine Stufe. Sie steht schon hier, damit eine spaetere
+       * Belohnung ("Manoever: Reine Garde") nur einen Eintrag hochzaehlen muss,
+       * statt dass die Kampfrechnung dafuer umgebaut wird.
+       */
+      formationsStufen: {},
+      sold: LAUF.sold.start,
+      leben: LAUF.leben,
+      ende: null,                 // null | 'sieg' | 'niederlage'
+      verlauf: [],                // was an jedem Knoten geschah
+    };
+    return derLauf;
+  }
+
+  /** Der Knoten, vor dem der Lauf gerade steht. */
+  function derKnoten() {
+    return derLauf ? derLauf.knoten[derLauf.station - 1] || null : null;
+  }
+
+  /*
+   * Einen Kampf aus dem Lauf heraus beginnen. Der Lauf reicht durch, was er
+   * hat - der Kampf baut daraus seinen eigenen Zustand und fasst den Lauf nie
+   * an. Das Deck wird kopiert: was im Kampf ersetzt wird und in der Ablage
+   * landet, darf das Deck des Laufs nicht verändern.
+   */
+  function beginneKampfAmKnoten(stellungen = null) {
+    const kn = derKnoten();
+    if (!kn) return null;
+    if (!KNOTEN_KAMPF.includes(kn.art)) return null;
+    const boss = kn.art === 'boss';
+    const feind = baueFeind(kn.kampfNr, { boss, zuschlag: KNOTEN_ARTEN[kn.art].zuschlag || 1 });
+    if (kn.art === 'elite') feind.name = 'Sturmtrupp';
+    return neuerKampf({
+      feind,
+      deck: derLauf.deck.map(k => ({ ...k })),
+      wappen: derLauf.wappen.slice(),
+      turmTypen: derLauf.turmTypen.slice(),
+      stellungen,
+    });
+  }
+
+  /*
+   * Der Kampf ist entschieden. Hier - und nur hier - wird der Lauf fortgeschrieben:
+   * Sold, Leben, Station. Die Belohnung wird nur gebaut, nicht schon vergeben;
+   * welches der Angebote genommen wird, entscheidet der Spieler.
+   */
+  function werteKampfAus(kampf = derKampf) {
+    const kn = derKnoten();
+    if (!derLauf || !kn || !kampf) return null;
+    const sieg = kampf.ende === 'sieg';
+    if (!sieg) {
+      derLauf.leben--;
+      if (derLauf.leben <= 0) derLauf.ende = 'niederlage';
+      derLauf.verlauf.push({ nr: kn.nr, art: kn.art, sieg: false });
+      return { sieg: false, sold: 0, belohnung: null, ende: derLauf.ende };
+    }
+    const restrunden = Math.max(0, kampf.rundenMax - kampf.runde);
+    const sold = (LAUF.sold[kn.art] || LAUF.sold.kampf) + restrunden * LAUF.sold.jeRestrunde;
+    derLauf.sold += sold;
+    kn.erledigt = true;
+    derLauf.verlauf.push({ nr: kn.nr, art: kn.art, sieg: true, sold, runden: kampf.runde });
+    const belohnung = baueBelohnung(kn);
+    if (kn.art === 'boss') derLauf.ende = 'sieg';
+    return { sieg: true, sold, restrunden, belohnung, ende: derLauf.ende };
+  }
+
+  /*
+   * Die Angebote nach einem Sieg. Drei Stück, jedes von einer anderen Achse,
+   * damit die Wahl wirklich eine ist: eine Karte macht das Deck breiter, ein
+   * Ausbau macht einen Turm schärfer, ein Wappen bricht eine Regel.
+   */
+  function baueBelohnung(knoten) {
+    const nr = knoten.kampfNr || 1;
+    /*
+     * Drei Plaetze, vier Bewerber - aus jeder Achse einer, und einer bleibt
+     * jedes Mal draussen. Das ist der Grund, warum die Wahl eine ist: Ausbau,
+     * Ausmustern und Wappen sind die drei Achsen, an denen ein Lauf mit vollem
+     * Blatt ueberhaupt noch waechst, und man bekommt nie alle drei zugleich.
+     *
+     * Vorher stand hier fest "erst eine Karte, dann Ausbau, dann Ausmustern" -
+     * damit war die dritte Reihe voll, bevor das Wappen an der Reihe war, und
+     * der Bot kam ueber einen ganzen Akt auf 0,3 Wappen. Ein Angebot, das nie
+     * erscheint, ist kein Angebot.
+     */
+    const bewerber = [
+      angebotAusbau(),
+      (derLauf.deck.length > KERN.handGroesse + 4 ? angebotAusmustern() : null),
+      (knoten.nr >= LAUF.belohnung.wappenAb ? angebotWappen() : null),
+      angebotKarte(nr),
+    ].filter(Boolean);
+    for (let i = bewerber.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [bewerber[i], bewerber[j]] = [bewerber[j], bewerber[i]];
+    }
+    const angebote = bewerber.slice(0, LAUF.belohnung.auswahl);
+    while (angebote.length < LAUF.belohnung.auswahl) angebote.push(angebotKarte(nr));
+    return { angebote };
+  }
+
+  /*
+   * Ausmustern als Belohnung. Das Ziel steht schon fest: die schwaechste Karte
+   * im Deck. Eine Auswahl waere hier eine zweite Entscheidung in einer
+   * Entscheidung, und die schwaechste Karte ist ohnehin fast immer die richtige.
+   */
+  function angebotAusmustern(zahl = LAUF.ausmustern.belohnung) {
+    const schwach = schwaechsteKarten(zahl);
+    if (!schwach.length) return null;
+    const namen = schwach.length > 2
+      ? schwach.length + ' schwächste Karten'
+      : schwach.map(k => k.name).join(' und ');
+    return { art: 'entfernen', karten: schwach, name: namen + ' ausmustern',
+      text: schwach.map(k => k.rang + ' ' + k.name).join(', ') +
+        ' verlassen das Deck. Ein dünnes Deck zieht öfter, was man will.' };
+  }
+
+  /** Die n schwaechsten Karten des Decks - das Ziel jeder Ausmusterung. */
+  function schwaechsteKarten(n) {
+    return derLauf.deck.slice()
+      .sort((a, b) => grundwucht(a) - grundwucht(b))
+      .slice(0, Math.max(0, Math.min(n, derLauf.deck.length - KERN.handGroesse)));
+  }
+
+  /*
+   * Der Rang einer Belohnungskarte wächst mit der Station. Das ist die stille
+   * Fortschrittskurve: an Station 2 liegen Ränge um 3, an Station 10 um 11.
+   * Ohne das müsste der Spieler zwölf Runden lang mit Bauernschützen spielen.
+   */
+  function belohnungsRang(kampfNr) {
+    const mitte = Math.min(13, Math.round(LAUF.rangKurve.ab + LAUF.rangKurve.je * kampfNr));
+    const streu = Math.floor(Math.random() * 5) - 2;    // -2 .. +2
+    return Math.max(1, Math.min(13, mitte + streu));
+  }
+
+  /*
+   * Der Kampf, auf den sich eine Belohnung bezieht: der letzte gespielte. An
+   * einem Haendler oder in einer Begegnung ist das der Kampf davor - dort soll
+   * nicht schlechtere Ware liegen, nur weil zwischendurch nicht gekaempft wurde.
+   */
+  function kampfNrJetzt() {
+    if (!derLauf) return 1;
+    let letzte = 1;
+    for (const kn of derLauf.knoten) {
+      if (kn.kampfNr) letzte = kn.kampfNr;
+      if (kn.nr >= derLauf.station) break;
+    }
+    return letzte;
+  }
+
+  function angebotKarte(station) {
+    const g = GATTUNG_LISTE[Math.floor(Math.random() * GATTUNG_LISTE.length)];
+    const einheit = neueEinheit(g + '-' + belohnungsRang(station));
+    return { art: 'karte', einheit, name: einheit.name,
+      text: GATTUNGEN[g].name + ' · Rang ' + einheit.rang + ' — kommt ins Deck.' };
+  }
+
+  function angebotWappen() {
+    if (derLauf.wappen.length >= WAPPEN_PLAETZE) return null;
+    const offen = WAPPEN_LISTE.filter(id => !derLauf.wappen.includes(id));
+    if (!offen.length) return null;
+    const id = offen[Math.floor(Math.random() * offen.length)];
+    return { art: 'wappen', wappen: id, name: WAPPEN[id].name, text: WAPPEN[id].text };
+  }
+
+  /*
+   * Ein Ausbau trifft einen Turm, der noch Wachturm ist - und wenn es keinen
+   * mehr gibt, einen, dessen Typ sich noch ändern lässt. Ein zweites Mal
+   * denselben Typ auf denselben Turm zu legen, wäre ein leeres Angebot.
+   */
+  function angebotAusbau() {
+    if (!derLauf) return null;
+    const roh = derLauf.turmTypen
+      .map((t, i) => ({ i, t }))
+      .filter(x => x.t === 'wachturm');
+    const ziel = (roh.length ? roh : derLauf.turmTypen.map((t, i) => ({ i, t })))
+      [Math.floor(Math.random() * (roh.length || derLauf.turmTypen.length))];
+    if (!ziel) return null;
+    const typen = Object.keys(TURMTYPEN).filter(t => t !== 'wachturm' && t !== ziel.t);
+    if (!typen.length) return null;
+    const typ = typen[Math.floor(Math.random() * typen.length)];
+    return { art: 'ausbau', turm: ziel.i, typ, name: TURMTYPEN[typ].name + ' auf Turm ' + (ziel.i + 1),
+      text: TURMTYPEN[typ].text };
+  }
+
+  /** Ein Angebot annehmen. Was hier hineingeht, bleibt für den ganzen Lauf. */
+  function nimmAngebot(angebot) {
+    if (!derLauf || !angebot) return { ok: false, grund: 'Kein Angebot.' };
+    if (angebot.art === 'karte') { derLauf.deck.push(angebot.einheit); return { ok: true }; }
+    if (angebot.art === 'wappen') return fuegeWappenHinzu(angebot.wappen);
+    if (angebot.art === 'ausbau') return baueTurmAus(angebot.turm, angebot.typ);
+    if (angebot.art === 'entfernen' && angebot.karten) {
+      let n = 0;
+      for (const k of angebot.karten) if (entferneKarte(k.uid).ok) n++;
+      return n ? { ok: true, zahl: n } : { ok: false, grund: 'Das Deck wäre zu dünn.' };
+    }
+    if (angebot.art === 'sold') { derLauf.sold += angebot.sold; return { ok: true }; }
+    return { ok: false, grund: 'Unbekanntes Angebot.' };
+  }
+
+  function fuegeWappenHinzu(id) {
+    if (!WAPPEN[id]) return { ok: false, grund: 'Dieses Wappen gibt es nicht.' };
+    if (derLauf.wappen.includes(id)) return { ok: false, grund: 'Das Wappen hängt schon.' };
+    if (derLauf.wappen.length >= WAPPEN_PLAETZE) return { ok: false, grund: 'Alle fünf Plätze sind belegt.' };
+    derLauf.wappen.push(id);
+    return { ok: true };
+  }
+
+  function baueTurmAus(index, typ) {
+    if (!TURMTYPEN[typ]) return { ok: false, grund: 'Diesen Turmtyp gibt es nicht.' };
+    if (index < 0 || index >= derLauf.turmTypen.length) return { ok: false, grund: 'Diesen Turm gibt es nicht.' };
+    derLauf.turmTypen[index] = typ;
+    return { ok: true };
+  }
+
+  function entferneKarte(uid) {
+    const i = derLauf.deck.findIndex(k => k.uid === uid);
+    if (i < 0) return { ok: false, grund: 'Diese Karte ist nicht im Deck.' };
+    if (derLauf.deck.length <= KERN.handGroesse) return { ok: false, grund: 'Das Deck wäre zu dünn.' };
+    const [weg] = derLauf.deck.splice(i, 1);
+    return { ok: true, karte: weg };
+  }
+
+  function schleifeKarte(uid) {
+    const k = derLauf.deck.find(c => c.uid === uid);
+    if (!k) return { ok: false, grund: 'Diese Karte ist nicht im Deck.' };
+    verbessereEinheit(k, LAUF.schliff);
+    return { ok: true, karte: k };
+  }
+
+  /** Knoten abhaken und weiterziehen. Am letzten Knoten endet der Lauf. */
+  function verlasseKnoten() {
+    if (!derLauf) return null;
+    const kn = derKnoten();
+    if (kn) kn.erledigt = true;
+    derLauf.haendler = null;
+    if (derLauf.station >= derLauf.stationen) {
+      if (!derLauf.ende) derLauf.ende = 'sieg';
+      return { ende: derLauf.ende };
+    }
+    derLauf.station++;
+    return { ende: null, station: derLauf.station, knoten: derKnoten() };
+  }
+
+  // ===== quelle/kern/haendler.js =====
+  // ---------- Der Händler ----------
+  /*
+   * Der Händler ist der Ort, an dem Sold wieder zu Entscheidung wird. Sein
+   * Bestand wird einmal gebaut und bleibt dann stehen - wer nicht kauft, soll
+   * nicht neu würfeln dürfen, bis ihm etwas passt.
+   */
+  function oeffneHaendler() {
+    if (!derLauf) return null;
+    const nr = kampfNrJetzt();
+    const posten = [];
+    for (let i = 0; i < 3; i++) {
+      const a = angebotKarte(nr);
+      posten.push({ ...a, preis: Math.round(LAUF.preise.karte * (0.6 + a.einheit.rang / 10)) });
+    }
+    const w = angebotWappen();
+    if (w) posten.push({ ...w, preis: LAUF.preise.wappen });
+    const aus = angebotAusbau();
+    if (aus) posten.push({ ...aus, preis: LAUF.preise.ausbau });
+    const weg = angebotAusmustern(LAUF.ausmustern.haendler);
+    if (weg) posten.push({ ...weg, name: 'Ausmustern', preis: LAUF.preise.entfernen });
+    posten.push({ art: 'schliff', name: 'Eine Karte schleifen',
+      text: '+' + LAUF.schliff + ' Wucht, dauerhaft.', preis: LAUF.preise.schliff });
+    derLauf.haendler = { posten, gekauft: [] };
+    return derLauf.haendler;
+  }
+
+  /*
+   * Kaufen. `wahl` ist die Karte, auf die sich der Posten bezieht, wenn er eine
+   * braucht - Ausmustern und Schleifen ohne Ziel wäre ein Kauf ins Leere.
+   */
+  function kaufe(index, wahl = null) {
+    const h = derLauf && derLauf.haendler;
+    if (!h) return { ok: false, grund: 'Kein Händler offen.' };
+    const p = h.posten[index];
+    if (!p) return { ok: false, grund: 'Diesen Posten gibt es nicht.' };
+    if (h.gekauft.includes(index)) return { ok: false, grund: 'Schon gekauft.' };
+    if (derLauf.sold < p.preis) return { ok: false, grund: 'Nicht genug Sold.' };
+
+    let r;
+    if (p.art === 'entfernen') r = entferneKarte(wahl && wahl.uid);
+    else if (p.art === 'schliff') r = schleifeKarte(wahl && wahl.uid);
+    else r = nimmAngebot(p);
+    if (!r.ok) return r;
+
+    derLauf.sold -= p.preis;
+    h.gekauft.push(index);
+    return { ok: true, posten: p, sold: derLauf.sold };
+  }
+
+  // ===== quelle/kern/begegnungen.js =====
+  // ---------- Begegnungen ----------
+  /*
+   * Ereignisse sind der billigste Weg, einen Lauf ungleich zu machen: kein
+   * Kampf, aber eine Entscheidung mit Folgen. Sie stehen als Daten da, damit
+   * ein neues Ereignis eine Zeile ist und kein Eingriff.
+   *
+   * `bedingung` hält Ereignisse zurück, die gerade nichts bewirken könnten -
+   * ein Wappenangebot ohne freien Platz ist kein Ereignis, sondern ein Ärgernis.
+   */
+  const BEGEGNUNGEN = [
+    {
+      id: 'waffenschmiede', titel: 'Die verlassene Waffenschmiede',
+      text: 'Zwischen kalten Essen liegt brauchbarer Stahl. Die Schmiede ist leer, der Amboss nicht.',
+      wahlen: [
+        { text: 'Zwei Karten schleifen', wirkung: () => {
+          const ziele = zufaelligeKarten(2);
+          ziele.forEach(k => verbessereEinheit(k, LAUF.schliff));
+          return ziele.length ? ziele.map(k => k.name).join(' und ') + ' geschliffen.' : 'Nichts zu schleifen.';
+        } },
+        { text: 'Den Stahl verkaufen (+70 Sold)', wirkung: () => { derLauf.sold += 70; return '70 Sold.'; } },
+      ],
+    },
+    {
+      id: 'soeldner', titel: 'Söldner am Wegrand',
+      text: 'Vier Mann ohne Herrn. Sie fragen nicht, wofür gekämpft wird, sondern wofür bezahlt.',
+      wahlen: [
+        { text: 'Anwerben (−60 Sold, starke Karte)', bedingung: () => derLauf.sold >= 60,
+          wirkung: () => {
+            derLauf.sold -= 60;
+            const k = neueEinheit(GATTUNG_LISTE[Math.floor(Math.random() * 4)] + '-' +
+              Math.min(13, belohnungsRang(kampfNrJetzt()) + 2));
+            derLauf.deck.push(k);
+            return k.name + ' tritt ein.';
+          } },
+        { text: 'Weiterziehen', wirkung: () => 'Sie sehen euch nach.' },
+      ],
+    },
+    {
+      id: 'kartenlager', titel: 'Der überfüllte Wehrgang',
+      text: 'Zu viele Hände, zu wenig Zinnen. Wer bleibt, steht im Weg.',
+      wahlen: [
+        { text: 'Die schwächste Karte ausmustern', bedingung: () => derLauf.deck.length > KERN.handGroesse,
+          wirkung: () => {
+            const schwach = derLauf.deck.slice().sort((a, b) => grundwucht(a) - grundwucht(b))[0];
+            entferneKarte(schwach.uid);
+            return schwach.name + ' geht.';
+          } },
+        { text: 'Alle behalten (+40 Sold aus dem Sold der Abgänger)', wirkung: () => { derLauf.sold += 40; return '40 Sold.'; } },
+      ],
+    },
+    {
+      id: 'banner', titel: 'Das alte Banner',
+      text: 'Im Gewölbe hängt ein Wappen, das hier niemand mehr führt. Staub, aber kein Rost.',
+      bedingung: () => derLauf.wappen.length < WAPPEN_PLAETZE && derLauf.wappen.length < WAPPEN_LISTE.length,
+      wahlen: [
+        { text: 'Aufhängen', wirkung: () => {
+          const a = angebotWappen();
+          if (!a) return 'Kein Platz mehr.';
+          fuegeWappenHinzu(a.wappen);
+          return a.name + ' hängt.';
+        } },
+        { text: 'Einschmelzen (+90 Sold)', wirkung: () => { derLauf.sold += 90; return '90 Sold.'; } },
+      ],
+    },
+    {
+      id: 'baumeister', titel: 'Der wandernde Baumeister',
+      text: 'Er misst eure Mauern mit den Augen und schüttelt den Kopf. Dann bietet er an zu bleiben.',
+      wahlen: [
+        { text: 'Einen Turm ausbauen lassen', wirkung: () => {
+          const a = angebotAusbau();
+          if (!a) return 'Er findet nichts zu tun.';
+          baueTurmAus(a.turm, a.typ);
+          return a.name + '.';
+        } },
+        { text: 'Ihn bezahlen und ziehen lassen (+50 Sold)', wirkung: () => { derLauf.sold += 50; return '50 Sold.'; } },
+      ],
+    },
+    {
+      id: 'spaeher', titel: 'Ein gefangener Späher',
+      text: 'Er weiss, wann der nächste Stoss kommt. Er weiss auch, was ein solches Wissen wert ist.',
+      wahlen: [
+        { text: 'Aushorchen (+100 Sold)', wirkung: () => { derLauf.sold += 100; return '100 Sold.'; } },
+        { text: 'Laufen lassen und zwei Karten ziehen', wirkung: () => {
+          const neu = [angebotKarte(kampfNrJetzt()), angebotKarte(kampfNrJetzt())];
+          neu.forEach(a => derLauf.deck.push(a.einheit));
+          return neu.map(a => a.name).join(' und ') + ' schliessen sich an.';
+        } },
+      ],
+    },
+  ];
+
+  function zufaelligeKarten(n) {
+    const kopie = derLauf.deck.slice();
+    const raus = [];
+    while (raus.length < n && kopie.length) {
+      raus.push(kopie.splice(Math.floor(Math.random() * kopie.length), 1)[0]);
+    }
+    return raus;
+  }
+
+  function ziehBegegnung() {
+    const moeglich = BEGEGNUNGEN.filter(e => !e.bedingung || e.bedingung());
+    const liste = moeglich.length ? moeglich : BEGEGNUNGEN;
+    const e = liste[Math.floor(Math.random() * liste.length)];
+    return {
+      ...e,
+      wahlen: e.wahlen.filter(w => !w.bedingung || w.bedingung()),
+    };
+  }
+
+  function waehleInBegegnung(ereignis, index) {
+    const w = ereignis && ereignis.wahlen[index];
+    if (!w) return { ok: false, grund: 'Diese Wahl gibt es nicht.' };
+    return { ok: true, folge: w.wirkung() };
+  }
+
+  /*
+   * Der Kern von aussen: dieselbe Flaeche, die `quelle/kern.js` hergibt. Sie wird
+   * beim Bauen aus dem Dach abgeleitet und kann deshalb nicht davon abweichen.
+   */
+  if (typeof window !== 'undefined') {
+    window.PARAPEX = {
+      BEGEGNUNGEN, EINHEITEN_POOL, FAMILIEN_ZEICHEN, FEIND_STAERKE, FORMATIONEN,
+      FORMATIONS_FAMILIEN, GATTUNGEN, GATTUNG_LISTE, KERN, KNOTEN_ARTEN, KOENIGSRAENGE,
+      LAUF, RANG_NAMEN, SIGNALE, START_DECK, TURMTYPEN, TURM_START, WAPPEN, WAPPEN_LISTE,
+      WAPPEN_PLAETZE, baueBelohnung, baueBlatt, baueFeind, baueTurmAus, beendeRunde,
+      beginneKampfAmKnoten, berechneWucht, bonusWucht, derKampf, derKnoten, derLauf,
+      entferneKarte, erkenneFormationen, feindStaerke, formationsSalven, fuegeWappenHinzu,
+      grundwucht, hoereSignal, kaufe, leereSignale, neueEinheit, neuerKampf, neuerLauf,
+      nimmAngebot, oeffneHaendler, raeumeKampf, salvenZahl, schleifeKarte, sendeSignal,
+      setzeEinheit, signalUeberlauf, tauschKosten, tauschKostenFuer, tauscheHandkarte,
+      tauscheHandkarten, turmFaktor, verbessereEinheit, verlasseKnoten, vorschau,
+      waehleInBegegnung, werteKampfAus, wirkwucht, ziehBegegnung, ziehe, zieheAuf,
+      kampf: () => derKampf,
+      lauf: () => derLauf,
+      ueberlauf: () => signalUeberlauf,
+    };
+  }
+  /* ---- Ende des gebauten Kerns ---- */
 
 // ============================================================
 //  Parapex - Buehne, Bauwerke und Zustand des Bildes

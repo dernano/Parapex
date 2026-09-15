@@ -5,8 +5,11 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "bauen": "node scripts/baue.mjs",
+    "typen": "tsc -p tsconfig.json",
+    "kern": "node scripts/pruefe-kern.mjs",
+    "test": "node scripts/baue.mjs && tsc -p tsconfig.json && node scripts/pruefe-kern.mjs && node scripts/pruefe.mjs",
     "start": "node scripts/serve.js",
-    "test": "node scripts/pruefe.mjs",
     "bot": "node scripts/bot.mjs",
     "kurve": "node scripts/kurve.mjs",
     "lauftest": "node scripts/lauftest.mjs",

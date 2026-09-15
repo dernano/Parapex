@@ -140,12 +140,38 @@ der Zeit ab. Ergebnis: 27 Salven als sieben Schüsse mit 0,19 s Pause — also
 träger als fünf Einzelschüsse. Richtig herum steht die Zielzeit zuerst fest und
 wird mit so vielen Schüssen gefüllt, wie hineinpassen.
 
+**In einer Datei sieht man keine Kreise.** Der Kern wurde in zwölf Module
+geschnitten, und der Bündler meldete beim ersten Lauf zwei echte Zirkel, die
+die eine grosse Datei vollständig verborgen hatte: das Wappen des Ebers rief
+`schiesseEinzeln` im Kampf, und `formationsStufe` las `derLauf`. Beides sind
+Griffe von unten nach oben — die Kampfrechnung hing am Deckbuilder. Umgedreht
+statt erlaubt: oben meldet sich unten an. Die Typprüfung fand im selben Lauf
+einen toten Import und einen untypisierten Haken. Nichts davon wäre in einem
+Namensraum je aufgefallen; alles davon war schon da.
+
 **Ein Messwert aus 40 Läufen ist eine Stimmung.** Zwei Durchgänge derselben
 unveränderten Fassung ergaben 40 % und 18 % Aktabschluss. Alle Balancezahlen in
 diesen Papieren stehen deshalb jetzt mit ihrer Stichprobe dabei, und die
 belastbaren stammen aus 300 Läufen.
 
 ---
+
+## Wie es gebaut wird
+
+Der Kern liegt in `quelle/` als ES-Module und wird zu `index.html` gebündelt —
+**Quelltext und Lieferung sind zwei verschiedene Dinge**. Die ausgelieferte
+Datei bleibt eine einzige, ohne Abhängigkeit, ohne Server; siehe
+[`quelle/LIESMICH.md`](quelle/LIESMICH.md).
+
+```bash
+npm run bauen     # quelle/ → index.html
+npm run typen     # tsc --noEmit über die Module (kein Übersetzungsschritt)
+npm run kern      # Kernprüfungen ohne Browser —  59 ms
+npm test          # bauen + Typen + Kern + die 78 Prüfungen im Browser
+```
+
+Die Oberfläche (Zeichnung, Ton, Bedienung, rund 9.500 Zeilen) steht weiter
+direkt in `index.html`. Der Schnitt war ein Muster an **einem** Stück.
 
 ## Starten
 

@@ -28,6 +28,22 @@ if (!chromium) {
   process.exit(2);
 }
 const pfad = process.env.CHROMIUM_PFAD || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
+/*
+ * Vor allem anderen: stimmt die ausgelieferte Datei noch mit `quelle/`
+ * ueberein? Seit der Kern aus Modulen gebaut wird, ist das die eine Frage, die
+ * alles Weitere sinnlos machen kann - wer `index.html` von Hand aendert,
+ * prueft sonst etwas, das beim naechsten Bau wieder verschwindet.
+ */
+{
+  const { execFileSync } = await import('node:child_process');
+  try {
+    execFileSync('node', [join(WURZEL, 'scripts/baue.mjs'), 'pruefen'], { stdio: 'pipe' });
+  } catch (e) {
+    console.error('index.html weicht von quelle/ ab. Erst `node scripts/baue.mjs`.');
+    process.exit(2);
+  }
+}
 /*
  * Vor dem Browser: eine Prüfung, die keinen braucht. Das Spiel ist EINE Datei,
  * und in einer Datei gewinnt bei zwei gleichnamigen `function`-Erklärungen die
