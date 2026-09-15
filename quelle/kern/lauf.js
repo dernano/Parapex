@@ -114,6 +114,14 @@ export function neuerLauf({ anten = LAUF.anten } = {}) {
 }
 
 /*
+ * Einen gespeicherten Feldzug zurueckstellen. Nur der Speicher ruft das -
+ * `derLauf` ist sonst ausschliesslich hier drin veraenderlich, und das soll
+ * so bleiben.
+ * @param {any} l
+ */
+export function setzeLauf(l) { derLauf = l; return derLauf; }
+
+/*
  * Eine Schlacht aus dem Feldzug heraus beginnen. Der Lauf reicht durch, was er
  * hat - der Kampf baut daraus seinen eigenen Zustand und fasst den Lauf nie
  * an. Das Deck wird kopiert: was im Kampf ersetzt wird und in der Ablage

@@ -42,7 +42,7 @@ export {
   LAUF, SCHLACHT_ARTEN, WAPPEN_ANGEBOT, derLauf, neuerLauf, beginneSchlacht,
   werteKampfAus, naechsteAnte, baueBelohnung, nimmAngebot, fuegeWappenHinzu, baueTurmAus,
   entferneKarte, schleifeKarte, angebotWappen, angebotKarte, ordneWappen, bewerteWappen,
-  kampfNrJetzt,
+  kampfNrJetzt, setzeLauf,
 } from './kern/lauf.js';
 export { oeffneHaendler, kaufe } from './kern/haendler.js';
 export { BEGEGNUNGEN, ziehBegegnung, waehleInBegegnung } from './kern/begegnungen.js';
@@ -62,3 +62,6 @@ export {
   DIENSTE, LAGER_FOLGE, LAGER_PREISE, dasLager, oeffneLager, raeumeLager,
   dienstOffen, kasse, lagerAngebote, nimmLagerangebot,
 } from './feldzug/heerlager.js';
+export {
+  STAND_FASSUNG, sichereFeldzug, ladeFeldzug, beschreibeStand,
+} from './feldzug/speicher.js';

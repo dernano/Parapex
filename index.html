@@ -4107,6 +4107,14 @@
   }
 
   /*
+   * Einen gespeicherten Feldzug zurueckstellen. Nur der Speicher ruft das -
+   * `derLauf` ist sonst ausschliesslich hier drin veraenderlich, und das soll
+   * so bleiben.
+   * @param {any} l
+   */
+  function setzeLauf(l) { derLauf = l; return derLauf; }
+
+  /*
    * Eine Schlacht aus dem Feldzug heraus beginnen. Der Lauf reicht durch, was er
    * hat - der Kampf baut daraus seinen eigenen Zustand und fasst den Lauf nie
    * an. Das Deck wird kopiert: was im Kampf ersetzt wird und in der Ablage
@@ -4834,6 +4842,89 @@
     return erg;
   }
 
+  // ===== quelle/feldzug/speicher.js =====
+  /*
+   * Speichern und Laden.
+   *
+   * Ein Feldzug dauert lange genug, dass man ihn unterbrechen koennen muss -
+   * und ein Roguelike, das beim Schliessen des Fensters alles vergisst, ist
+   * kein Feldzug, sondern eine Sitzung.
+   *
+   * DIE REGEL: gespeichert wird NUR, was der Spieler erarbeitet hat. Alles, was
+   * sich daraus ableiten laesst, wird beim Laden neu gebaut - die Wappen aus
+   * ihren Kennungen, die Regeln des Heerfuehrers aus den Divisionen, die man
+   * durchgelassen hat. Was man ableiten kann und trotzdem speichert, hat man
+   * zweimal, und beim naechsten Umbau stimmt eine der beiden Fassungen nicht
+   * mehr.
+   *
+   * Deshalb ist hier alles REINES JSON: keine Funktionen, keine Verweise,
+   * nichts, was beim Einlesen lebendig gemacht werden muesste.
+   *
+   * DIE REIHENFOLGE DER WAPPEN IST TEIL DES SPIELSTANDS. Sie ist der Bauplan
+   * der Maschine; ein Stand, der sie verliert, hat das Wichtigste verloren.
+   */
+
+
+  /*
+   * Die Fassung des Standes. Sie steht hier, damit ein alter Stand nach einem
+   * Umbau nicht halb geladen wird und das Spiel in einem Zustand steht, den es
+   * nicht mehr gibt. Lieber ehrlich ablehnen als heimlich falsch laden.
+   */
+  const STAND_FASSUNG = 1;
+
+  /** Der ganze Feldzug als JSON-faehiges Objekt - oder null. */
+  function sichereFeldzug() {
+    if (!derLauf) return null;
+    return JSON.parse(JSON.stringify({
+      fassung: STAND_FASSUNG,
+      zeit: Date.now(),
+      lauf: { ...derLauf, haendler: null },   // der Haendler wird neu gemischt
+      belagerung: sichereBelagerung(),
+      vorrat: sichereVorrat(),
+    }));
+  }
+
+  /**
+   * Einen Stand zurueckholen. Gibt zurueck, ob es ging - und warum nicht.
+   * @param {any} stand
+   */
+  function ladeFeldzug(stand) {
+    if (!stand || typeof stand !== 'object') return { ok: false, grund: 'Kein Spielstand.' };
+    if (stand.fassung !== STAND_FASSUNG) {
+      return { ok: false, grund: 'Der Spielstand ist aus einer älteren Fassung.' };
+    }
+    if (!stand.lauf || !Array.isArray(stand.lauf.deck)) {
+      return { ok: false, grund: 'Der Spielstand ist unvollständig.' };
+    }
+    /*
+     * Erst abraeumen, dann aufbauen. Ein halb geladener Stand auf einem
+     * laufenden Kampf ist der schlimmste aller Zustaende: nichts stuerzt ab,
+     * und alles ist falsch.
+     */
+    stelleKampfHer(null);
+    raeumeBand();
+    setzeLauf({ ...stand.lauf, haendler: null });
+    stelleVorratHer(stand.vorrat);
+    ladeBelagerung(stand.belagerung);
+    if (!dieBelagerung) return { ok: false, grund: 'Die Belagerung fehlte im Spielstand.' };
+    return { ok: true, lauf: derLauf };
+  }
+
+  /** Was in einem Stand steht, ohne ihn zu laden - fuer den Knopf im Menue. */
+  function beschreibeStand(stand) {
+    if (!stand || stand.fassung !== STAND_FASSUNG || !stand.lauf) return null;
+    const l = stand.lauf;
+    return {
+      ante: l.ante, anten: l.anten, schlachten: l.schlachten,
+      deck: l.deck.length, wappen: l.wappen.length, sold: l.sold,
+      bedrohung: stand.belagerung ? stand.belagerung.bedrohung : 0,
+      zeit: stand.zeit || 0,
+    };
+  }
+
+  /** Nur fuer Pruefungen: steht der Vorrat? */
+  function vorratSteht() { return Boolean(derVorrat); }
+
   /*
    * Der Kern von aussen: dieselbe Flaeche, die `quelle/kern.js` hergibt. Sie wird
    * beim Bauen aus dem Dach abgeleitet und kann deshalb nicht davon abweichen.
@@ -4845,23 +4936,24 @@
       FEIND_STAERKE, FORMATIONEN, FORMATIONS_FAMILIEN, GATTUNGEN, GATTUNG_LISTE,
       GRENZEN, HEERFUEHRER, JE_ANTE, JE_BEDROHUNG, KAEMPFE_MAX, KAEMPFE_MIN, KERN,
       KOENIGSRAENGE, LAGER_FOLGE, LAGER_PREISE, LAUF, PLAETZE, RANG_NAMEN, ROTER_KOENIG_AB,
-      SCHLACHT_ARTEN, SELTENHEITEN, SPERRE, START_DECK, TURMTYPEN, TURM_START,
-      VORHUTEN, VORRAT_ARTEN, WAPPEN, WAPPEN_ANGEBOT, WAPPEN_LISTE, WAPPEN_PLAETZE,
-      WAPPEN_REGISTER, ZUENDART, abgewiesene, abweisungen, angebotKarte, angebotWappen,
-      aufAllem, baueBelohnung, baueBlatt, baueFeind, baueHeerfuehrer, baueRegeln,
-      baueTurmAus, beendeRunde, beginneSchlacht, belagerungslage, berechneWucht,
-      bestand, bewerteWappen, bonusWucht, darfDurchlassen, get dasBand() { return
-      dasBand; }, get dasLager() { return dasLager; }, get derKampf() { return
-      derKampf; }, get derLauf() { return derLauf; }, get derVorrat() { return
-      derVorrat; }, dieAnte, get dieBelagerung() { return dieBelagerung; }, dienstOffen,
-      entferneKarte, entsiegle, erkenneFormationen, fasseZusammen, feindStaerke,
-      formationsSalven, frischerKampfvorrat, fuegeWappenHinzu, grundwucht, kaempfeNochHoechstens,
-      kaempfeNochMindestens, kampfNrJetzt, kasse, kaufe, kopiere, ladeBelagerung,
-      lagerAngebote, lautesterPlatz, lege, loeseAus, meldeAusgang, meldeWappen,
-      mitReihe, naechsteAnte, neueBelagerung, neueEinheit, neuerKampf, neuerLauf,
-      neuerVorrat, neuesBand, nimmAngebot, nimmLagerangebot, oeffneHaendler, oeffneLager,
-      offeneWahlen, ordneWappen, raeumeBand, raeumeBelagerung, raeumeKampf, raeumeLager,
-      reicht, reihe, salvenZahl, schleifeKarte, setzeEinheit, setzeRunde, sichereBelagerung,
+      SCHLACHT_ARTEN, SELTENHEITEN, SPERRE, STAND_FASSUNG, START_DECK, TURMTYPEN,
+      TURM_START, VORHUTEN, VORRAT_ARTEN, WAPPEN, WAPPEN_ANGEBOT, WAPPEN_LISTE,
+      WAPPEN_PLAETZE, WAPPEN_REGISTER, ZUENDART, abgewiesene, abweisungen, angebotKarte,
+      angebotWappen, aufAllem, baueBelohnung, baueBlatt, baueFeind, baueHeerfuehrer,
+      baueRegeln, baueTurmAus, beendeRunde, beginneSchlacht, belagerungslage, berechneWucht,
+      beschreibeStand, bestand, bewerteWappen, bonusWucht, darfDurchlassen, get
+      dasBand() { return dasBand; }, get dasLager() { return dasLager; }, get derKampf()
+      { return derKampf; }, get derLauf() { return derLauf; }, get derVorrat()
+      { return derVorrat; }, dieAnte, get dieBelagerung() { return dieBelagerung;
+      }, dienstOffen, entferneKarte, entsiegle, erkenneFormationen, fasseZusammen,
+      feindStaerke, formationsSalven, frischerKampfvorrat, fuegeWappenHinzu, grundwucht,
+      kaempfeNochHoechstens, kaempfeNochMindestens, kampfNrJetzt, kasse, kaufe,
+      kopiere, ladeBelagerung, ladeFeldzug, lagerAngebote, lautesterPlatz, lege,
+      loeseAus, meldeAusgang, meldeWappen, mitReihe, naechsteAnte, neueBelagerung,
+      neueEinheit, neuerKampf, neuerLauf, neuerVorrat, neuesBand, nimmAngebot,
+      nimmLagerangebot, oeffneHaendler, oeffneLager, offeneWahlen, ordneWappen,
+      raeumeBand, raeumeBelagerung, raeumeKampf, raeumeLager, reicht, reihe, salvenZahl,
+      schleifeKarte, setzeEinheit, setzeLauf, setzeRunde, sichereBelagerung, sichereFeldzug,
       sichtbarerVorrat, siegelePlatz, tauschKosten, tauschKostenFuer, tauscheHandkarte,
       tauscheHandkarten, turmFaktor, verbessereEinheit, verschiebePlatz, vertauschePlaetze,
       vorschau, waehle, waehleInBegegnung, wappenNach, werteKampfAus, wirkwucht,
@@ -13456,9 +13548,87 @@ function starteParapex() {
   pkBaueOberflaeche();
   // Jetzt steht die Leiste - die Buehne kann sie messen statt zu schaetzen.
   baueBuehne();
-  neuerLauf();
-  pkBetreteAbschnitt();
+  /*
+   * Liegt ein Feldzug an, wird gefragt. Ihn stillschweigend fortzusetzen
+   * waere so falsch wie ihn stillschweigend zu verwerfen: beides nimmt dem
+   * Spieler eine Entscheidung ab, die ihm gehoert.
+   */
+  const stand = pkLiesStand();
+  if (stand && beschreibeStand(stand)) {
+    neuerLauf();                  // damit die Oberflaeche etwas zu zeichnen hat
+    pkFrageFortsetzen(stand);
+  } else {
+    neuerLauf();
+    pkBetreteAbschnitt();
+  }
   requestAnimationFrame(pkTakt);
+}
+
+/* ============================================================
+ *  D E R   S P I E L S T A N D
+ * ============================================================
+ *
+ * Ein Feldzug dauert lange genug, dass man ihn unterbrechen koennen muss.
+ * Gesichert wird nach jedem Schritt, der etwas festlegt - nicht nach jedem
+ * Klick: ein Stand, der mitten in einer Salve geschrieben wird, haelt einen
+ * Zustand fest, den es zwischen zwei Runden gar nicht geben soll.
+ *
+ * Der Speicher des Browsers kann fehlen (privates Fenster, gesperrte Daten).
+ * Dann wird nicht gespeichert und sonst nichts - ein Spiel, das ohne Speicher
+ * nicht startet, ist schlechter als eines, das ohne ihn spielt.
+ */
+const PK_STAND_SCHLUESSEL = 'parapex.feldzug.1';
+
+function pkSichere() {
+  try {
+    const stand = sichereFeldzug();
+    if (!stand) return false;
+    localStorage.setItem(PK_STAND_SCHLUESSEL, JSON.stringify(stand));
+    return true;
+  } catch (e) { return false; }
+}
+
+function pkLiesStand() {
+  try {
+    const text = localStorage.getItem(PK_STAND_SCHLUESSEL);
+    return text ? JSON.parse(text) : null;
+  } catch (e) { return null; }
+}
+
+function pkVergissStand() {
+  try { localStorage.removeItem(PK_STAND_SCHLUESSEL); } catch (e) { /* dann eben nicht */ }
+}
+
+function pkFrageFortsetzen(stand) {
+  const b = beschreibeStand(stand);
+  const wann = b.zeit ? new Date(b.zeit).toLocaleString('de-DE') : '';
+  const t = pkTafel(
+    '<h2>Ein Feldzug liegt an</h2>' +
+    '<div class="pk-abrechnung">' +
+      '<span>Ante <b>' + b.ante + '</b>/' + b.anten + '</span>' +
+      '<span>Schlachten <b>' + b.schlachten + '</b></span>' +
+      '<span>Bedrohung <b>' + b.bedrohung + '</b></span>' +
+      '<span>Wappen <b>' + b.wappen + '</b></span>' +
+      '<span>Sold <b>' + b.sold + '</b></span>' +
+    '</div>' +
+    '<p class="pk-vor">' + (wann ? 'Zuletzt gespielt am ' + wann + '. ' : '') +
+      'Ein neuer Feldzug verwirft ihn.</p>' +
+    '<div class="pk-tafel-fuss">' +
+      '<button class="pk-knopf" id="pk-neu">Neuer Feldzug</button>' +
+      '<button class="pk-knopf haupt" id="pk-weiter">Fortsetzen</button>' +
+    '</div>');
+  t.querySelector('#pk-weiter').addEventListener('click', () => {
+    const r = ladeFeldzug(stand);
+    pkRaeumeTafel();
+    if (!r.ok) { pkSage(r.grund); pkVergissStand(); neuerLauf(); }
+    pkBetreteAbschnitt();
+  });
+  t.querySelector('#pk-neu').addEventListener('click', () => {
+    pkVergissStand();
+    pkRaeumeTafel();
+    neuerLauf();
+    pkBetreteAbschnitt();
+  });
 }
 
 // ============================================================
@@ -14020,7 +14190,8 @@ function pkZeigeLaufEnde() {
 function pkBetreteAbschnitt() {
   pkRaeumeTafel();
   const l = derLauf;
-  if (!l || l.ende) { pkZeigeLaufEnde(); return; }
+  if (!l || l.ende) { pkVergissStand(); pkZeigeLaufEnde(); return; }
+  pkSichere();
   pkRenderLauf();
   const b = dieBelagerung;
   if (!b) { pkZeigeLaufEnde(); return; }

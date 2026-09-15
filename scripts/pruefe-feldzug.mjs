@@ -409,5 +409,82 @@ pruefe('Eine verlorene Schlacht beendet die Ante', () => {
   return gleich(P.offeneWahlen().length, 0, 'offene Wahlen nach der Niederlage');
 });
 
+
+/* ---------- Der Spielstand ---------- */
+pruefe('Ein Feldzug lässt sich sichern und genau so zurückholen', () => {
+  P.neuerLauf();
+  P.derLauf.wappen.push('greif', 'drache', 'amboss');
+  P.derLauf.sold = 333;
+  P.derLauf.formationsStufen.regiment = 3;
+  P.lege('veteran', 9);
+  P.waehle(P.offeneWahlen().find(w => w.art === 'durchlassen' && !w.gesperrt));
+  const stand = JSON.parse(JSON.stringify(P.sichereFeldzug()));
+
+  P.neuerLauf();                       // alles wegwerfen
+  if (P.derLauf.sold === 333) return 'der neue Feldzug trug den alten Sold';
+
+  const r = P.ladeFeldzug(stand);
+  if (!r.ok) return r.grund;
+  if (P.derLauf.sold !== 333) return 'Sold ' + P.derLauf.sold;
+  if (P.bestand('veteran') !== 9) return 'Veteranen ' + P.bestand('veteran');
+  if (P.derLauf.formationsStufen.regiment !== 3) return 'Formationsstufe verloren';
+  if (P.dieBelagerung.vorhut.zustand !== 'durch') return 'die Vorhut steht auf ' + P.dieBelagerung.vorhut.zustand;
+  return gleich(P.derLauf.wappen.join(), 'greif,drache,amboss', 'Wappen in ihrer Ordnung');
+});
+
+pruefe('Die REIHENFOLGE der Wappen überlebt das Speichern', () => {
+  /*
+   * Die Ordnung ist der Bauplan der Maschine. Ein Stand, der sie verliert,
+   * hat das Wichtigste verloren - und man merkt es erst am Ergebnis.
+   */
+  P.neuerLauf();
+  P.derLauf.wappen.push('amboss', 'drache', 'stier', 'greif');
+  P.ordneWappen(0, 3);                 // amboss nach hinten
+  const vorher = P.derLauf.wappen.join();
+  const stand = JSON.parse(JSON.stringify(P.sichereFeldzug()));
+  P.neuerLauf();
+  P.ladeFeldzug(stand);
+  return gleich(P.derLauf.wappen.join(), vorher, 'Reihenfolge');
+});
+
+pruefe('Ein Stand aus einer anderen Fassung wird abgelehnt', () => {
+  P.neuerLauf();
+  const stand = P.sichereFeldzug();
+  stand.fassung = P.STAND_FASSUNG + 1;
+  const r = P.ladeFeldzug(stand);
+  return r.ok ? 'er wurde trotzdem geladen' : true;
+});
+
+pruefe('Ein unvollständiger Stand wird abgelehnt', () => {
+  const r = P.ladeFeldzug({ fassung: P.STAND_FASSUNG, lauf: {} });
+  if (r.ok) return 'er wurde trotzdem geladen';
+  return P.ladeFeldzug(null).ok ? 'null wurde geladen' : true;
+});
+
+pruefe('Der Stand ist reines JSON und nicht zu gross', () => {
+  P.neuerLauf();
+  spieleAnteBisHeerfuehrer([true, false, true, false]);
+  const text = JSON.stringify(P.sichereFeldzug());
+  if (!JSON.parse(text)) return 'liess sich nicht lesen';
+  return text.length < 200000 ? true : 'der Stand ist ' + text.length + ' Zeichen gross';
+});
+
+pruefe('Der geladene Feldzug lässt sich weiterspielen', () => {
+  P.neuerLauf();
+  spieleAnteBisHeerfuehrer([true, true, false, false]);
+  const stand = JSON.parse(JSON.stringify(P.sichereFeldzug()));
+  P.neuerLauf();
+  P.ladeFeldzug(stand);
+  const wahl = P.offeneWahlen().find(w => w.kampf);
+  if (!wahl) return 'keine Schlacht offen';
+  const erg = P.waehle(wahl);
+  if (!erg.ok) return erg.grund;
+  const k = P.beginneSchlacht(erg.kampf);
+  if (!k) return 'kein Kampf';
+  if (k.wappen.join() !== P.derLauf.wappen.join()) return 'der Kampf bekam andere Wappen';
+  P.meldeAusgang(true);
+  return gleich(P.dieBelagerung.ende, 'sieg', 'Ausgang');
+});
+
 console.log(`\n${gut} von ${gut + schlecht} Feldzugprüfungen bestanden.\n`);
 process.exit(schlecht ? 1 : 0);

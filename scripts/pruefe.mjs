@@ -820,7 +820,6 @@ const ergebnis = await seite.evaluate(() => {
   pruefe('Ein Feldzug lässt sich von Anfang bis Ende durchspielen', () => {
     const l = P.neuerLauf();
     let kaempfe = 0;
-    let deckBewegt = false;
     let schutz = 0;
     while (!l.ende && schutz++ < 200) {
       const b = P.dieBelagerung;
@@ -847,24 +846,30 @@ const ergebnis = await seite.evaluate(() => {
       k.feind.hp = 0; k.ende = 'sieg';              // wir gewinnen ihn einfach
       const r = P.werteKampfAus(k, wahl.ziel);
       if (!r.sieg) return 'Sieg nicht gewertet gegen ' + wahl.name;
+      /*
+       * Jedes angenommene Angebot wird SOFORT geprueft, nicht am Ende.
+       * Vorher stand hier "irgendwann muss sich das Deck bewegt haben" - und
+       * das ist mit drei Anten schlicht falsch: wer eine Karte dazunimmt und
+       * spaeter vier ausmustert, steht am Ende wieder bei 52, voellig zu
+       * Recht. Geprueft wird jetzt die RICHTUNG jeder einzelnen Bewegung.
+       */
       const a = r.belohnung.angebote[0];
-      if (P.nimmAngebot(a).ok && (a.art === 'karte' || a.art === 'entfernen')) deckBewegt = true;
+      const vorher = l.deck.length;
+      if (P.nimmAngebot(a).ok) {
+        if (a.art === 'karte' && l.deck.length !== vorher + 1) {
+          return 'eine Karte genommen, Deck ging von ' + vorher + ' auf ' + l.deck.length;
+        }
+        if (a.art === 'entfernen' && l.deck.length >= vorher) {
+          return 'ausgemustert, Deck ging von ' + vorher + ' auf ' + l.deck.length;
+        }
+
+      }
       P.meldeAusgang(true);
     }
     if (schutz >= 200) return 'der Feldzug kam nicht zum Ende';
     if (l.ende !== 'sieg') return 'Ende ' + l.ende;
     if (kaempfe < P.KAEMPFE_MIN * l.anten) return kaempfe + ' Kämpfe in ' + l.anten + ' Anten';
     if (kaempfe > P.KAEMPFE_MAX * l.anten) return kaempfe + ' Kämpfe in ' + l.anten + ' Anten';
-    /*
-     * Mit dem vollen Blatt waechst ein Deck nicht mehr, es wird geschmaelert.
-     * Frueher stand hier "das Deck muss sich bewegt haben" - das war eine
-     * Wette auf den Zufall: die Belohnungen werden gewuerfelt, und ein Lauf,
-     * in dem jedes erste Angebot ein Wappen oder ein Ausbau war, liess das
-     * Deck voellig zu Recht unangetastet. Jetzt wird das geprueft, was
-     * wirklich gelten muss: WENN eine Karte dazukam oder wegfiel, hat sich
-     * das Deck bewegt - und in keinem Fall faellt es unter die Handgroesse.
-     */
-    if (deckBewegt && l.deck.length === P.START_DECK.length) return 'Deck hat sich nicht bewegt';
     if (l.deck.length < P.KERN.handGroesse) return 'Deck ist auf ' + l.deck.length + ' geschrumpft';
     return true;
   });
@@ -934,6 +939,40 @@ const ergebnis = await seite.evaluate(() => {
     kampfMit(5);
     for (let n = 1; n <= 5; n++) if (P.tauschKostenFuer(n) !== n) return n + ' Karten kosten ' + P.tauschKostenFuer(n);
     return true;
+  });
+
+  // ---------- Der Spielstand ----------
+  pruefe('Der Spielstand geht in den Speicher des Browsers und kommt zurück', () => {
+    /*
+     * Ohne Neuladen, aber ueber denselben Weg: schreiben, wegwerfen, lesen,
+     * laden. Wenn hier etwas fehlt, fehlt es auch nach einem Neustart.
+     */
+    P.neuerLauf();
+    P.derLauf.wappen.push('greif', 'amboss');
+    P.derLauf.sold = 777;
+    if (!pkSichere()) return 'es liess sich nicht speichern';
+    P.neuerLauf();
+    if (P.derLauf.sold === 777) return 'der neue Feldzug trug den alten Sold';
+    const stand = pkLiesStand();
+    if (!stand) return 'nichts im Speicher';
+    const r = P.ladeFeldzug(stand);
+    if (!r.ok) return r.grund;
+    if (P.derLauf.sold !== 777) return 'Sold ' + P.derLauf.sold;
+    if (P.derLauf.wappen.join() !== 'greif,amboss') return 'Wappen ' + P.derLauf.wappen.join();
+    pkVergissStand();
+    return pkLiesStand() ? 'der Stand liess sich nicht vergessen' : true;
+  });
+
+  pruefe('Die Vorratsleiste zeigt nur, was es wirklich gibt', () => {
+    P.neuerLauf();
+    P.neuerVorrat();
+    pkVorratsleiste();
+    const leiste = document.getElementById('pk-vorrat');
+    if (leiste.children.length) return 'sie zeigt ' + leiste.children.length + ' Posten auf leerem Vorrat';
+    P.lege('pulver', 4);
+    pkVorratsleiste();
+    if (leiste.children.length !== 1) return 'sie zeigt ' + leiste.children.length + ' Posten statt einem';
+    return leiste.textContent.includes('4') ? true : 'die Menge fehlt: ' + leiste.textContent;
   });
 
   return raus;
