@@ -250,12 +250,40 @@ export function angebotKarte(station) {
     text: GATTUNGEN[g].name + ' · Rang ' + einheit.rang + ' — kommt ins Deck.' };
 }
 
+/*
+ * Wie oft eine Seltenheit im Angebot auftaucht, und ab welcher Station
+ * ueberhaupt. Legendaere Wappen aendern nicht eine Zahl, sondern den
+ * Durchlauf - sie taugen nichts, solange nichts da ist, was sie verstaerken
+ * koennten, und darum kommen sie erst spaet.
+ */
+export const WAPPEN_ANGEBOT = {
+  gewoehnlich:   { gewicht: 60, ab: 1 },
+  ungewoehnlich: { gewicht: 28, ab: 3 },
+  selten:        { gewicht: 10, ab: 5 },
+  legendaer:     { gewicht: 2,  ab: 8 },
+};
+
 export function angebotWappen() {
   if (derLauf.wappen.length >= WAPPEN_PLAETZE) return null;
-  const offen = WAPPEN_LISTE.filter(id => !derLauf.wappen.includes(id));
+  const station = derLauf.station;
+  const offen = WAPPEN_LISTE.filter(id => {
+    if (derLauf.wappen.includes(id)) return false;
+    const r = WAPPEN_ANGEBOT[WAPPEN[id].seltenheit];
+    return r && station >= r.ab;
+  });
   if (!offen.length) return null;
-  const id = offen[Math.floor(Math.random() * offen.length)];
-  return { art: 'wappen', wappen: id, name: WAPPEN[id].name, text: WAPPEN[id].text };
+
+  // Gewichtet ziehen: ein Zug auf die Summe, dann abzaehlen.
+  const summe = offen.reduce((s, id) => s + WAPPEN_ANGEBOT[WAPPEN[id].seltenheit].gewicht, 0);
+  let zug = Math.random() * summe;
+  let id = offen[offen.length - 1];
+  for (const k of offen) {
+    zug -= WAPPEN_ANGEBOT[WAPPEN[k].seltenheit].gewicht;
+    if (zug <= 0) { id = k; break; }
+  }
+  const w = WAPPEN[id];
+  return { art: 'wappen', wappen: id, name: w.name, text: w.text,
+    hinweis: w.hinweis, seltenheit: w.seltenheit, zeichen: w.zeichen, tinktur: w.tinktur };
 }
 
 /*

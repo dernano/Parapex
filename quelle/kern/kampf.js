@@ -4,7 +4,7 @@ import { TURM_START, turmFaktor } from './tuerme.js';
 import { baueFeind } from './feinde.js';
 import { WAPPEN_PLAETZE, setzeEinzelschuss } from '../wappen/sammlung.js';
 import { EREIGNIS } from '../wappen/ereignisse.js';
-import { loeseAus, neuesBand, raeumeBand } from '../wappen/fliessband.js';
+import { loeseAus, neuesBand, raeumeBand, setzeRunde } from '../wappen/fliessband.js';
 import { frischerKampfvorrat, neuerVorrat, derVorrat } from '../wappen/vorrat.js';
 import { berechneWucht } from './wucht.js';
 
@@ -72,6 +72,7 @@ export function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, s
 
 /** Rundenanfang an einer Stelle: Wappen duerfen sagen, wie viel gezogen wird. */
 function beginneRunde(runde) {
+  setzeRunde(runde);
   const lage = loeseAus(EREIGNIS.rundeBeginnt, { runde, ziehen: KERN.handGroesse });
   zieheAuf(Math.max(1, Math.round(lage.daten.ziehen)));
 }
@@ -162,9 +163,9 @@ export function tauscheHandkarte(karte) {
   if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
   const inHand = k.hand.find(c => c.uid === karte.uid);
   if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
-  const kosten = tauschKostenFuer(1);
-  if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
+  if (kostetZuViel(tauschKostenFuer(1))) return { ok: false, grund: 'Nicht genug Tatendrang.' };
 
+  const kosten = vollzieheTausch(k.tauschInRunde, 1);
   k.tatendrang -= kosten;
   k.tauschInRunde++;
   k.hand = k.hand.filter(c => c.uid !== karte.uid);
@@ -189,11 +190,12 @@ export function tauscheHandkarten(karten) {
   if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
   const liste = (karten || []).map(c => k.hand.find(h => h.uid === c.uid)).filter(Boolean);
   if (!liste.length) return { ok: false, grund: 'Keine Karte gewählt.' };
-  const kosten = tauschKostenFuer(liste.length);
-  if (kostetZuViel(kosten)) {
-    return { ok: false, grund: 'Dafür fehlen ' + (kosten - k.tatendrang) + ' Tatendrang.' };
+  const gefragt = tauschKostenFuer(liste.length);
+  if (kostetZuViel(gefragt)) {
+    return { ok: false, grund: 'Dafür fehlen ' + (gefragt - k.tatendrang) + ' Tatendrang.' };
   }
 
+  const kosten = vollzieheTausch(k.tauschInRunde, liste.length);
   k.tatendrang -= kosten;
   k.tauschInRunde += liste.length;
   const weg = new Set(liste.map(c => c.uid));
@@ -217,11 +219,30 @@ export function tauscheHandkarten(karten) {
  * die Anzeige fragt bei jedem Klick auf eine Handkarte nach dem Preis, und
  * das darf weder Pulver kosten noch im Protokoll stehen.
  */
-/** @param {number} schonGetauscht @param {number} [anzahl] */
-function tauschpreis(schonGetauscht, anzahl = 1) {
+/*
+ * Zweimal dasselbe Ereignis, und der Unterschied ist wichtig: die ANFRAGE
+ * (`probe`) beantwortet nur, was es kostete - die Anzeige stellt sie bei
+ * jedem Klick auf eine Handkarte. Der VOLLZUG laeuft echt, verbraucht
+ * Vorraete und steht im Protokoll.
+ *
+ * Ohne diese Trennung stand die Schlange in keinem einzigen Kampfprotokoll:
+ * sie wirkte ausschliesslich in Proben, und die werden zu Recht nicht
+ * aufgeschrieben. Die Synergie-Matrix hat sie deshalb als totes Wappen
+ * gemeldet - zu Recht.
+ *
+ * @param {number} schonGetauscht @param {number} anzahl @param {boolean} probe
+ */
+function tauschpreis(schonGetauscht, anzahl, probe) {
   const lage = loeseAus(EREIGNIS.kartenGetauscht,
-    { anzahl, schonGetauscht, kosten: KERN.kosten.tauschen }, null, true);
+    { anzahl, schonGetauscht, kosten: KERN.kosten.tauschen }, null, probe);
   return Math.max(0, Math.round(lage.daten.kosten));
+}
+
+/** Der Vollzug: einmal je getauschter Karte, echt. Gibt den gezahlten Preis. */
+function vollzieheTausch(schonGetauscht, anzahl) {
+  let summe = 0;
+  for (let i = 0; i < anzahl; i++) summe += tauschpreis(schonGetauscht + i, anzahl, false);
+  return summe;
 }
 
 /*
@@ -232,7 +253,7 @@ export function tauschKostenFuer(n) {
   const k = derKampf;
   if (!k) return n * KERN.kosten.tauschen;
   let summe = 0;
-  for (let i = 0; i < n; i++) summe += tauschpreis(k.tauschInRunde + i, n);
+  for (let i = 0; i < n; i++) summe += tauschpreis(k.tauschInRunde + i, n, true);
   return summe;
 }
 

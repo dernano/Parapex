@@ -117,6 +117,7 @@ export function neuesBand(reihe = [], feind = null) {
   dasBand = {
     reihe: reihe.slice(0, PLAETZE),
     feind,
+    runde: 1,
     /** @type {number[]} Plaetze, die eine Bossregel verschlossen hat */
     gesiegelt: [],
     /** @type {any[]} jede Zuendung des ganzen Kampfes, in der Reihenfolge des Geschehens */
@@ -193,6 +194,9 @@ export function siegelePlatz(platz) {
 
 export function entsiegle() { if (dasBand) dasBand.gesiegelt = []; }
 
+/** Die laufende Runde. Wappen duerfen sie lesen, aendern koennen sie sie nicht. */
+export function setzeRunde(runde) { if (dasBand) dasBand.runde = runde; }
+
 /**
  * Der Platz, der im ganzen Kampf am haeufigsten gezuendet hat. DER INQUISITOR
  * versiegelt genau ihn - er trifft also nicht das teuerste Wappen, sondern
@@ -241,6 +245,7 @@ export function neueLage(ereignis, daten = {}, eltern = null, probe = false) {
      * `feindGetroffen` - eine Tuer, nicht fuenfzig.
      */
     feind: dasBand ? dasBand.feind : null,
+    runde: dasBand ? dasBand.runde : 1,
     /** @type {any[]} was in DIESEM Ereignis schon gezuendet hat, in Reihenfolge */
     gezuendet: [],
     /** @type {Record<number, number>} Zuendungen je Platz in diesem Ereignis */

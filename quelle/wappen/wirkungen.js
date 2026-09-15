@@ -31,6 +31,7 @@ export const WIRKUNGSARTEN = {
   salven:       { feld: 'salven',      rechnung: 'plus' },
   salvenFaktor: { feld: 'salven',      rechnung: 'mal'  },
   zusatz:       { feld: 'zusatz',      rechnung: 'plus' },
+  jeSalveFaktor:{ feld: 'jeSalve',     rechnung: 'mal'  },
   faktor:       { feld: 'faktor',      rechnung: 'mal'  },
   wucht:        { feld: 'wucht',       rechnung: 'plus' },
   wuchtFaktor:  { feld: 'wucht',       rechnung: 'mal'  },
@@ -101,6 +102,8 @@ export function salvenMal(l, f, t = '') { return wirke(l, 'salvenFaktor', f, t);
 export function wuchtDazu(l, n, t = '') { return wirke(l, 'zusatz', n, t); }
 /** @param {any} l @param {number} f @param {string} [t] */
 export function wuchtMal(l, f, t = '') { return wirke(l, 'faktor', f, t); }
+/** @param {any} l @param {number} f @param {string} [t] */
+export function jeSalveMal(l, f, t = '') { return wirke(l, 'jeSalveFaktor', f, t); }
 /** @param {any} l @param {number} n @param {string} [t] */
 export function trefferDazu(l, n, t = '') { return wirke(l, 'wucht', n, t); }
 /** @param {any} l @param {number} f @param {string} [t] */

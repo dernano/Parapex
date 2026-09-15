@@ -413,5 +413,81 @@ pruefe('Die Tafel zeigt, welcher Platz was tat', () => {
   return zeile.platz === 0 ? true : 'Platz stand als ' + zeile.platz;
 });
 
+
+/* ---------- Die Sammlung ---------- */
+pruefe('Fünfzig Wappen in vier Seltenheiten', () => {
+  const nach = {};
+  for (const id of P.WAPPEN_LISTE) {
+    const s = P.WAPPEN[id].seltenheit;
+    nach[s] = (nach[s] || 0) + 1;
+  }
+  const soll = { gewoehnlich: 24, ungewoehnlich: 15, selten: 8, legendaer: 3 };
+  for (const k in soll) if (nach[k] !== soll[k]) return k + ': ' + nach[k] + ' statt ' + soll[k];
+  return gleich(P.WAPPEN_LISTE.length, 50, 'Wappen insgesamt');
+});
+
+pruefe('Jedes Wappen trägt Zeichen und Tinktur', () => {
+  for (const id of P.WAPPEN_LISTE) {
+    const w = P.WAPPEN[id];
+    if (!w.zeichen) return id + ' hat kein Zeichen';
+    if (!/^#[0-9a-f]{6}$/i.test(w.tinktur)) return id + ' hat die Tinktur ' + w.tinktur;
+  }
+  return true;
+});
+
+pruefe('Seltene Wappen kommen nicht auf der ersten Station', () => {
+  P.neuerLauf();
+  for (let i = 0; i < 80; i++) {
+    const a = P.angebotWappen ? P.angebotWappen() : null;
+    if (!a) break;
+    if (P.WAPPEN_ANGEBOT[a.seltenheit].ab > 1) return a.name + ' auf Station 1';
+  }
+  return true;
+});
+
+pruefe('Ein Wappenangebot bringt seinen Hinweis mit', () => {
+  P.neuerLauf();
+  const a = P.angebotWappen ? P.angebotWappen() : null;
+  if (!a) return 'kein Angebot';
+  return a.hinweis ? true : a.name + ' kam ohne Hinweis';
+});
+
+/*
+ * Die teuerste Pruefung der Datei, und die einzige, die ihren Preis wert ist:
+ * jedes einzelne Wappen muss in einem echten Kampf mindestens EINMAL zuenden.
+ * Genau das hat beim Drachen jahrelang niemand geprueft.
+ */
+pruefe('Jedes der fünfzig Wappen zündet in einem echten Kampf', () => {
+  const stumm = [];
+  for (const id of P.WAPPEN_LISTE) {
+    if (!zuendetIrgendwo(id)) stumm.push(id);
+  }
+  return stumm.length ? 'stumm: ' + stumm.join(', ') : true;
+});
+
+/** Ein kurzer Kampf mit genau diesem Wappen - zündet es irgendwo? */
+function zuendetIrgendwo(id) {
+  for (const hp of [1e12, 300]) {
+    P.neuerVorrat();
+    const k = P.neuerKampf({ feind: { name: 'Prüfstein', hp, maxHp: hp, regeln: [] },
+      deck: P.START_DECK.map(e => P.neueEinheit(e)), wappen: [id] });
+    for (let r = 0; r < P.KERN.runden && !k.ende; r++) {
+      for (let i = 0; i < P.KERN.tuerme && k.hand.length && k.tatendrang > 0; i++) {
+        if (!k.tuerme[i].einheit) P.setzeEinheit(i, k.hand[0]);
+      }
+      if (k.tatendrang > 0 && k.hand.length) P.setzeEinheit(0, k.hand[0]);   // ablösen
+      while (k.tatendrang > 0 && k.hand.length > 1) {
+        if (!P.tauscheHandkarte(k.hand[k.hand.length - 1]).ok) break;
+      }
+      P.beendeRunde();
+    }
+    const gezuendet = P.dasBand
+      && P.dasBand.protokoll.some(z => !z.abgewiesen && z.id === id);
+    P.raeumeKampf();
+    if (gezuendet) return true;
+  }
+  return false;
+}
+
 console.log(`\n${gut} von ${gut + schlecht} Kernprüfungen bestanden.\n`);
 process.exit(schlecht ? 1 : 0);

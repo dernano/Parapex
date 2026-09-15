@@ -83,7 +83,13 @@ function rechneSalve(tuerme, probe) {
     faktor: 1,
   }, null, probe);
 
-  const salven = Math.max(0, Math.round(lage.daten.salven));
+  /*
+   * Solange jemand auf einem Turm steht, feuert er. Ein Wappen, das die
+   * Salvenzahl halbiert, und eines, das die Reihe mehrfach laufen laesst,
+   * kommen sonst zusammen auf null Schuesse - gemessen und behoben: der
+   * Steinadler mit dem Ouroboros war eine Sackgasse ohne jeden Schaden.
+   */
+  const salven = Math.max(posten.length ? 1 : 0, Math.round(lage.daten.salven));
   const jeSalve = Math.max(0, lage.daten.jeSalve + lage.daten.zusatz);
   for (const p of posten) p.schuesse = salven;
 
@@ -122,6 +128,7 @@ function beschreibeWirkungen(wirkungen) {
   const teile = [];
   for (const w of wirkungen) {
     if (w.art === 'salven') teile.push((w.wert > 0 ? '+' : '') + rund(w.wert) + ' Salven');
+    else if (w.art === 'jeSalveFaktor') teile.push('×' + rund(w.wert) + ' je Salve');
     else if (w.art === 'salvenFaktor') teile.push('×' + rund(w.wert) + ' Salven');
     else if (w.art === 'zusatz') teile.push((w.wert > 0 ? '+' : '') + rund(w.wert));
     else if (w.art === 'faktor') teile.push('×' + rund(w.wert));

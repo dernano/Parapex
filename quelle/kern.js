@@ -19,7 +19,7 @@ export { FEIND_STAERKE, feindStaerke, baueFeind } from './kern/feinde.js';
 export { EREIGNIS, EREIGNIS_LISTE, VORRAT_ARTEN } from './wappen/ereignisse.js';
 export {
   PLAETZE, ZUENDART, GRENZEN, WAPPEN_REGISTER, dasBand, neuesBand, raeumeBand,
-  reihe, vertauschePlaetze, verschiebePlatz, siegelePlatz, entsiegle, lautesterPlatz,
+  reihe, vertauschePlaetze, verschiebePlatz, siegelePlatz, entsiegle, lautesterPlatz, setzeRunde,
   loeseAus, zuendeErneut, kopiere, fasseZusammen, abgewiesene, abweisungen,
   meldeWappen, mitReihe, aufAllem,
 } from './wappen/fliessband.js';
@@ -39,9 +39,9 @@ export {
   raeumeKampf,
 } from './kern/kampf.js';
 export {
-  LAUF, KNOTEN_ARTEN, derLauf, neuerLauf, derKnoten, beginneKampfAmKnoten,
+  LAUF, KNOTEN_ARTEN, WAPPEN_ANGEBOT, derLauf, neuerLauf, derKnoten, beginneKampfAmKnoten,
   werteKampfAus, baueBelohnung, nimmAngebot, fuegeWappenHinzu, baueTurmAus,
-  entferneKarte, schleifeKarte, verlasseKnoten,
+  entferneKarte, schleifeKarte, verlasseKnoten, angebotWappen,
 } from './kern/lauf.js';
 export { oeffneHaendler, kaufe } from './kern/haendler.js';
 export { BEGEGNUNGEN, ziehBegegnung, waehleInBegegnung } from './kern/begegnungen.js';
