@@ -14,7 +14,9 @@ await p.waitForTimeout(1800);
 const lauf = () => p.evaluate(() => {
   const l = window.PARAPEX.lauf();
   const k = window.PARAPEX.kampf();
-  return { station: l.station, art: window.PARAPEX.derKnoten() && window.PARAPEX.derKnoten().art,
+  const b = window.PARAPEX.dieBelagerung;
+  return { ante: l.ante, schlachten: l.schlachten, art: b ? b.abschnitt : null,
+    bedrohung: b ? b.bedrohung : null, vorbereitung: b ? b.vorbereitung : null,
     sold: l.sold, deck: l.deck.length, wappen: l.wappen.length, ende: l.ende,
     tuerme: l.turmTypen.join(','), hp: k ? k.feind.hp : null };
 });

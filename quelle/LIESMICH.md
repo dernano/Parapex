@@ -7,11 +7,14 @@ quelle/kern.js          das Dach: was der Kern nach aussen zeigt
 quelle/kern/typen.js    die Formen, als JSDoc
 quelle/kern/*.js        die Regeln des Kampfes
 quelle/wappen/*.js      das Wappen-Fließband
+quelle/feldzug/*.js     die Welt, die zur Burg kommt
 
   regeln → einheiten → tuerme → feinde
          → wappen/ereignisse → wappen/fliessband → wappen/vorrat
          → wappen/wirkungen → wappen/sammlung
-         → formationen → wucht → kampf → lauf → haendler → begegnungen
+         → formationen → wucht → kampf
+         → feldzug/bossregeln → feldzug/gegner → feldzug/belagerung
+         → lauf → haendler → begegnungen → feldzug/heerlager
 ```
 
 ## Warum überhaupt Module
@@ -85,8 +88,10 @@ Der Kern enthält keine Zeile Browser. Seit er ein Modul ist, lässt er sich
 darum einfach importieren:
 
 ```bash
-node scripts/pruefe-kern.mjs    #  43 Prüfungen (startet keinen Browser)
-node scripts/pruefe.mjs         #  78 Prüfungen (startet Chromium)
+node scripts/pruefe-kern.mjs     #  55 Prüfungen (startet keinen Browser)
+node scripts/pruefe-feldzug.mjs  #  32 Prüfungen (startet keinen Browser)
+node scripts/pruefe.mjs          #  78 Prüfungen (startet Chromium)
+node scripts/matrix.mjs          #  die Synergie-Matrix, 2450 geordnete Paare
 ```
 
 Gemessen, nicht geschätzt: **Faktor 22**. Reine Regelfragen gehören in die
@@ -178,6 +183,86 @@ Tafel. Darum läuft diese Rechnung standardmässig als **Probe**: sie verbrennt
 kein Pulver und schreibt nicht ins Kampfprotokoll. Nur die Salve am Rundenende
 fragt echt. Der Vorgabewert steht auf `probe = true`, weil der teure Fehler in
 die andere Richtung geht.
+
+## Der Feldzug
+
+Eine Burg läuft nicht, sie **steht**. Die alte Karte war ein Baum aus elf
+Knoten, den man ablief — sie hat nie erzählt, warum man läuft, und sie hat dem
+widersprochen, was man die ganze Zeit ansieht.
+
+Eine **Ante** ist ein Heer, das anrückt, in drei Wellen: Vorhut, drei
+Divisionen, Heerführer. Jede Division trägt ein Merkmal, und das Merkmal ist
+eine Bossregel. Wer sie schlägt, nimmt es dem Heerführer; wer sie durchlässt,
+gibt es ihm.
+
+```
+  VORHUT  ──►  DIVISIONEN  ──►  HEERFÜHRER
+  stellen      stellen          = Grundregel
+  oder         oder             + jede durchgelassene Division
+  ziehen       durchlassen      + Bedrohung
+  lassen
+```
+
+Der Boss wird also **gebaut, nicht gewürfelt** — und zwar vom Spieler. Er ist
+vom ersten Augenblick an sichtbar, mit allen Regeln, die er gerade trägt.
+
+| Datei | Was darin steht |
+|---|---|
+| `bossregeln.js` | die fünf Regeln, die auf die Maschine zielen |
+| `gegner.js` | Vorhuten, Divisionen, Heerführer, Anten — als Daten |
+| `belagerung.js` | der Ablauf, das Kampfbudget, das Speichern |
+| `heerlager.js` | die vier Dienste zwischen den Schlachten |
+
+### Das Kampfbudget
+
+Mindestens **zwei**, höchstens **fünf** Schlachten je Ante. Nicht ungefähr:
+geprüft, und zwar an **allen sechzehn Wegen** durch die Ante, nicht an einem
+Beispiel. Die Obergrenze ergibt sich aus dem Aufbau (1 + 3 + 1), die
+Untergrenze wird gerechnet:
+
+    darfDurchlassen()  =  Kämpfe bisher + (offene Gelegenheiten − 1) + 1  ≥  2
+
+Wer bei null Schlachten vor der letzten Division steht, **muss** sie stellen.
+
+### Bossregeln zielen auf die Maschine
+
+Ein Boss mit mehr Trefferpunkten ist kein Gegner, sondern eine längere
+Wartezeit. Man spielt gegen ihn genau so wie gegen den Kampf davor, nur öfter.
+
+| Regel | Was sie angreift |
+|---|---|
+| Der Usurpator | vertauscht jede Runde Wappenplatz 2 und 4 |
+| Der Inquisitor | versiegelt das Wappen, das am häufigsten zündet |
+| Der Belagerungsmeister | nimmt die stärkste Stellung aus der Salve |
+| Die Weiße Königin | verhüllt je Runde eine andere Gattung |
+| Der Rote König | über zwölf Salven zählt jede weitere nur halb |
+
+Technisch sind sie **Wappen ohne Gestell**: dieselbe Bauform, dasselbe
+Fließband, dasselbe Protokoll — nur laufen sie *hinter* den fünf Plätzen des
+Spielers. Er rechnet zuerst, der Gegner antwortet. Ein Siegel des Spielers
+hält sie nicht auf; sonst wäre ein einziges Wappen die Antwort auf jeden
+Heerführer.
+
+Die Antwort liegt stattdessen in derselben Währung wie der Angriff:
+**Umhängen kostet einen Tatendrang.**
+
+## Was der Bündler sonst noch tut
+
+Eine Sache, die eine einzelne Datei nicht braucht und ein Bündel sehr wohl:
+
+In Modulen sind Ausfuhren **lebendige Bindungen** — wer `derKampf` einführt,
+sieht immer den aktuellen Wert. In *einem* Geltungsbereich, wie ihn dieser Bau
+erzeugt, wäre `window.PARAPEX = { derKampf }` dagegen eine Momentaufnahme beim
+Laden, also für immer `null`. Der Bündler sucht deshalb jedes `export let` und
+gibt es als Lesezugriff aus:
+
+```js
+get dieBelagerung() { return dieBelagerung; }
+```
+
+Gefunden wurde das nicht durch Nachdenken: `dieBelagerung` stand von aussen
+ewig auf null, obwohl im Spiel längst eine Ante lief — und die Prüfungen im
+Browser meldeten einen Fehler, den es im Kern nicht gab.
 
 ## Was NICHT in `quelle/` liegt
 

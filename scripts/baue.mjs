@@ -108,6 +108,26 @@ if (klagen) process.exit(1);
 const dach = module.get(EINSTIEG);
 const flaeche = [...new Set(dach.holt.flatMap(h => h.namen))].sort();
 
+/*
+ * Welche Namen VERAENDERLICH sind - `export let` und nicht `export const`.
+ *
+ * In Modulen sind Ausfuhren lebendige Bindungen: wer `derKampf` einfuehrt,
+ * sieht immer den aktuellen Wert. In EINEM Geltungsbereich, wie ihn dieser
+ * Bau erzeugt, waere `window.PARAPEX = { derKampf }` dagegen eine
+ * MOMENTAUFNAHME beim Laden - also fuer immer `null`.
+ *
+ * Das ist genau einmal teuer bezahlt worden: `dieBelagerung` stand von aussen
+ * ewig auf null, obwohl im Spiel laengst eine Ante lief, und die Pruefungen
+ * im Browser fanden einen Fehler, den es im Kern nicht gab. Deshalb wird
+ * jeder veraenderliche Name jetzt als Lesezugriff ausgegeben - dieselbe
+ * Lebendigkeit wie im Modul.
+ */
+const veraenderlich = new Set();
+for (const m of module.values()) {
+  for (const t of m.roh.matchAll(/^export\s+let\s+([A-Za-z_$][\w$]*)/gm)) veraenderlich.add(t[1]);
+}
+const eintrag = (name) => (veraenderlich.has(name) ? `get ${name}() { return ${name}; }` : name);
+
 /** Streichen, was nur zwischen Modulen gilt, und alles hintereinanderlegen. */
 const teile = [];
 for (const pfad of folge) {
@@ -128,7 +148,7 @@ const kern = teile.join('\n\n') + `
    */
   if (typeof window !== 'undefined') {
     window.PARAPEX = {
-      ${flaeche.join(', ').replace(/(.{72}) /g, '$1\n      ')},
+      ${flaeche.map(eintrag).join(', ').replace(/(.{72}) /g, '$1\n      ')},
       kampf: () => derKampf,
       lauf: () => derLauf,
       ueberlauf: () => abgewiesene(),
@@ -150,5 +170,5 @@ if (NUR_PRUEFEN) {
 
 writeFileSync(ZIEL, neu);
 console.log(`Gebaut: ${folge.length - 1} Module, ${kern.split('\n').length} Zeilen Kern, ` +
-  `${flaeche.length} Namen nach aussen.`);
+  `${flaeche.length} Namen nach aussen (${veraenderlich.size} davon veraenderlich).`);
 console.log('Reihenfolge: ' + folge.slice(0, -1).map(p => p.replace('quelle/kern/', '').replace('.js', '')).join(' → '));

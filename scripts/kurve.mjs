@@ -60,25 +60,47 @@ const daten = await seite.evaluate(({ LAEUFE }) => {
   for (let n = 0; n < LAEUFE; n++) {
     const l = P.neuerLauf();
     let nr = 0;
-    while (!l.ende) {
-      const kn = P.derKnoten();
-      if (['kampf', 'elite', 'boss'].includes(kn.art)) {
-        const k = P.beginneKampfAmKnoten();
-        k.feind.hp = 1e12; k.feind.maxHp = 1e12;       // faellt nicht um
-        const vorher = k.feind.hp;
-        while (!k.ende) { let z; while ((z = besterZug(k))) P.setzeEinheit(z.turm, z.karte); P.beendeRunde(); }
-        nr++;
-        (proKampf[nr] || (proKampf[nr] = [])).push(vorher - k.feind.hp);
-        k.ende = 'sieg'; k.feind.hp = 0;               // wir zaehlen nur, wir spielen nicht
-        const r = P.werteKampfAus(k);
-        if (r.belohnung) P.nimmAngebot(waehle(r.belohnung.angebote, l));
-      } else if (kn.art === 'haendler') {
-        const h = P.oeffneHaendler();
-        h.posten.forEach((p, i) => {
-          if (l.sold >= p.preis) P.kaufe(i, l.deck.slice().sort((a, b) => P.grundwucht(a) - P.grundwucht(b))[0]);
-        });
-      } else { const e = P.ziehBegegnung(); P.waehleInBegegnung(e, 0); }
-      if (!l.ende) P.verlasseKnoten();
+    let schutz = 0;
+    while (!l.ende && schutz++ < 300) {
+      const b = P.dieBelagerung;
+      if (!b || b.abschnitt === 'vorbei') {
+        const r = P.naechsteAnte();
+        if (r && r.ende) break;
+        continue;
+      }
+      const wahlen = P.offeneWahlen();
+      if (!wahlen.length) break;
+      if (b.abschnitt === 'lager') {
+        P.oeffneLager(b.kaempfe);
+        for (const dienst of P.dasLager.dienste) {
+          const posten = P.lagerAngebote(dienst).filter(x => !x.zuTeuer);
+          if (!posten.length) continue;
+          if (posten[0].art === 'haendlerOeffnen') {
+            const h = P.oeffneHaendler();
+            h.posten.forEach((x, i) => {
+              if (l.sold >= x.preis) P.kaufe(i, l.deck.slice().sort((a2, b2) => P.grundwucht(a2) - P.grundwucht(b2))[0]);
+            });
+            continue;
+          }
+          P.nimmLagerangebot(dienst, posten[0]);
+        }
+        P.waehle(wahlen[0]);
+        continue;
+      }
+      // Immer stellen: gemessen wird die Wucht je Schlacht, nicht die Taktik.
+      const wahl = wahlen.find(w => w.kampf);
+      const erg = P.waehle(wahl);
+      if (!erg.ok || !erg.kampf) break;
+      const k = P.beginneSchlacht(erg.kampf);
+      k.feind.hp = 1e12; k.feind.maxHp = 1e12;       // faellt nicht um
+      const vorher = k.feind.hp;
+      while (!k.ende) { let z; while ((z = besterZug(k))) P.setzeEinheit(z.turm, z.karte); P.beendeRunde(); }
+      nr++;
+      (proKampf[nr] || (proKampf[nr] = [])).push(vorher - k.feind.hp);
+      k.ende = 'sieg'; k.feind.hp = 0;               // wir zaehlen nur, wir spielen nicht
+      const r = P.werteKampfAus(k, wahl.ziel);
+      if (r.belohnung) P.nimmAngebot(waehle(r.belohnung.angebote, l));
+      P.meldeAusgang(true);
     }
   }
   return proKampf;

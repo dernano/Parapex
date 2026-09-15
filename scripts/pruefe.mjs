@@ -616,29 +616,38 @@ const ergebnis = await seite.evaluate(() => {
     return true;
   });
 
-  // ---------- Der Lauf ----------
-  pruefe('Ein neuer Lauf steht auf Station 1 mit dem Startdeck', () => {
+  // ---------- Der Feldzug ----------
+  /* Eine Schlacht aus der Belagerung heraus beginnen. */
+  const starteSchlacht = () => {
+    const wahl = P.offeneWahlen().find(w => w.kampf);
+    const r = P.waehle(wahl);
+    return r.kampf ? P.beginneSchlacht(r.kampf) : null;
+  };
+
+  pruefe('Ein neuer Feldzug steht vor der ersten Ante mit dem Startdeck', () => {
     const l = P.neuerLauf();
-    if (l.station !== 1) return 'Station ' + l.station;
+    if (l.ante !== 1) return 'Ante ' + l.ante;
+    if (l.schlachten !== 0) return 'schon ' + l.schlachten + ' Schlachten';
     if (l.deck.length !== P.START_DECK.length) return l.deck.length + ' Karten';
     if (l.wappen.length) return 'schon Wappen';
     if (l.turmTypen.length !== P.KERN.tuerme) return l.turmTypen.length + ' Turmtypen';
-    if (l.knoten.length !== l.stationen) return l.knoten.length + ' Knoten';
-    return true;
+    return P.dieBelagerung ? true : 'keine Belagerung';
   });
 
-  pruefe('Jeder Knoten hat eine bekannte Art, der letzte ist der Boss', () => {
-    const l = P.neuerLauf();
-    for (const k of l.knoten) if (!P.KNOTEN_ARTEN[k.art]) return 'Knoten ' + k.nr + ': ' + k.art;
-    if (l.knoten[l.knoten.length - 1].art !== 'boss') return 'letzter ist ' + l.knoten[l.knoten.length - 1].art;
-    return true;
+  pruefe('Die Ante steht bereit, sobald der Feldzug beginnt', () => {
+    P.neuerLauf();
+    const lage = P.belagerungslage();
+    if (!lage) return 'keine Lage';
+    if (lage.abschnitt !== 'vorhut') return 'Abschnitt ' + lage.abschnitt;
+    if (lage.divisionen.length !== 3) return lage.divisionen.length + ' Divisionen';
+    return lage.heerfuehrer.name ? true : 'kein Heerführer';
   });
 
   pruefe('Ein Kampf aus dem Lauf bekommt Deck, Wappen und Turmtypen', () => {
     const l = P.neuerLauf();
     l.wappen = ['loewe'];
     l.turmTypen[2] = 'pulverturm';
-    const k = P.beginneKampfAmKnoten();
+    const k = starteSchlacht();
     if (!k) return 'kein Kampf';
     if (k.zug.length + k.hand.length !== l.deck.length) return 'Deckgrösse stimmt nicht';
     if (k.wappen[0] !== 'loewe') return 'Wappen fehlt';
@@ -649,7 +658,7 @@ const ergebnis = await seite.evaluate(() => {
   pruefe('Der Kampf fasst das Deck des Laufs nicht an', () => {
     const l = P.neuerLauf();
     const vorher = l.deck.length;
-    const k = P.beginneKampfAmKnoten();
+    const k = starteSchlacht();
     // Im Kampf eine Einheit setzen und ersetzen - im Lauf darf nichts passieren.
     P.setzeEinheit(0, k.hand[0]);
     P.setzeEinheit(0, k.hand[0]);
@@ -660,7 +669,7 @@ const ergebnis = await seite.evaluate(() => {
 
   pruefe('Ein Sieg bringt Sold und drei Angebote', () => {
     const l = P.neuerLauf();
-    const k = P.beginneKampfAmKnoten();
+    const k = starteSchlacht();
     k.feind.hp = 0; k.ende = 'sieg';
     const r = P.werteKampfAus(k);
     if (!r.sieg) return 'kein Sieg';
@@ -674,7 +683,7 @@ const ergebnis = await seite.evaluate(() => {
   pruefe('Wer früher gewinnt, bekommt mehr Sold', () => {
     const bau = (runde) => {
       const l = P.neuerLauf();
-      const k = P.beginneKampfAmKnoten();
+      const k = starteSchlacht();
       k.runde = runde; k.feind.hp = 0; k.ende = 'sieg';
       return P.werteKampfAus(k).sold;
     };
@@ -685,7 +694,7 @@ const ergebnis = await seite.evaluate(() => {
 
   pruefe('Eine Niederlage beendet den Lauf', () => {
     const l = P.neuerLauf();
-    const k = P.beginneKampfAmKnoten();
+    const k = starteSchlacht();
     k.ende = 'niederlage';
     const r = P.werteKampfAus(k);
     if (r.sieg) return 'als Sieg gewertet';
@@ -791,51 +800,67 @@ const ergebnis = await seite.evaluate(() => {
     return true;
   });
 
-  pruefe('Der Lauf zieht Knoten für Knoten bis zum Ende', () => {
-    const l = P.neuerLauf();
-    for (let i = 1; i < l.stationen; i++) {
-      const r = P.verlasseKnoten();
-      if (r.ende) return 'zu früh vorbei bei ' + i;
-      if (l.station !== i + 1) return 'Station ' + l.station;
+  pruefe('Eine Ante läuft von der Vorhut bis zum Heerführer', () => {
+    P.neuerLauf();
+    let schutz = 0;
+    while (P.dieBelagerung.abschnitt !== 'vorbei' && schutz++ < 30) {
+      const wahlen = P.offeneWahlen();
+      if (!wahlen.length) return 'keine Wahl in Abschnitt ' + P.dieBelagerung.abschnitt;
+      const wahl = wahlen.find(w => w.kampf) || wahlen[0];
+      const r = P.waehle(wahl);
+      if (!r.ok) return r.grund;
+      if (r.kampf) P.meldeAusgang(true);
     }
-    const r = P.verlasseKnoten();
-    if (r.ende !== 'sieg') return 'Ende ist ' + r.ende;
-    return true;
+    if (schutz >= 30) return 'die Ante kam nicht zum Ende';
+    const n = P.dieBelagerung.kaempfe;
+    if (n < P.KAEMPFE_MIN || n > P.KAEMPFE_MAX) return n + ' Schlachten';
+    return P.dieBelagerung.ende === 'sieg' ? true : 'Ausgang ' + P.dieBelagerung.ende;
   });
 
-  pruefe('Ein Lauf lässt sich von Anfang bis Ende durchspielen', () => {
+  pruefe('Ein Feldzug lässt sich von Anfang bis Ende durchspielen', () => {
     const l = P.neuerLauf();
     let kaempfe = 0;
     let deckBewegt = false;
-    while (!l.ende) {
-      const kn = P.derKnoten();
-      if (['kampf', 'elite', 'boss'].includes(kn.art)) {
-        const k = P.beginneKampfAmKnoten();
-        if (!k) return 'kein Kampf an Knoten ' + kn.nr;
-        kaempfe++;
-        k.feind.hp = 0; k.ende = 'sieg';              // wir gewinnen ihn einfach
-        const r = P.werteKampfAus(k);
-        if (!r.sieg) return 'Sieg nicht gewertet an ' + kn.nr;
-        const a = r.belohnung.angebote[0];
-        if (P.nimmAngebot(a).ok && (a.art === 'karte' || a.art === 'entfernen')) deckBewegt = true;
-      } else if (kn.art === 'haendler') {
-        P.oeffneHaendler();
-      } else {
-        const e = P.ziehBegegnung();
-        P.waehleInBegegnung(e, 0);
+    let schutz = 0;
+    while (!l.ende && schutz++ < 200) {
+      const b = P.dieBelagerung;
+      if (b.abschnitt === 'vorbei') {
+        const r = P.naechsteAnte();
+        if (r.ende) break;
+        continue;
       }
-      P.verlasseKnoten();
+      const wahlen = P.offeneWahlen();
+      if (!wahlen.length) return 'keine Wahl in Abschnitt ' + b.abschnitt;
+      if (b.abschnitt === 'lager') {
+        // Im Lager einmal umsehen, dann aufbrechen.
+        P.oeffneLager(b.kaempfe);
+        for (const d of P.dasLager.dienste) P.lagerAngebote(d);
+        P.waehle(wahlen[0]);
+        continue;
+      }
+      const wahl = wahlen.find(w => w.kampf);
+      const erg = P.waehle(wahl);
+      if (!erg.ok) return erg.grund;
+      const k = P.beginneSchlacht(erg.kampf);
+      if (!k) return 'kein Kampf gegen ' + wahl.name;
+      kaempfe++;
+      k.feind.hp = 0; k.ende = 'sieg';              // wir gewinnen ihn einfach
+      const r = P.werteKampfAus(k, wahl.ziel);
+      if (!r.sieg) return 'Sieg nicht gewertet gegen ' + wahl.name;
+      const a = r.belohnung.angebote[0];
+      if (P.nimmAngebot(a).ok && (a.art === 'karte' || a.art === 'entfernen')) deckBewegt = true;
+      P.meldeAusgang(true);
     }
+    if (schutz >= 200) return 'der Feldzug kam nicht zum Ende';
     if (l.ende !== 'sieg') return 'Ende ' + l.ende;
-    if (kaempfe !== l.knoten.filter(k => ['kampf', 'elite', 'boss'].includes(k.art)).length)
-      return kaempfe + ' Kämpfe';
+    if (kaempfe < P.KAEMPFE_MIN * l.anten) return kaempfe + ' Kämpfe in ' + l.anten + ' Anten';
+    if (kaempfe > P.KAEMPFE_MAX * l.anten) return kaempfe + ' Kämpfe in ' + l.anten + ' Anten';
     /*
      * Mit dem vollen Blatt waechst ein Deck nicht mehr, es wird geschmaelert.
      * Frueher stand hier "das Deck muss sich bewegt haben" - das war eine
      * Wette auf den Zufall: die Belohnungen werden gewuerfelt, und ein Lauf,
      * in dem jedes erste Angebot ein Wappen oder ein Ausbau war, liess das
-     * Deck voellig zu Recht unangetastet. Die Pruefung ist einmal von
-     * dreissig Laeufen daran gescheitert. Jetzt wird das geprueft, was
+     * Deck voellig zu Recht unangetastet. Jetzt wird das geprueft, was
      * wirklich gelten muss: WENN eine Karte dazukam oder wegfiel, hat sich
      * das Deck bewegt - und in keinem Fall faellt es unter die Handgroesse.
      */

@@ -370,7 +370,7 @@ pruefe('Der Herold holt ein Wappen und legt eines ab', () => {
   P.neuerLauf();
   P.neueBelagerung(1);
   P.dieBelagerung.vorbereitung = 9;
-  P.derLauf.station = 9;
+  P.derLauf.schlachten = 9;
   const halt = [1, 2, 3, 4].find(nr => P.oeffneLager(nr).dienste.includes('herold'));
   P.oeffneLager(halt);
   const holen = P.lagerAngebote('herold').find(p => p.art === 'wappenHolen');

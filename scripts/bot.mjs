@@ -88,33 +88,66 @@ const ergebnis = await seite.evaluate(({ LAEUFE, STRATEGIE }) => {
   for (let n = 0; n < LAEUFE; n++) {
     const l = P.neuerLauf();
     const proStation = [];
-    while (!l.ende) {
-      const kn = P.derKnoten();
-      if (['kampf', 'elite', 'boss'].includes(kn.art)) {
-        const k = P.beginneKampfAmKnoten();
-        const sieg = spieleKampf(k);
-        proStation.push({ nr: kn.nr, art: kn.art, sieg, runden: k.runde,
-          rest: Math.round(100 * k.feind.hp / k.feind.maxHp) });
-        const r = P.werteKampfAus(k);
-        if (r.sieg) P.nimmAngebot(waehleBelohnung(r.belohnung.angebote, l));
-      } else if (kn.art === 'haendler') {
-        const h = P.oeffneHaendler();
-        // Von vorn kaufen, was man sich leisten kann; Dienste mit der
-        // schwaechsten Karte als Ziel.
-        h.posten.forEach((posten, i) => {
-          if (l.sold < posten.preis) return;
-          const schwach = l.deck.slice().sort((a, b) => P.grundwucht(a) - P.grundwucht(b))[0];
-          P.kaufe(i, schwach);
-        });
-      } else {
-        const e = P.ziehBegegnung();
-        P.waehleInBegegnung(e, 0);
+    let schutz = 0;
+    while (!l.ende && schutz++ < 300) {
+      const b = P.dieBelagerung;
+      if (!b || b.abschnitt === 'vorbei') {
+        const r = P.naechsteAnte();
+        if (r && r.ende) break;
+        continue;
       }
-      if (!l.ende) P.verlasseKnoten();
+      const wahlen = P.offeneWahlen();
+      if (!wahlen.length) break;
+
+      if (b.abschnitt === 'lager') {
+        /*
+         * Im Lager: was der Haendler hat, wird gekauft; die anderen Dienste
+         * nimmt der Bot in der Reihenfolge, in der sie liegen. Er handelt
+         * nicht klug, er handelt GLEICH - nur so misst der Lauf die Balance
+         * und nicht die Laune des Bots.
+         */
+        P.oeffneLager(b.kaempfe);
+        for (const dienst of P.dasLager.dienste) {
+          const posten = P.lagerAngebote(dienst).filter(p => !p.zuTeuer);
+          if (!posten.length) continue;
+          if (posten[0].art === 'haendlerOeffnen') { kaufeBeimHaendler(l); continue; }
+          P.nimmLagerangebot(dienst, posten[0]);
+        }
+        P.waehle(wahlen[0]);
+        continue;
+      }
+
+      /*
+       * STRATEGIE `durchlassen`: alles ziehen lassen, was geht - das misst
+       * den schwersten Heerfuehrer. Sonst wird gestellt.
+       */
+      const durch = wahlen.find(w => w.art === 'durchlassen' && !w.gesperrt);
+      const wahl = (STRATEGIE === 'durchlassen' && durch) ? durch : wahlen.find(w => w.kampf);
+      const erg = P.waehle(wahl);
+      if (!erg.ok) break;
+      if (!erg.kampf) continue;
+
+      const k = P.beginneSchlacht(erg.kampf);
+      const sieg = spieleKampf(k);
+      proStation.push({ nr: l.schlachten + 1, art: wahl.ziel, sieg, runden: k.runde,
+        rest: Math.round(100 * k.feind.hp / k.feind.maxHp) });
+      const r = P.werteKampfAus(k, wahl.ziel);
+      if (r.sieg) P.nimmAngebot(waehleBelohnung(r.belohnung.angebote, l));
+      P.meldeAusgang(sieg);
     }
-    laeufe.push({ ende: l.ende, weit: l.station, deck: l.deck.length,
+    laeufe.push({ ende: l.ende, weit: l.schlachten, deck: l.deck.length,
       wappen: l.wappen.length, sold: l.sold, stationen: proStation });
   }
+
+  function kaufeBeimHaendler(l) {
+    const h = P.oeffneHaendler();
+    h.posten.forEach((posten, i) => {
+      if (l.sold < posten.preis) return;
+      const schwach = l.deck.slice().sort((a, b) => P.grundwucht(a) - P.grundwucht(b))[0];
+      P.kaufe(i, schwach);
+    });
+  }
+
   return laeufe;
 }, { LAEUFE, STRATEGIE });
 

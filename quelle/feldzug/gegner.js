@@ -98,7 +98,19 @@ export const ANTEN = [
 export const JE_BEDROHUNG = 0.14;
 export const BEDROHUNG_MAX = 5;
 
+/*
+ * Wie viel staerker jede weitere Ante ist. Solange es nur EIN ausgeschriebenes
+ * Heer gibt, ruecken Ante zwei und drei mit demselben an - aber schwerer. Das
+ * ist eine Notloesung und steht hier, damit sie als solche sichtbar ist: der
+ * Platz fuer die naechsten Heere ist `ANTEN`, nicht diese Zahl.
+ */
+export const JE_ANTE = 1.45;
+
 /** @param {number} nr */
 export function dieAnte(nr) {
-  return ANTEN[Math.max(0, Math.min(ANTEN.length - 1, nr - 1))];
+  const i = Math.max(0, Math.min(ANTEN.length - 1, nr - 1));
+  const ante = ANTEN[i];
+  const ueber = Math.max(0, nr - ANTEN.length);
+  if (!ueber) return ante;
+  return { ...ante, nr, grund: Math.round(ante.grund * Math.pow(JE_ANTE, ueber)) };
 }

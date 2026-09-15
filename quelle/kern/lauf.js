@@ -1,11 +1,11 @@
 import { KERN } from './regeln.js';
 import { GATTUNGEN, GATTUNG_LISTE, START_DECK, grundwucht, neueEinheit, verbessereEinheit } from './einheiten.js';
 import { TURMTYPEN, TURM_START } from './tuerme.js';
-import { baueFeind } from './feinde.js';
 import { WAPPEN, WAPPEN_LISTE, WAPPEN_PLAETZE } from '../wappen/sammlung.js';
 import { verschiebePlatz, dasBand, stelleBandHer, raeumeBand } from '../wappen/fliessband.js';
 import { sichereVorrat, stelleVorratHer, neuerVorrat } from '../wappen/vorrat.js';
 import { setzeStufenquelle } from './formationen.js';
+import { neueBelagerung } from '../feldzug/belagerung.js';
 import { derKampf, neuerKampf, kostetZuViel, setzeEinheit, beendeRunde, raeumeKampf, stelleKampfHer } from './kampf.js';
 
 // ---------- Der Lauf ----------
@@ -26,11 +26,16 @@ import { derKampf, neuerKampf, kostetZuViel, setzeEinheit, beendeRunde, raeumeKa
  * der einmal umfällt; wer breit baut, trifft keine Formation.
  */
 export const LAUF = {
-  stationen: 11,
+  /*
+   * Ein Feldzug ist eine Kette von ANTEN - je ein Heer, das anrueckt. Wie
+   * eine Ante ablaeuft, steht in `quelle/feldzug/`; hier steht nur, was ueber
+   * die Anten hinaus bestehen bleibt: Deck, Wappen, Tuerme, Sold.
+   */
+  anten: 3,
   leben: 1,                   // verlorene Kaempfe, die ein Lauf uebersteht
   sold: {
     start: 0,
-    kampf: 25, elite: 45, boss: 120,
+    vorhut: 25, division: 45, heerfuehrer: 120,
     jeRestrunde: 8,           // je Runde, die man nicht gebraucht hat
   },
   preise: { karte: 45, wappen: 130, ausbau: 95, entfernen: 60, schliff: 75 },
@@ -50,30 +55,25 @@ export const LAUF = {
    */
   rangKurve: { ab: 2, je: 1.4 },
   schliff: 2,                 // was ein Schliff an Wucht bringt
-  /*
-   * Das Muster eines Akts. Elf Knoten: acht Kaempfe (davon zwei Elite und ein
-   * Boss), zwei Haendler, zwei Ereignisse. Der erste Haendler kommt spaet
-   * genug, dass man Sold hat, und frueh genug, dass er den Lauf noch dreht.
-   */
-  muster: ['kampf', 'kampf', 'ereignis', 'haendler', 'kampf', 'elite',
-    'ereignis', 'kampf', 'haendler', 'elite', 'boss'],
 };
 
-export const KNOTEN_ARTEN = {
-  kampf:    { id: 'kampf',    name: 'Angriff',      zeichen: '⚔' },
-  elite:    { id: 'elite',    name: 'Sturmtrupp',   zeichen: '☠', zuschlag: 1.18 },
-  boss:     { id: 'boss',     name: 'Belagerung',   zeichen: '♛' },
-  haendler: { id: 'haendler', name: 'Händler',      zeichen: '⚖' },
-  ereignis: { id: 'ereignis', name: 'Begegnung',    zeichen: '❖' },
+/*
+ * Wie eine Schlacht heisst, und was sie einbringt. Das sind die drei Arten,
+ * die eine Ante kennt - nicht mehr Knotenarten auf einem Weg, sondern
+ * Stellungen im Anmarsch eines Heeres.
+ */
+export const SCHLACHT_ARTEN = {
+  vorhut:      { id: 'vorhut',      name: 'Vorhut',      zeichen: '👁' },
+  division:    { id: 'division',    name: 'Division',    zeichen: '⚔' },
+  heerfuehrer: { id: 'heerfuehrer', name: 'Heerführer',  zeichen: '♛' },
 };
-export const KNOTEN_KAMPF = ['kampf', 'elite', 'boss'];
 
 export let derLauf = null;
 
 // Die Formationen fragen hier nach ihren Stufen, statt den Lauf zu kennen.
 setzeStufenquelle(() => (derLauf ? derLauf.formationsStufen : null));
 
-export function neuerLauf({ stationen = LAUF.stationen, muster = LAUF.muster } = {}) {
+export function neuerLauf({ anten = LAUF.anten } = {}) {
   /*
    * Ein neuer Feldzug hat keinen laufenden Kampf. Das klingt selbstverstaendlich
    * und war es nicht: `derKampf` zeigte noch auf die letzte Schlacht des
@@ -85,60 +85,46 @@ export function neuerLauf({ stationen = LAUF.stationen, muster = LAUF.muster } =
   raeumeBand();
   neuerVorrat();
   derLauf = {
-    station: 1,
-    stationen,
+    ante: 1,
+    anten,
     /*
-     * Jeder Knoten kennt seine Nummer IM AKT und, wenn er ein Kampf ist,
-     * seine Nummer UNTER DEN KAEMPFEN. Das ist nicht dasselbe: an Station 5
-     * steht der dritte Kampf, weil dazwischen ein Haendler und eine Begegnung
-     * liegen. Die Staerke des Gegners haengt am dritten Kampf, nicht an der
-     * fuenften Station - sonst springt sie ueber die Knoten ohne Kampf hinweg
-     * und der Spieler faellt in ein Loch, das nur die Tabelle kennt.
+     * Wie viele Schlachten dieser Feldzug schon gesehen hat. Das ist die
+     * Achse, an der Belohnungen und Gegnerstaerke haengen - nicht die Ante
+     * und nicht die Station. Wer eine Ante in zwei Schlachten durchlaeuft,
+     * soll dafuer keine Belohnungen bekommen, die einem Spieler nach fuenf
+     * zustuenden.
      */
-    knoten: (() => {
-      let kampfNr = 0;
-      return Array.from({ length: stationen }, (_, i) => {
-        const art = muster[i] || 'kampf';
-        const kampf = KNOTEN_KAMPF.includes(art);
-        if (kampf) kampfNr++;
-        return { nr: i + 1, art, kampfNr: kampf ? kampfNr : 0, erledigt: false };
-      });
-    })(),
+    schlachten: 0,
     deck: START_DECK.map(id => neueEinheit(id)),
     wappen: [],
     turmTypen: TURM_START.slice(),
     /*
-     * Je Formation eine Stufe. Sie steht schon hier, damit eine spaetere
-     * Belohnung ("Manoever: Reine Garde") nur einen Eintrag hochzaehlen muss,
-     * statt dass die Kampfrechnung dafuer umgebaut wird.
+     * Je Formation eine Stufe. Der Kriegsrat im Heerlager hebt sie; sie
+     * halten den ganzen Feldzug.
      */
     formationsStufen: {},
     sold: LAUF.sold.start,
     leben: LAUF.leben,
     ende: null,                 // null | 'sieg' | 'niederlage'
-    verlauf: [],                // was an jedem Knoten geschah
+    haendler: null,
+    verlauf: [],                // was in jeder Schlacht geschah
   };
+  neueBelagerung(1);
   return derLauf;
 }
 
-/** Der Knoten, vor dem der Lauf gerade steht. */
-export function derKnoten() {
-  return derLauf ? derLauf.knoten[derLauf.station - 1] || null : null;
-}
-
 /*
- * Einen Kampf aus dem Lauf heraus beginnen. Der Lauf reicht durch, was er
+ * Eine Schlacht aus dem Feldzug heraus beginnen. Der Lauf reicht durch, was er
  * hat - der Kampf baut daraus seinen eigenen Zustand und fasst den Lauf nie
  * an. Das Deck wird kopiert: was im Kampf ersetzt wird und in der Ablage
  * landet, darf das Deck des Laufs nicht verändern.
+ *
+ * Den GEGNER bringt die Belagerung mit. Er ist kein Eintrag in einer Tabelle
+ * mehr, sondern eine Vorhut, eine Division oder ein Heerfuehrer mit den
+ * Regeln, die der Spieler ihm gelassen hat.
  */
-export function beginneKampfAmKnoten(stellungen = null) {
-  const kn = derKnoten();
-  if (!kn) return null;
-  if (!KNOTEN_KAMPF.includes(kn.art)) return null;
-  const boss = kn.art === 'boss';
-  const feind = baueFeind(kn.kampfNr, { boss, zuschlag: KNOTEN_ARTEN[kn.art].zuschlag || 1 });
-  if (kn.art === 'elite') feind.name = 'Sturmtrupp';
+export function beginneSchlacht(feind, stellungen = null) {
+  if (!derLauf || !feind) return null;
   return neuerKampf({
     feind,
     deck: derLauf.deck.map(k => ({ ...k })),
@@ -149,28 +135,47 @@ export function beginneKampfAmKnoten(stellungen = null) {
 }
 
 /*
- * Der Kampf ist entschieden. Hier - und nur hier - wird der Lauf fortgeschrieben:
- * Sold, Leben, Station. Die Belohnung wird nur gebaut, nicht schon vergeben;
- * welches der Angebote genommen wird, entscheidet der Spieler.
+ * Der Kampf ist entschieden. Hier - und nur hier - wird der Feldzug
+ * fortgeschrieben: Sold, Leben, Schlachtenzahl. Die Belohnung wird nur
+ * gebaut, nicht schon vergeben; welches der Angebote genommen wird,
+ * entscheidet der Spieler.
+ *
+ * @param {any} [kampf] @param {string} [art] vorhut | division | heerfuehrer
  */
-export function werteKampfAus(kampf = derKampf) {
-  const kn = derKnoten();
-  if (!derLauf || !kn || !kampf) return null;
+export function werteKampfAus(kampf = derKampf, art = 'division') {
+  if (!derLauf || !kampf) return null;
   const sieg = kampf.ende === 'sieg';
   if (!sieg) {
     derLauf.leben--;
     if (derLauf.leben <= 0) derLauf.ende = 'niederlage';
-    derLauf.verlauf.push({ nr: kn.nr, art: kn.art, sieg: false });
+    derLauf.verlauf.push({ ante: derLauf.ante, art, sieg: false });
     return { sieg: false, sold: 0, belohnung: null, ende: derLauf.ende };
   }
+  derLauf.schlachten++;
   const restrunden = Math.max(0, kampf.rundenMax - kampf.runde);
-  const sold = (LAUF.sold[kn.art] || LAUF.sold.kampf) + restrunden * LAUF.sold.jeRestrunde;
+  const sold = (LAUF.sold[art] || LAUF.sold.division) + restrunden * LAUF.sold.jeRestrunde;
   derLauf.sold += sold;
-  kn.erledigt = true;
-  derLauf.verlauf.push({ nr: kn.nr, art: kn.art, sieg: true, sold, runden: kampf.runde });
-  const belohnung = baueBelohnung(kn);
-  if (kn.art === 'boss') derLauf.ende = 'sieg';
+  derLauf.verlauf.push({ ante: derLauf.ante, art, sieg: true, sold, runden: kampf.runde });
+  const belohnung = baueBelohnung(art);
+  /*
+   * Ein geschlagener Heerfuehrer beendet die Ante, nicht den Feldzug. Erst
+   * wenn keine Ante mehr kommt, ist der Feldzug gewonnen.
+   */
+  if (art === 'heerfuehrer' && derLauf.ante >= derLauf.anten) derLauf.ende = 'sieg';
   return { sieg: true, sold, restrunden, belohnung, ende: derLauf.ende };
+}
+
+/** Die naechste Ante beginnt. Deck, Wappen und Tuerme bleiben, das Heer wechselt. */
+export function naechsteAnte() {
+  if (!derLauf) return null;
+  if (derLauf.ante >= derLauf.anten) {
+    if (!derLauf.ende) derLauf.ende = 'sieg';
+    return { ende: derLauf.ende };
+  }
+  derLauf.ante++;
+  derLauf.haendler = null;
+  neueBelagerung(derLauf.ante);
+  return { ende: null, ante: derLauf.ante };
 }
 
 /*
@@ -178,8 +183,8 @@ export function werteKampfAus(kampf = derKampf) {
  * damit die Wahl wirklich eine ist: eine Karte macht das Deck breiter, ein
  * Ausbau macht einen Turm schärfer, ein Wappen bricht eine Regel.
  */
-export function baueBelohnung(knoten) {
-  const nr = knoten.kampfNr || 1;
+export function baueBelohnung(art = 'division') {
+  const nr = kampfNrJetzt();
   /*
    * Drei Plaetze, vier Bewerber - aus jeder Achse einer, und einer bleibt
    * jedes Mal draussen. Das ist der Grund, warum die Wahl eine ist: Ausbau,
@@ -194,7 +199,7 @@ export function baueBelohnung(knoten) {
   const bewerber = [
     angebotAusbau(),
     (derLauf.deck.length > KERN.handGroesse + 4 ? angebotAusmustern() : null),
-    (knoten.nr >= LAUF.belohnung.wappenAb ? angebotWappen() : null),
+    (derLauf.schlachten >= LAUF.belohnung.wappenAb ? angebotWappen() : null),
     angebotKarte(nr),
   ].filter(Boolean);
   for (let i = bewerber.length - 1; i > 0; i--) {
@@ -241,18 +246,12 @@ export function belohnungsRang(kampfNr) {
 }
 
 /*
- * Der Kampf, auf den sich eine Belohnung bezieht: der letzte gespielte. An
- * einem Haendler oder in einer Begegnung ist das der Kampf davor - dort soll
- * nicht schlechtere Ware liegen, nur weil zwischendurch nicht gekaempft wurde.
+ * Der Kampf, auf den sich eine Belohnung bezieht: der letzte gespielte. Im
+ * Heerlager ist das der Kampf davor - dort soll nicht schlechtere Ware
+ * liegen, nur weil zwischendurch nicht gekaempft wurde.
  */
 export function kampfNrJetzt() {
-  if (!derLauf) return 1;
-  let letzte = 1;
-  for (const kn of derLauf.knoten) {
-    if (kn.kampfNr) letzte = kn.kampfNr;
-    if (kn.nr >= derLauf.station) break;
-  }
-  return letzte;
+  return derLauf ? Math.max(1, derLauf.schlachten) : 1;
 }
 
 export function angebotKarte(station) {
@@ -389,11 +388,11 @@ export const WAPPEN_ANGEBOT = {
 
 export function angebotWappen() {
   if (derLauf.wappen.length >= WAPPEN_PLAETZE) return null;
-  const station = derLauf.station;
+  const schlachten = kampfNrJetzt();
   const offen = WAPPEN_LISTE.filter(id => {
     if (derLauf.wappen.includes(id)) return false;
     const r = WAPPEN_ANGEBOT[WAPPEN[id].seltenheit];
-    return r && station >= r.ab;
+    return r && schlachten >= r.ab;
   });
   if (!offen.length) return null;
 
@@ -476,15 +475,3 @@ export function schleifeKarte(uid) {
 }
 
 /** Knoten abhaken und weiterziehen. Am letzten Knoten endet der Lauf. */
-export function verlasseKnoten() {
-  if (!derLauf) return null;
-  const kn = derKnoten();
-  if (kn) kn.erledigt = true;
-  derLauf.haendler = null;
-  if (derLauf.station >= derLauf.stationen) {
-    if (!derLauf.ende) derLauf.ende = 'sieg';
-    return { ende: derLauf.ende };
-  }
-  derLauf.station++;
-  return { ende: null, station: derLauf.station, knoten: derKnoten() };
-}

@@ -27,6 +27,17 @@ const blatt = (...ids) => ids.map((id, i) =>
   ({ nr: i + 1, typ: 'wachturm', einheit: id ? P.neueEinheit(id) : null }));
 const formIds = (t, w) => P.erkenneFormationen(t, w).map(f => f.id).sort();
 const hat = (t, id) => formIds(t).includes(id);
+/*
+ * Eine Schlacht aus dem Feldzug heraus beginnen. Seit die Welt zur Burg kommt
+ * statt umgekehrt, gibt es keinen Knoten mehr, den man betritt - es gibt einen
+ * Gegner, der anrueckt, und man stellt ihn oder laesst ihn durch.
+ */
+const starteSchlacht = () => {
+  const wahl = P.offeneWahlen().find(w => w.kampf);
+  const r = P.waehle(wahl);
+  return r.kampf ? P.beginneSchlacht(r.kampf) : null;
+};
+
 const misch = (a) => { const b = a.slice();
   for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; }
   return b.map((t, i) => ({ ...t, nr: i + 1 })); };
@@ -510,7 +521,7 @@ pruefe('Jedes Wappen trägt ein eigenes Zeichen', () => {
 pruefe('Umhängen ändert Lauf und laufenden Kampf zugleich', () => {
   P.neuerLauf();
   P.derLauf.wappen.push('amboss', 'drache', 'stier');
-  const k = P.beginneKampfAmKnoten();
+  const k = starteSchlacht();
   if (k.wappen.join() !== 'amboss,drache,stier') return 'Kampf startete mit ' + k.wappen.join();
   const r = P.ordneWappen(0, 2);
   if (!r.ok) return r.grund;
@@ -524,7 +535,7 @@ pruefe('Umhängen kostet im Kampf Tatendrang, davor nichts', () => {
   P.derLauf.wappen.push('amboss', 'drache');
   const frei = P.ordneWappen(0, 1);
   if (frei.kosten !== 0) return 'ausserhalb des Kampfes kostete es ' + frei.kosten;
-  const k = P.beginneKampfAmKnoten();
+  const k = starteSchlacht();
   const vorher = k.tatendrang;
   const r = P.ordneWappen(0, 1);
   if (!r.ok) return r.grund;
@@ -534,7 +545,7 @@ pruefe('Umhängen kostet im Kampf Tatendrang, davor nichts', () => {
 pruefe('Ohne Tatendrang lässt sich nichts umhängen', () => {
   P.neuerLauf();
   P.derLauf.wappen.push('amboss', 'drache');
-  const k = P.beginneKampfAmKnoten();
+  const k = starteSchlacht();
   k.tatendrang = 0;
   const r = P.ordneWappen(0, 1);
   if (r.ok) return 'es ging trotzdem';
@@ -548,7 +559,7 @@ pruefe('Ohne Tatendrang lässt sich nichts umhängen', () => {
 pruefe('Ein Wappen bewerten lässt Kampf und Vorrat unberührt', () => {
   P.neuerLauf();
   P.derLauf.wappen.push('schmiedehammer');
-  const k = P.beginneKampfAmKnoten();
+  const k = starteSchlacht();
   P.neuerVorrat();
   P.lege('pulver', 7);
   P.setzeEinheit(0, k.hand[0]);

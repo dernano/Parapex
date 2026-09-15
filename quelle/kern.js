@@ -39,9 +39,10 @@ export {
   raeumeKampf,
 } from './kern/kampf.js';
 export {
-  LAUF, KNOTEN_ARTEN, WAPPEN_ANGEBOT, derLauf, neuerLauf, derKnoten, beginneKampfAmKnoten,
-  werteKampfAus, baueBelohnung, nimmAngebot, fuegeWappenHinzu, baueTurmAus,
-  entferneKarte, schleifeKarte, verlasseKnoten, angebotWappen, ordneWappen, bewerteWappen,
+  LAUF, SCHLACHT_ARTEN, WAPPEN_ANGEBOT, derLauf, neuerLauf, beginneSchlacht,
+  werteKampfAus, naechsteAnte, baueBelohnung, nimmAngebot, fuegeWappenHinzu, baueTurmAus,
+  entferneKarte, schleifeKarte, angebotWappen, angebotKarte, ordneWappen, bewerteWappen,
+  kampfNrJetzt,
 } from './kern/lauf.js';
 export { oeffneHaendler, kaufe } from './kern/haendler.js';
 export { BEGEGNUNGEN, ziehBegegnung, waehleInBegegnung } from './kern/begegnungen.js';
@@ -49,7 +50,7 @@ export { BEGEGNUNGEN, ziehBegegnung, waehleInBegegnung } from './kern/begegnunge
 /* ---------- Der Feldzug: die Welt kommt zur Burg ---------- */
 export { BOSSREGELN, BOSSREGEL_LISTE, ROTER_KOENIG_AB, baueRegeln } from './feldzug/bossregeln.js';
 export {
-  ANTEN, VORHUTEN, DIVISIONEN, HEERFUEHRER, JE_BEDROHUNG, BEDROHUNG_MAX, dieAnte,
+  ANTEN, VORHUTEN, DIVISIONEN, HEERFUEHRER, JE_BEDROHUNG, JE_ANTE, BEDROHUNG_MAX, dieAnte,
 } from './feldzug/gegner.js';
 export {
   KAEMPFE_MIN, KAEMPFE_MAX, ABSCHNITTE, SPERRE, dieBelagerung, neueBelagerung,
