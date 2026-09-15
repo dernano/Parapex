@@ -15,7 +15,8 @@
     "lauftest": "node scripts/lauftest.mjs",
     "tot": "node scripts/erreichbar.mjs",
     "feldzug": "node scripts/pruefe-feldzug.mjs",
-    "matrix": "node scripts/matrix.mjs"
+    "matrix": "node scripts/matrix.mjs",
+    "probe": "node scripts/probespiel.mjs"
   },
   "engines": {
     "node": ">=18"

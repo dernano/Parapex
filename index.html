@@ -1534,14 +1534,23 @@
     if ((lage.zaehler[platz] || 0) >= GRENZEN.jePlatz) return 'jePlatz';
     if (lage.gezuendet.length >= GRENZEN.jeEreignis) return 'jeEreignis';
     /*
-     * Der Kreis: A zuendet B nach, B zuendet A nach. Beide sind fuer sich
-     * sinnvolle Wappen, zusammen sind sie eine Schleife. Sie wird nicht
-     * verboten - sie darf ihre Tiefe ausschoepfen -, aber ein Ereignis, das
-     * ueber dieses Wappen erst entstanden ist, zuendet es nicht ein zweites
-     * Mal. Sonst waechst die Kette in der Breite statt in der Tiefe und die
-     * Tiefensperre greift nie.
+     * Der Kreis: ein Wappen zuendet nicht in einem Ereignis, das es SELBST
+     * ausgeloest hat. Nicht als Nachzuendung, nicht als Kopie, und auch nicht
+     * im ganz gewoehnlichen Durchlauf der Reihe.
+     *
+     * Der letzte Teil ist mit Absicht so hart, und er ist gemessen bezahlt:
+     * der Ouroboros laesst die ganze Reihe noch einmal laufen - und lief darin
+     * selbst wieder mit. Jede Runde des Rades multiplizierte also die naechste,
+     * und mit der Fackel daneben (die je Salve ueber fuenf Prozente draufgibt)
+     * wuchs das exponentiell in die Tiefensperre hinein. Eine gierige Suche
+     * fand in drei Wappen eine Salve von 10^15 gegen einen Heerfuehrer mit
+     * viertausend.
+     *
+     * Die Sperren hatten das im Griff - es war endlich, es brauchte zwei
+     * Millisekunden. Das SPIEL hatte es nicht im Griff. Jetzt heisst
+     * "die Reihe laeuft noch einmal" genau das: noch EIN Mal.
      */
-    if (art === ZUENDART.erzeugt && lage.herkunft.includes(id)) return 'kreis';
+    if (lage.herkunft.includes(id)) return 'kreis';
     return null;
   }
 
