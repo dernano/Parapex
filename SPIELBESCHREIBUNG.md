@@ -424,7 +424,7 @@ Spielstand exakt derselbe.
 Jedes Wappen trägt sein eigenes Bild und seine eigene Tinktur — vorher trugen
 alle sechs dasselbe ⚜, man sah also, *dass* man Wappen hat, nie *welche*.
 
-**Die Formationsleiste** trägt je Familie ein Zeichen (⚑ Gattung, ⚔ Rang,
+**Die Formationsleiste** trägt je Familie ein Zeichen (⚑ Gattung, ‖ Rang,
 ➤ Rangfolge, ⛨ Grundstellung, ♛ Garde) und die Stufe als Striche. Wer eine
 Marke überfährt, sieht genau die Stellungen aufleuchten, die diese Formation
 tragen — das beantwortet die Frage, die man beim Planen wirklich hat: nicht

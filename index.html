@@ -1118,9 +1118,14 @@ const FORMATIONS_FAMILIEN = {
  * baut. Mit dem Zeichen erkennt man die Familie, bevor man den Namen liest,
  * und weiss damit sofort, was eine bessere Karte an dieser Stelle brauchte.
  */
+/*
+ * Vorher stand hier ein gekreuztes Schwert fuer die Rangfamilie. Im Bild war
+ * es ein duennes Kreuz - und damit kaum vom Mal-Zeichen der Salvenzahl
+ * gleich daneben zu unterscheiden.
+ */
 const FAMILIEN_ZEICHEN = {
   gattung: '⚑',       // eine Fahne: alle unter derselben
-  rang: '⚔',          // gekreuzt: gleiche Raenge nebeneinander
+  rang: '‖',          // zwei gleiche, die nebeneinander stehen
   folge: '➤',         // die Spitze: Rang um Rang nach oben
   grund: '⛨',         // der Schild: alle fuenf Stellungen stehen
 };
@@ -8616,14 +8621,17 @@ const PK_CSS = `
   transition: transform .18s cubic-bezier(.2,1.8,.4,1); box-shadow: 0 2px 6px rgba(0,0,0,0.6); }
 #pk .pk-karte.gewaehlt .pk-karte-haken { transform: scale(1); }
 
-#pk .pk-karte-kopf { display: flex; justify-content: space-between; align-items: flex-start; }
+/* Der Zwischenraum ist noetig, seit der Schliff neben dem Rang steht: ohne
+   ihn klebte das gruene '+6' am Gattungszeichen. */
+#pk .pk-karte-kopf { display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 3px; }
 #pk .pk-karte-rang { font-size: 30px; font-weight: 700; line-height: 0.88;
   font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
 /* Ein Schliff, der nicht sichtbar ist, ist kein Schliff. Die Grundwucht bleibt
    die grosse Zahl - sie steht fuer den Rang und damit fuer die Formationen -,
    der Zugewinn haengt als kleine gruene Marke daneben. Wer zwei Karten
    vergleicht, liest zuerst gross, dann klein. */
-#pk .pk-bonus { font-size: 12px; font-weight: 700; color: #8fe08f; margin-left: 2px;
+#pk .pk-bonus { font-size: 11px; font-weight: 700; color: #8fe08f; margin-left: 1px;
   letter-spacing: 0; vertical-align: super; line-height: 1;
   text-shadow: 0 0 7px rgba(120,230,120,0.45); }
 #pk .pk-karte-zeichen { width: 21px; height: 21px; display: grid; place-items: center;
