@@ -90,6 +90,26 @@ Der Tatendrang ist die einzige Währung im Kampf:
 **Es gibt kein freies Abwerfen.** Wer eine Karte loswerden will, zahlt dafür.
 Das ist der Grund, warum eine mittelmäßige Hand eine Entscheidung ist.
 
+### Sammeltausch
+
+Mehrere Handkarten werden **zusammen** getauscht: anklicken, was weg soll, dann
+einmal auf `Austauschen ×n`. Jede Karte kostet für sich, die Punkte, die der
+Klick kosten wird, glühen vorher rot.
+
+Die Reihenfolge im Kern ist dabei entscheidend: die getauschten Karten kommen
+erst **beiseite**, dann wird nachgezogen, und erst danach wandern sie in die
+Ablage. Würde man sie sofort ablegen, könnte ein leerer Zugstapel sie
+mitmischen — und man zöge genau die Karte wieder, die man loswerden wollte.
+
+### Sortierung
+
+Die Hand lässt sich nach **Farbe** (Gattung, darin Rang) oder nach **Rang**
+(darin Gattung) ordnen; die Wahl bleibt im Browser gemerkt. Sie ist reine
+Anzeige und fasst `k.hand` nicht an — sie entscheidet nur, in welcher Folge die
+bestehenden Kartenelemente hängen. Deshalb kann man beliebig oft umschalten,
+ohne dass eine Karte verschwindet, sich verdoppelt oder eine
+Ziehwahrscheinlichkeit sich verschiebt.
+
 Eine gesetzte Einheit **feuert sofort einen Einzelschuss**. Der Rest ihrer Wucht
 kommt am Rundenende mit der **Salve** — dann rechnet die ganze Aufstellung
 gemeinsam ab.
@@ -245,6 +265,38 @@ stehen — wer nicht kauft, darf nicht neu würfeln.
 Sechs, jede mit zwei Wahlen und einer Bedingung, die sie zurückhält, wenn sie
 gerade nichts bewirken könnte. Ein Wappenangebot ohne freien Platz ist kein
 Ereignis, sondern ein Ärgernis.
+
+---
+
+## 8a. Die Oberfläche
+
+Eine Regel trägt alles: **die Knoten bleiben**. Ein Kartenelement entsteht genau
+einmal — beim Ziehen — und wird danach nur noch bewegt, nie neu gebaut. Ohne das
+ist jede Animation unmöglich, weil das animierte Element im nächsten Bild ein
+anderes wäre. Umsortiert wird über FLIP: vorher messen, umhängen, nachher
+messen, die Differenz als Transform setzen und auf null laufen lassen.
+
+Bewegt wird ausschließlich über `transform` und `opacity` — beides läuft im
+Compositor und löst kein Neu-Layout aus.
+
+**Die Rückmeldungsschicht** (`pkSpiel*`, `pkRuf*`) *spielt* Ereignisse, sie
+entscheidet keines. Der Kern hat schon gerechnet, wenn eine dieser Funktionen
+läuft; fällt eine ganz aus — bei `prefers-reduced-motion` etwa — bleibt der
+Spielstand exakt derselbe.
+
+| Was | Wie es sich meldet |
+|---|---|
+| Karte gewählt | hebt sich, kippt leicht, goldener Rahmen, Haken |
+| Karte über einem Turm | Tafel und Turm im Bild glühen, Vorschau rechnet mit |
+| Formation **neu** | grüne Marke mit `+`, Lichtband über die beteiligten Türme |
+| Formation **bricht** | durchgestrichene Marke mit `−` |
+| Einheit gesetzt | Karte fliegt zum Turm, Schild federt ein, Turm zuckt |
+| Salve | Türme feuern versetzt, dann Treffer, dann die Kette |
+| Wappen zündet | der Kreis pulst |
+| Schaden | Zahl wächst mit dem **Anteil** der gegnerischen Stärke |
+
+Gemessen bei voll besetzter Burg mit fünf Wappen: Zeichnen 4,5 ms je Bild,
+Auffrischen 1,7 ms, Rechnen 0,04 ms, 184 DOM-Knoten.
 
 ---
 
