@@ -609,6 +609,73 @@ const ergebnis = await seite.evaluate(() => {
     return true;
   });
 
+  // ---------- Sammeltausch ----------
+  const kampfMit = (tatendrang, wappen = []) => {
+    const k = P.neuerKampf({ feind: P.baueFeind(1), deck: P.START_DECK.map(id => P.neueEinheit(id)), wappen });
+    k.tatendrang = tatendrang;
+    return k;
+  };
+
+  pruefe('Fünf Karten tauschen kostet fünf Tatendrang', () => {
+    const k = kampfMit(5);
+    const r = P.tauscheHandkarten(k.hand.slice(0, 5));
+    if (!r.ok) return r.grund;
+    if (k.tatendrang !== 0) return 'Tatendrang ' + k.tatendrang;
+    if (k.hand.length !== P.KERN.handGroesse) return 'Hand hat ' + k.hand.length;
+    if (r.neu.length !== 5) return r.neu.length + ' nachgezogen';
+    return true;
+  });
+
+  pruefe('Mit zwei Tatendrang lassen sich keine drei Karten tauschen', () => {
+    const k = kampfMit(2);
+    const vorher = k.hand.map(c => c.uid).join();
+    const r = P.tauscheHandkarten(k.hand.slice(0, 3));
+    if (r.ok) return 'trotzdem getauscht';
+    if (k.tatendrang !== 2) return 'Tatendrang angefasst: ' + k.tatendrang;
+    if (k.hand.map(c => c.uid).join() !== vorher) return 'Hand angefasst';
+    return true;
+  });
+
+  pruefe('Getauschte Karten kommen nicht als Ersatz zurück', () => {
+    const k = kampfMit(5);
+    // Zugstapel bis auf eine Karte leeren - der Rest muss aus der Ablage kommen.
+    k.ablage.push(...k.zug.splice(0, k.zug.length - 1));
+    const weg = k.hand.slice(0, 4);
+    const wegUid = new Set(weg.map(c => c.uid));
+    const r = P.tauscheHandkarten(weg);
+    if (!r.ok) return r.grund;
+    if (r.neu.length !== 4) return 'nur ' + r.neu.length + ' nachgezogen';
+    for (const c of r.neu) if (wegUid.has(c.uid)) return c.name + ' kam sofort zurück';
+    if (k.hand.length !== P.KERN.handGroesse) return 'Hand hat ' + k.hand.length;
+    return true;
+  });
+
+  pruefe('Der Sammeltausch verliert und verdoppelt keine Karte', () => {
+    const k = kampfMit(5);
+    const zaehle = () => k.zug.length + k.hand.length + k.ablage.length +
+      k.tuerme.filter(t => t.einheit).length;
+    const vorher = zaehle();
+    P.tauscheHandkarten(k.hand.slice(0, 3));
+    if (zaehle() !== vorher) return 'aus ' + vorher + ' wurden ' + zaehle();
+    const alle = [...k.zug, ...k.hand, ...k.ablage].map(c => c.uid);
+    if (new Set(alle).size !== alle.length) return 'eine Karte liegt doppelt';
+    return true;
+  });
+
+  pruefe('Die Schlange verbilligt nur die ersten Tausche einer Runde', () => {
+    const frei = P.KERN.wappen.schlange;
+    const k = kampfMit(5, ['schlange']);
+    if (P.tauschKostenFuer(frei) !== 0) return frei + ' Tausche kosten ' + P.tauschKostenFuer(frei);
+    if (P.tauschKostenFuer(frei + 2) !== 2) return (frei + 2) + ' Tausche kosten ' + P.tauschKostenFuer(frei + 2);
+    return true;
+  });
+
+  pruefe('Tauschen ohne Wappen kostet einen je Karte', () => {
+    kampfMit(5);
+    for (let n = 1; n <= 5; n++) if (P.tauschKostenFuer(n) !== n) return n + ' Karten kosten ' + P.tauschKostenFuer(n);
+    return true;
+  });
+
   return raus;
 });
 

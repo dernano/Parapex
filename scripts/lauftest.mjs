@@ -19,7 +19,14 @@ const lauf = () => p.evaluate(() => {
     tuerme: l.turmTypen.join(','), hp: k ? k.feind.hp : null };
 });
 
-const knopf = async (sel) => { const e = await p.$(sel); if (e) { await e.click(); await p.waitForTimeout(120); return true; } return false; };
+/* Nur klicken, was auch klickbar ist - ein gesperrter Knopf ist eine Antwort, kein Hindernis. */
+const knopf = async (sel) => {
+  const e = await p.$(sel);
+  if (!e || await e.isDisabled()) return false;
+  await e.click();
+  await p.waitForTimeout(120);
+  return true;
+};
 
 for (let schritt = 0; schritt < 400; schritt++) {
   const z = await lauf();
@@ -53,20 +60,27 @@ for (let schritt = 0; schritt < 400; schritt++) {
         const kosten = k.tuerme[i].einheit ? P.KERN.kosten.ersetzen : P.KERN.kosten.einsetzen;
         if (kosten > k.tatendrang) continue;
         const g = (P.vorschau(i, k.hand[h]).wucht - jetzt) / kosten;
-        if (!be || g > be.g) be = { h, i, g };
+        if (!be || g > be.g) be = { uid: k.hand[h].uid, i, g };
       }
       return be && be.g > 0 ? be : null;
     });
     if (!beste) break;
-    const karten = await p.$$('.pk-hand .pk-karte');
-    if (!karten[beste.h]) break;
-    await karten[beste.h].click();
+    /*
+     * Ueber die Kennung greifen, nicht ueber die Stelle in der Reihe: die
+     * Kartenelemente bleiben jetzt bestehen und werden nur umsortiert, also
+     * kann ein festgehaltener Platz auf eine andere Karte zeigen - oder auf
+     * eine, die gerade wegfliegt.
+     */
+    const karte = await p.$('.pk-hand .pk-karte[data-uid="' + beste.uid + '"]');
+    if (!karte) break;
+    await karte.click();
+    await p.waitForTimeout(40);
     const t = await p.$$('.pk-turm');
     await t[beste.i].click();
-    await p.waitForTimeout(20);
+    await p.waitForTimeout(220);        // die Karte muss erst fliegen duerfen
   }
   await knopf('#pk-ende');
-  await p.waitForTimeout(250);
+  await p.waitForTimeout(950);          // Salve, Treffer und Rundenwechsel abwarten
 }
 
 const z = await lauf();
