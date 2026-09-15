@@ -774,6 +774,7 @@ const ergebnis = await seite.evaluate(() => {
   pruefe('Ein Lauf lässt sich von Anfang bis Ende durchspielen', () => {
     const l = P.neuerLauf();
     let kaempfe = 0;
+    let deckBewegt = false;
     while (!l.ende) {
       const kn = P.derKnoten();
       if (['kampf', 'elite', 'boss'].includes(kn.art)) {
@@ -783,7 +784,8 @@ const ergebnis = await seite.evaluate(() => {
         k.feind.hp = 0; k.ende = 'sieg';              // wir gewinnen ihn einfach
         const r = P.werteKampfAus(k);
         if (!r.sieg) return 'Sieg nicht gewertet an ' + kn.nr;
-        P.nimmAngebot(r.belohnung.angebote[0]);
+        const a = r.belohnung.angebote[0];
+        if (P.nimmAngebot(a).ok && (a.art === 'karte' || a.art === 'entfernen')) deckBewegt = true;
       } else if (kn.art === 'haendler') {
         P.oeffneHaendler();
       } else {
@@ -795,10 +797,17 @@ const ergebnis = await seite.evaluate(() => {
     if (l.ende !== 'sieg') return 'Ende ' + l.ende;
     if (kaempfe !== l.knoten.filter(k => ['kampf', 'elite', 'boss'].includes(k.art)).length)
       return kaempfe + ' Kämpfe';
-    // Mit dem vollen Blatt waechst ein Deck nicht mehr, es wird geschmaelert.
-    // Geprueft wird also, dass es sich ueberhaupt bewegt hat - und dass keine
-    // Ausmusterung es unter die Handgroesse gedrueckt hat.
-    if (l.deck.length === P.START_DECK.length) return 'Deck hat sich nicht bewegt';
+    /*
+     * Mit dem vollen Blatt waechst ein Deck nicht mehr, es wird geschmaelert.
+     * Frueher stand hier "das Deck muss sich bewegt haben" - das war eine
+     * Wette auf den Zufall: die Belohnungen werden gewuerfelt, und ein Lauf,
+     * in dem jedes erste Angebot ein Wappen oder ein Ausbau war, liess das
+     * Deck voellig zu Recht unangetastet. Die Pruefung ist einmal von
+     * dreissig Laeufen daran gescheitert. Jetzt wird das geprueft, was
+     * wirklich gelten muss: WENN eine Karte dazukam oder wegfiel, hat sich
+     * das Deck bewegt - und in keinem Fall faellt es unter die Handgroesse.
+     */
+    if (deckBewegt && l.deck.length === P.START_DECK.length) return 'Deck hat sich nicht bewegt';
     if (l.deck.length < P.KERN.handGroesse) return 'Deck ist auf ' + l.deck.length + ' geschrumpft';
     return true;
   });

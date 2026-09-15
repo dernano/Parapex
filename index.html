@@ -1005,7 +1005,7 @@ function baueFeind(kampfNr, { boss = false, vorlage = null, zuschlag = 1 } = {})
  */
 const WAPPEN = {
   loewe: {
-    id: 'loewe', name: 'Wappen des Löwen',
+    id: 'loewe', name: 'Wappen des Löwen', zeichen: '🦁', tinktur: '#a8791c',
     text: 'Der mittlere Turm zählt seinen Rang dreifach.',
     rangFaktor: (turm, i) => (i === Math.floor(KERN.tuerme / 2) ? KERN.wappen.loewe : 1),
   },
@@ -1021,27 +1021,27 @@ const WAPPEN = {
      * Erkennen doppelt - sie kann also mit sich selbst ein Paar bilden, ein
      * Regiment vervollstaendigen oder eine Luecke in einer Folge fuellen.
      */
-    id: 'doppeladler', name: 'Wappen des Doppeladlers',
+    id: 'doppeladler', name: 'Wappen des Doppeladlers', zeichen: '🦅', tinktur: '#4a4f5c',
     text: 'Die Einheit auf Turm 1 zählt für Formationen doppelt.',
     zaehltDoppelt: 0,
   },
   wolf: {
-    id: 'wolf', name: 'Wappen des Wolfs',
+    id: 'wolf', name: 'Wappen des Wolfs', zeichen: '🐺', tinktur: '#3c5a72',
     text: 'Je leerem Turm +60 % Gesamtwucht.',
     gesamtFaktor: (ctx) => 1 + KERN.wappen.wolf * ctx.tuerme.filter(t => !t.einheit).length,
   },
   eber: {
-    id: 'eber', name: 'Wappen des Ebers',
+    id: 'eber', name: 'Wappen des Ebers', zeichen: '🐗', tinktur: '#6b3a2a',
     text: 'Eine ersetzte Einheit feuert ein letztes Mal.',
     horcht: { einheitErsetzt: (daten) => { if (daten.alt) schiesseEinzeln(daten.alt, daten.turm, 'Wappen des Ebers'); } },
   },
   schlange: {
-    id: 'schlange', name: 'Wappen der Schlange',
+    id: 'schlange', name: 'Wappen der Schlange', zeichen: '🐍', tinktur: '#2f6a4a',
     text: 'Die ersten zwei Kartentausche jeder Runde kosten nichts.',
     tauschRabatt: (kampf) => (kampf.tauschInRunde < KERN.wappen.schlange ? KERN.kosten.tauschen : 0),
   },
   drache: {
-    id: 'drache', name: 'Wappen des Drachen',
+    id: 'drache', name: 'Wappen des Drachen', zeichen: '🐉', tinktur: '#7a2a3a',
     text: 'Jeder Nachschuss zählt doppelt.',
     retriggerFaktor: (nummer) => (nummer % KERN.wappen.drache.jeder === 0 ? KERN.wappen.drache.faktor : 1),
   },
@@ -1109,6 +1109,20 @@ const FORMATIONS_FAMILIEN = {
   rang: 'Rang',
   folge: 'Rangfolge',
   grund: 'Grundstellung',
+};
+
+/*
+ * Jede Familie traegt ihr eigenes Zeichen, und die Marken in der Leiste
+ * tragen es mit. Vorher sahen alle Formationen gleich aus - vier goldene
+ * Plaettchen, die man einzeln lesen musste, um zu wissen, WORAN man gerade
+ * baut. Mit dem Zeichen erkennt man die Familie, bevor man den Namen liest,
+ * und weiss damit sofort, was eine bessere Karte an dieser Stelle brauchte.
+ */
+const FAMILIEN_ZEICHEN = {
+  gattung: '⚑',       // eine Fahne: alle unter derselben
+  rang: '⚔',          // gekreuzt: gleiche Raenge nebeneinander
+  folge: '➤',         // die Spitze: Rang um Rang nach oben
+  grund: '⛨',         // der Schild: alle fuenf Stellungen stehen
 };
 
 /*
@@ -2200,7 +2214,7 @@ function verlasseKnoten() {
 if (typeof window !== 'undefined') {
   window.PARAPEX = {
     KERN, GATTUNGEN, RANG_NAMEN, EINHEITEN_POOL, START_DECK, TURMTYPEN, TURM_START,
-    FORMATIONEN, FORMATIONS_FAMILIEN, KOENIGSRAENGE, WAPPEN, SIGNALE, FEIND_STAERKE,
+    FORMATIONEN, FORMATIONS_FAMILIEN, FAMILIEN_ZEICHEN, KOENIGSRAENGE, WAPPEN, SIGNALE, FEIND_STAERKE,
     baueBlatt, salvenZahl, formationsSalven,
     neueEinheit, grundwucht, wirkwucht, bonusWucht, verbessereEinheit, baueFeind, feindStaerke,
     erkenneFormationen, berechneWucht, vorschau,
@@ -4914,6 +4928,28 @@ const PAL = {
   n: '#2f5228', N: '#5b8c48',
 };
 
+/*
+ * Die Gattung muss man der Figur ANSEHEN. Vorher trug ein Bogenschuetze Rang 1
+ * dasselbe Blau wie ein Armbruster Rang 5 - zwei blaue Klumpen auf zwei
+ * Tuermen, und nur die Zahl am Hals verriet, wer wer war. Jetzt faerbt die
+ * Gattung den Waffenrock, und die Arbeitsteilung ist sauber:
+ *
+ *   die FIGUR (Ausruestung, Haltung, Geraet) zeigt den RANG
+ *   die FARBE (Waffenrock)                   zeigt die GATTUNG
+ *
+ * Gemischt wird nur der Rock - Haut, Stahl, Holz und Gold bleiben, wie sie
+ * sind, sonst verliert die Figur ihre Plastik und wird zur Scherenschnitt.
+ */
+const gattungPaletten = new Map();
+function gattungPalette(gattung) {
+  let pal = gattungPaletten.get(gattung);
+  if (pal) return pal;
+  const g = GATTUNGEN[gattung] || GATTUNGEN.bogen;
+  pal = { ...PAL, b: g.farbe, B: g.hell, n: g.farbe, N: g.hell };
+  gattungPaletten.set(gattung, pal);
+  return pal;
+}
+
 // ---------- Eigene Figuren aus der Werkstatt ----------
 // Was der Spieler selbst gezeichnet hat, liegt hier und ueberschreibt die
 // mitgelieferte Figur. Gespeichert wird im Browser, damit es einen Neustart
@@ -5157,6 +5193,43 @@ function batallionStellungen(x, y, mitte) {
   ];
 }
 
+/*
+ * Der Einzug. Eine Einheit erscheint nicht, sie BEZIEHT eine Stellung: sie
+ * kommt von oben herunter, die Flanken zuerst, die Mitte zuletzt, und wenn
+ * sie steht, staubt es. Leichte Einheiten sind schnell oben, schwere brauchen
+ * laenger - man soll am Tempo schon sehen, was da aufzieht.
+ */
+function einzugDauer(p) {
+  const schwer = p.geschoss === 'stein' || p.geschoss === 'kugel';
+  return (schwer ? 0.46 : 0.32) + p.kraft * 0.09;     // 0,37 bis 0,61 Sekunden
+}
+
+/** Wo ein einzelner Mann im Einzug steht: 0 heisst noch unterwegs, 1 steht. */
+function einzugAnteil(rest, n, p) {
+  if (!rest) return 1;
+  const dauer = einzugDauer(p);
+  const versatz = dauer * 0.15;
+  const verstrichen = dauer - rest - n * versatz;
+  if (verstrichen <= 0) return 0;
+  const q = Math.min(1, verstrichen / (dauer - 2 * versatz));
+  return 1 - (1 - q) * (1 - q) * (1 - q);             // weicher Ausklang
+}
+
+/*
+ * Der Schatten unter den Fuessen. Er haengt am BODEN, nicht an der Figur:
+ * beim Atmen und beim Herunterkommen bleibt er liegen, und genau dadurch
+ * sieht man, dass die Figur sich bewegt und der Turm nicht.
+ */
+function schattenUnterFigur(x, y, s, zug = 1) {
+  ctx.save();
+  ctx.globalAlpha = 0.36 * Math.min(1, zug);
+  ctx.fillStyle = '#0d0a06';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 0.5, s * 3.1, Math.max(1.3, s * 1.0), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 /**
  * Wer steht wo auf der Krone.
  *
@@ -5258,7 +5331,14 @@ function bogenZug(rest) {
 }
 
 // Wie weit die beiden Flanken von der Mitte wegstehen.
-const BATALLION_ABSTAND = (mitte) => Math.round(mitte * 4.2);
+/*
+ * Wie weit die drei auseinanderstehen. Der Faktor faellt mit dem gewachsenen
+ * Massstab: bei 4,2 waere ein Meisterbatallion breiter als die Turmkrone, auf
+ * der es steht. Enger stehen heisst ausserdem: sie ueberschneiden sich leicht,
+ * und drei ueberschneidende Silhouetten lesen sich als EINE Einheit - genau
+ * das sollen sie sein.
+ */
+const BATALLION_ABSTAND = (mitte) => Math.round(mitte * 3.1);
 
 /** Die drei Standorte eines Batallions in Punkten um die Mitte. */
 function batallionPlaetze(mitte) {
@@ -6447,6 +6527,11 @@ function updateAnimations(dt) {
     }
     t.rueckstoss = Math.max(0, (t.rueckstoss || 0) - dt * 6);
     if (t.spann > 0) t.spann = Math.max(0, t.spann - dt);
+    if (t.einzug > 0) {
+      t.einzug = Math.max(0, t.einzug - dt);
+      // Der Aufschlag: wenn der letzte Mann steht, staubt die Krone.
+      if (t.einzug === 0 && t.col !== undefined) staub(t.col + 1, t.row + 1, 7, STEINSTAUB);
+    }
   }
 
   // Hier lief der Gegnerzug Schritt fuer Schritt ab - die Gegner marschierten,
@@ -8040,15 +8125,65 @@ function pkZeichneTurm(t) {
     const p = einheitProfil(t.einheit);
     const spannt = p.spannt && t.spann > 0;
     const stellungen = batallionStellungen(cx, cy + 4, p.massstab);
-    for (const st of stellungen) drawSprite(spannt ? ohneBogen(p.figur) : p.figur, st.x, st.y, st.s);
-    if (spannt) {
-      const zug = bogenZug(t.spann);
-      for (const st of stellungen) zeichneBogen(st.x, st.y, st.s, zug);
-    }
+    const ez = t.einzug || 0;
+
+    /*
+     * Drei Dinge machen aus aufgeklebten Pixeln eine Besatzung, die auf einem
+     * Turm STEHT:
+     *
+     *   1. ein Schatten unter den Fuessen  - sonst schwebt sie
+     *   2. eine ruhige Atembewegung        - sonst ist sie eine Marke
+     *   3. die Fuesse hinter der Zinne     - sonst klebt sie oben drauf
+     *
+     * Alle drei sind klein. Zusammen entscheiden sie darueber, ob die Burg
+     * bemannt aussieht oder beschriftet.
+     */
+    ctx.save();
+    // (3) Alles unterhalb der Kronenkante faellt weg: die Figuren stehen
+    //     hinter der Bruestung, nicht auf ihr.
+    ctx.beginPath();
+    ctx.rect(0, 0, SZENE_B, Math.round(cy + 5));
+    ctx.clip();
+
+    stellungen.forEach((st, n) => {
+      const zug = einzugAnteil(ez, n, p);
+      if (zug <= 0) return;
+      // (2) Atem: ein Pixel auf und ab, je Mann und Turm anders gestimmt, damit
+      //     die drei nicht im Gleichschritt wippen.
+      const atem = zug >= 1
+        ? Math.sin(animZeit * 1.6 + t.nr * 1.7 + n * 2.1) * 0.9
+        : 0;
+      // Der Einzug: aus der Luft herunter, mit weichem Ausklang.
+      const fall = (1 - zug) * (1 - zug) * 34;
+      const y = st.y + atem - fall;
+
+      // (1) Der Kontaktschatten steht am Boden, nicht an der Figur - er
+      //     wandert beim Atmen und beim Fallen NICHT mit.
+      schattenUnterFigur(st.x, st.y, st.s, zug);
+
+      ctx.globalAlpha = Math.min(1, zug * 1.6);
+      drawSprite(spannt ? ohneBogen(p.figur) : p.figur, st.x, y, st.s,
+        ctx, gattungPalette(t.einheit.gattung));
+      if (spannt) zeichneBogen(st.x, y, st.s, bogenZug(t.spann));
+      ctx.globalAlpha = 1;
+    });
+    ctx.restore();
     // Ein Meister traegt eine Fahne mehr - das Rangabzeichen der Burg.
     drawBanner(cx + 22, cy - 2, GATTUNGEN[t.einheit.gattung].farbe);
     if (t.einheit.rang >= 13) drawBanner(cx - 24, cy - 2, '#e8c464');
-    drawBadge(cx, cy - 30, String(t.einheit.rang), GATTUNGEN[t.einheit.gattung].hell, '#1a1208');
+    /*
+     * Das Rangschild kommt erst, wenn die Besatzung steht. Waehrend des
+     * Einzugs schwebte es sonst allein ueber dem leeren Kopfplatz - die Zahl
+     * war schon da, der Mann noch nicht.
+     */
+    const gestanden = einzugAnteil(ez, 2, p);
+    if (gestanden > 0.2) {
+      const kopf = Math.round(cy + 4 - p.figur.length * p.massstab - 7);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (gestanden - 0.2) / 0.5);
+      drawBadge(cx, kopf, String(t.einheit.rang), GATTUNGEN[t.einheit.gattung].hell, '#1a1208');
+      ctx.restore();
+    }
   }
   // Die Nummer steht am Fuß: sie ist die Sprache, in der die Formationen reden.
   drawBadge(isoX(t.col + t.w / 2, t.row + t.h / 2),
@@ -8115,17 +8250,55 @@ const PK_CSS = `
 #pk .pk-runde.sturm b { color: var(--glut); }
 @keyframes pk-pochen { 50% { opacity: 0.55; } }
 
-#pk .pk-wappen { display: flex; gap: 5px; }
-#pk .pk-wappen div { width: 32px; height: 32px; display: grid; place-items: center;
-  border-radius: 50%; border: 2px solid #6b5535; background: #241a11; font-size: 15px;
-  transition: transform .15s, box-shadow .15s; }
-#pk .pk-wappen div.leer { opacity: 0.26; border-style: dashed; }
+/*
+ * Fuenf Wappenplaetze, immer sichtbar, auch die leeren. Vorher trugen alle
+ * sechs Wappen dasselbe ⚜ - man sah, DASS man Wappen hat, nie WELCHE. Jetzt
+ * ist jedes ein Schild mit eigenem Bild und eigener Tinktur, und die leeren
+ * Plaetze stehen als gestrichelte Schilde daneben: die Reihe erzaehlt auf
+ * einen Blick, was man hat und was noch zu holen ist.
+ */
+#pk .pk-wappen { display: flex; gap: 4px; }
+#pk .pk-wappen div { width: 30px; height: 36px; display: grid; place-items: center;
+  border: none; background: #241a11; font-size: 15px; position: relative;
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
+  transition: transform .15s, filter .15s; cursor: default;
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,0.5)); }
+/* Der Rand als zweiter, groesserer Schild dahinter - eine echte Kontur waere
+   an der Spitze der clip-path gekappt worden. */
+#pk .pk-wappen div::before { content: ''; position: absolute; inset: 2px;
+  background: inherit; filter: brightness(1.55);
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%); z-index: -1; }
+#pk .pk-wappen div span { position: relative; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
+#pk .pk-wappen div:not(.leer):hover { transform: translateY(-3px) scale(1.08);
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6)) brightness(1.12); }
+#pk .pk-wappen div.leer { background: #1c150e; opacity: 0.4; }
+#pk .pk-wappen div.leer::before { background: #3d3122; filter: none; }
+#pk .pk-wappen div.leer::after { content: '?'; position: relative; color: #5a4c37;
+  font-size: 15px; font-weight: 700; }
 #pk .pk-wappen div.zuendet { animation: pk-wappen-puls .5s cubic-bezier(.2,1.6,.4,1); }
 @keyframes pk-wappen-puls {
-  0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(232,196,100,0.8); }
-  35%  { transform: scale(1.32); box-shadow: 0 0 0 9px rgba(232,196,100,0); }
-  100% { transform: scale(1); }
+  0%   { transform: scale(1); filter: drop-shadow(0 2px 0 rgba(0,0,0,0.5)) brightness(1); }
+  35%  { transform: scale(1.34) translateY(-4px);
+         filter: drop-shadow(0 0 14px rgba(255,214,120,1)) brightness(1.9); }
+  100% { transform: scale(1); filter: drop-shadow(0 2px 0 rgba(0,0,0,0.5)) brightness(1); }
 }
+
+/*
+ * Ein Hinweis, der mehr sagen darf als der Titel des Betriebssystems: der
+ * erscheint erst nach einer Sekunde, kann nicht gestaltet werden und bricht
+ * ab, sobald die Maus zuckt. Hier steht er sofort, in der Schrift des Spiels,
+ * und er wird von Wappen UND Formationen benutzt.
+ */
+#pk .pk-hinweis { position: fixed; z-index: 95; pointer-events: none;
+  max-width: 250px; padding: 8px 11px 9px; border-radius: 4px;
+  background: rgba(20,15,9,0.97); border: 1px solid #6b5535;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.65); font-size: 12px; line-height: 1.42;
+  color: #d8cbb0; animation: pk-hinweis-auf .12s ease-out; }
+#pk .pk-hinweis b { display: block; color: var(--gold); font-size: 12.5px;
+  letter-spacing: 0.03em; margin-bottom: 3px; }
+#pk .pk-hinweis i { display: block; margin-top: 5px; font-style: normal;
+  font-size: 11px; color: #8a7c63; }
+@keyframes pk-hinweis-auf { from { opacity: 0; transform: translateY(4px); } }
 
 #pk .pk-mitte { flex: 1; position: relative; pointer-events: none; }
 
@@ -8186,10 +8359,18 @@ const PK_CSS = `
   100% { transform: none; }
 }
 #pk .pk-turm-daten { min-width: 0; flex: 1; }
-#pk .pk-turm-gattung { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+/*
+ * Drei Zeilen, in der Reihenfolge, in der man sie braucht: was EINSCHLAEGT,
+ * WER da steht, WIE OFT gefeuert wird. Vorher stand die Gattung oben und die
+ * Zahl darunter - beim Vergleichen zweier Tuerme sucht das Auge aber zuerst
+ * die Zahl, und die soll oben stehen.
+ */
+#pk .pk-turm-gattung { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; }
+#pk .pk-salven { font-size: 10px; color: #8ba86f; font-variant-numeric: tabular-nums;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#pk .pk-wucht { font-size: 19px; font-weight: 700; color: #b7e08f;
-  font-variant-numeric: tabular-nums; line-height: 1.1; }
+#pk .pk-wucht { font-size: 21px; font-weight: 700; color: #b7e08f;
+  font-variant-numeric: tabular-nums; line-height: 1.05; }
 #pk .pk-wucht small { font-size: 10px; color: #8ba86f; font-weight: 400; }
 #pk .pk-wucht .pk-bonus { font-size: 11px; vertical-align: baseline; }
 #pk .pk-wucht.springt { animation: pk-zahl-springt .32s cubic-bezier(.2,1.7,.4,1); }
@@ -8216,6 +8397,18 @@ const PK_CSS = `
   background: linear-gradient(180deg, #f3d283, #c79a37); color: #2a1c06; font-weight: 700;
   letter-spacing: 0.04em; border: 1px solid #7a5a1c; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 4px; }
+#pk .pk-form em { font-style: normal; margin-right: 1px; opacity: 0.72; font-size: 12px; }
+/* Die Stufe als Striche, nicht als Zahl: "Regiment II" laese sich wie ein
+   zweites Regiment, "Regiment ❙❙" wie eine Auszeichnung daran. */
+#pk .pk-form u { text-decoration: none; margin-left: 3px; font-size: 9px;
+  letter-spacing: 1px; opacity: 0.66; vertical-align: 1px; }
+#pk .pk-form { cursor: default; transition: transform .12s, filter .12s; }
+#pk .pk-form:hover { transform: translateY(-2px); filter: brightness(1.12); }
+/* Der Turm, an dem eine ueberfahrene Formation haengt. */
+#pk .pk-turm.hebt { border-color: #fff8d8;
+  box-shadow: 0 0 0 2px #fff8d8, 0 0 26px rgba(255,235,160,0.65);
+  background-image: linear-gradient(180deg, rgba(255,240,180,0.14), rgba(255,240,180,0.02));
+  transform: translateY(-6px) scale(1.025); }
 #pk .pk-form.neu { background: linear-gradient(180deg, #b7f08f, #4f9a3a); border-color: #2f6a24;
   color: #0e2408; animation: pk-form-neu .32s cubic-bezier(.2,1.7,.4,1); }
 /* Die Kroenung traegt Gold und leuchtet - sie ist das Seltenste im Spiel. */
@@ -8263,8 +8456,16 @@ const PK_CSS = `
  */
 #pk .pk-handzeile { display: flex; align-items: flex-end; gap: 10px; justify-content: center;
   position: relative; z-index: 6; margin-top: -34px; pointer-events: none; }
+/*
+ * Die Hand ragt mit ihrem oberen Polster ueber die Formationsleiste - so
+ * stehen angehobene Karten frei, ohne dass die Leiste wegspringt. Das Polster
+ * darf aber keine Zeiger fangen: gemessen lagen 29 der 31 Pixel der Leiste
+ * unter diesem unsichtbaren Streifen, die Marken waren nicht anzufassen.
+ * Deshalb faengt hier nichts, und nur die Karten selbst nehmen den Zeiger an.
+ */
 #pk .pk-hand { position: relative; display: flex; gap: 6px; justify-content: center;
-  align-items: flex-end; height: 162px; padding-top: 44px; flex: 0 1 auto; pointer-events: auto; }
+  align-items: flex-end; height: 162px; padding-top: 44px; flex: 0 1 auto; pointer-events: none; }
+#pk .pk-hand > * { pointer-events: auto; }
 #pk .pk-karte { width: 86px; height: 116px; border-radius: 6px; border: 2px solid #17130c;
   background: linear-gradient(170deg, #f8f2e0 0%, #efe4c9 62%, #ddcda8 100%);
   color: #14110c; cursor: grab; flex: none; position: relative;
@@ -8701,6 +8902,22 @@ function pkWuchtTitel(karte) {
     : ' · ' + karte.rang + ' Wucht');
 }
 
+/*
+ * Was sich an einer Karte noch aendern kann, nachdem ihr Element gebaut ist:
+ * der Schliff. Das Element wird nie neu gebaut - also muss dieser eine Wert
+ * nachgezogen werden, sonst traegt die Karte auf der Hand ewig die Zahl, mit
+ * der sie gezogen wurde.
+ */
+function pkFrischeKarte(el, karte) {
+  const b = bonusWucht(karte);
+  if (el.dataset.bonus === String(b)) return;
+  el.dataset.bonus = String(b);
+  const rang = el.querySelector('.pk-karte-rang');
+  if (rang) rang.innerHTML = pkWuchtHtml(karte);
+  const g = GATTUNGEN[karte.gattung];
+  el.title = karte.name + ' · ' + g.name + ' · ' + pkWuchtTitel(karte);
+}
+
 function pkBaueKarte(karte) {
   const g = GATTUNGEN[karte.gattung];
   const el = document.createElement('div');
@@ -8717,7 +8934,7 @@ function pkBaueKarte(karte) {
     '<div class="pk-karte-name">' + karte.name + '</div>' +
     '<div class="pk-karte-fuss" style="color:' + g.farbe + '">' + g.kurz + '</div>' +
     '<div class="pk-karte-band" style="background:' + pkBand(g) + '"></div>';
-  el.title = karte.name + ' · ' + g.name + ' · ' + pkWuchtTitel(karte);
+  pkFrischeKarte(el, karte);
   el.addEventListener('click', (evt) => { evt.stopPropagation(); pkKarteGeklickt(karte); });
   pkZiehbar(el, karte);
   return el;
@@ -8748,6 +8965,8 @@ function pkOrdneHand({ neueKarten = [] } = {}) {
       el = pkBaueKarte(karte);
       pkKarten.set(karte.uid, el);
       neuEl.push(el);
+    } else {
+      pkFrischeKarte(el, karte);
     }
     kasten.appendChild(el);       // appendChild an bestehendem Knoten = umhaengen
   }
@@ -8823,8 +9042,9 @@ function pkMalTuerme(rechnung) {
           '<span class="pk-schild" style="background:' + g.hell + '">' + t.einheit.rang +
             '<span>' + g.zeichen + '</span></span>' +
           '<span class="pk-turm-daten">' +
-            '<span class="pk-turm-gattung" style="color:' + g.hell + '">' + g.kurz + '</span>' +
             '<div class="pk-wucht"></div>' +
+            '<span class="pk-turm-gattung" style="color:' + g.hell + '">' + g.kurz + '</span>' +
+            '<div class="pk-salven"></div>' +
           '</span>' +
         '</div>';
       el.title = t.einheit.name + ' · ' + g.name + ' · ' + pkWuchtTitel(t.einheit) +
@@ -8839,12 +9059,14 @@ function pkMalTuerme(rechnung) {
     // mit dem Turmfaktor multipliziert, weil der Turm den Schliff mitverstaerkt.
     const ausSchmiede = posten ? Math.round(posten.bonus * posten.turmFaktor) : 0;
     const neuText = (posten ? Math.round(posten.wucht).toLocaleString('de-DE') : '0') +
-      (ausSchmiede > 0 ? '<span class="pk-bonus">+' + ausSchmiede + '</span>' : '') +
-      (posten && posten.schuesse > 1 ? '<small> × ' + posten.schuesse + ' Salven</small>' : '');
+      (ausSchmiede > 0 ? '<span class="pk-bonus">+' + ausSchmiede + '</span>' : '');
     if (wEl.innerHTML !== neuText) {
       wEl.innerHTML = neuText;
       pkZucke(wEl, 'springt');
     }
+    const sEl = inhalt.querySelector('.pk-salven');
+    const neuSalven = posten && posten.schuesse > 1 ? '× ' + posten.schuesse + ' Salven' : '';
+    if (sEl.textContent !== neuSalven) sEl.textContent = neuSalven;
   });
 }
 
@@ -8855,6 +9077,50 @@ function pkZucke(el, klasse, dauer = 360) {
   void el.offsetWidth;                 // Neustart der Animation erzwingen
   el.classList.add(klasse);
   setTimeout(() => el.classList.remove(klasse), dauer);
+}
+
+/*
+ * Ein Hinweis haengt an einem Element und wird erst beim Ueberfahren gefragt,
+ * was er sagen soll - der Inhalt aendert sich zwischen zwei Runden, ein fest
+ * geschriebener Titel waere nach dem ersten Kampf falsch.
+ */
+let pkHinweisEl = null;
+function pkHefteHinweis(el, gib) {
+  el.addEventListener('pointerenter', () => pkZeigeHinweis(el, gib()));
+  el.addEventListener('pointerleave', pkVerbergHinweis);
+  el.addEventListener('pointerdown', pkVerbergHinweis);
+}
+
+function pkZeigeHinweis(el, inhalt) {
+  pkVerbergHinweis();
+  if (!inhalt || !inhalt.titel) return;
+  const ebene = document.getElementById('pk-ebene');
+  if (!ebene) return;
+  const h = document.createElement('div');
+  h.className = 'pk-hinweis';
+  h.innerHTML = '<b>' + inhalt.titel + '</b>' + (inhalt.text || '') +
+    (inhalt.fuss ? '<i>' + inhalt.fuss + '</i>' : '');
+  ebene.appendChild(h);
+  pkHinweisEl = h;
+
+  // Ueber dem Element, und im Bild gehalten. Zwei Messungen beim Zeigen, sonst
+  // keine - der Hinweis bewegt sich nicht mit der Maus mit.
+  const r = el.getBoundingClientRect();
+  const m = h.getBoundingClientRect();
+  const rand = 8;
+  let x = r.left + r.width / 2 - m.width / 2;
+  x = Math.max(rand, Math.min(x, window.innerWidth - m.width - rand));
+  let y = inhalt.unten ? r.bottom + 9 : r.top - m.height - 9;
+  if (y < rand) y = r.bottom + 9;                                   // kein Platz oben
+  if (y + m.height > window.innerHeight - rand) y = r.top - m.height - 9;   // keiner unten
+  h.style.left = Math.round(x) + 'px';
+  h.style.top = Math.round(y) + 'px';
+}
+
+function pkVerbergHinweis() {
+  if (!pkHinweisEl) return;
+  pkHinweisEl.remove();
+  pkHinweisEl = null;
 }
 
 // ---------- Formationen und Vorschau ----------
@@ -8883,9 +9149,31 @@ function pkMalFormationen() {
     const b = document.createElement('span');
     b.className = 'pk-form' + (art ? ' ' + art : '') +
       (f.kroenung ? ' kroenung' : '') + (f.garde ? ' garde' : '');
+    const zeichen = f.garde ? '♛' : (FAMILIEN_ZEICHEN[f.familie] || '');
     b.innerHTML = (art === 'neu' ? '+ ' : art === 'bricht' ? '− ' : '') +
-      (f.garde ? '♛ ' : '') + f.name + ' <b>+' + f.salven + '</b>';
-    b.title = f.text;
+      (zeichen ? '<em>' + zeichen + '</em>' : '') + f.name +
+      (f.stufe > 1 ? '<u>' + 'I'.repeat(Math.min(3, f.stufe)) + '</u>' : '') +
+      ' <b>+' + f.salven + '</b>';
+    /*
+     * Beim Ueberfahren leuchten genau die Stellungen auf, die diese Formation
+     * traegt. Das beantwortet die Frage, die man beim Planen wirklich hat -
+     * nicht "was gilt", sondern "WELCHE meiner fuenf Tuerme haengen daran,
+     * wenn ich jetzt einen davon ueberbaue".
+     */
+    const tuerme = f.tuerme || [];
+    b.addEventListener('pointerenter', () => {
+      for (const i of tuerme) if (pkTuermeEl[i]) pkTuermeEl[i].classList.add('hebt');
+    });
+    const ab = () => { for (const i of tuerme) if (pkTuermeEl[i]) pkTuermeEl[i].classList.remove('hebt'); };
+    b.addEventListener('pointerleave', ab);
+    b.addEventListener('pointerdown', ab);
+    pkHefteHinweis(b, () => ({
+      unten: true,
+      titel: f.name,
+      text: f.text,
+      fuss: (f.stufe > 1 ? 'Stufe ' + f.stufe + ' · ' : '') + '+' + f.salven + ' Salven · ' +
+        (FORMATIONS_FAMILIEN[f.familie] || ''),
+    }));
     leiste.appendChild(b);
   };
   for (const f of rechnung.formationen) {
@@ -9018,13 +9306,27 @@ function pkMalKopf() {
   runde.classList.toggle('sturm', sturm);
 
   const wappen = document.getElementById('pk-wappen');
-  while (wappen.children.length < WAPPEN_PLAETZE) wappen.appendChild(document.createElement('div'));
+  while (wappen.children.length < WAPPEN_PLAETZE) {
+    const d = document.createElement('div');
+    d.innerHTML = '<span></span>';
+    // Der Hinweis fragt beim Ueberfahren nach - der Platz kann inzwischen
+    // belegt worden sein.
+    pkHefteHinweis(d, () => {
+      const w = d.dataset.wappen ? WAPPEN[d.dataset.wappen] : null;
+      return w
+        ? { titel: w.name, text: w.text, fuss: 'Gilt den ganzen Lauf über.' }
+        : { titel: 'Freier Wappenplatz', text: 'Wappen kommen als Belohnung nach einem Kampf.' };
+    });
+    wappen.appendChild(d);
+  }
   [...wappen.children].forEach((d, i) => {
-    const w = k.wappen[i] ? WAPPEN[k.wappen[i]] : null;
+    const id = k.wappen[i] || '';
+    if (d.dataset.wappen === id) return;
+    const w = id ? WAPPEN[id] : null;
+    d.dataset.wappen = id;
     d.className = w ? '' : 'leer';
-    d.dataset.wappen = k.wappen[i] || '';
-    d.textContent = w ? '⚜' : '';
-    d.title = w ? w.name + ' — ' + w.text : 'Leerer Wappenplatz';
+    d.style.background = w ? w.tinktur : '';
+    d.querySelector('span').textContent = w ? w.zeichen : '';
   });
 }
 
@@ -9226,11 +9528,11 @@ function pkSpielSetzen(el, turmEl, { dauer = 230 } = {}) {
  * aus diesen beiden Zahlen. Eine neue Einheit braucht keinen neuen Code.
  */
 const EINHEIT_STUFEN = [
-  { ab: 1,  name: 'Aufgebot',  massstab: 2.4, fx: 0.55 },
-  { ab: 4,  name: 'Besatzung', massstab: 2.7, fx: 0.75 },
-  { ab: 7,  name: 'Veteranen', massstab: 3.0, fx: 1.0 },
-  { ab: 10, name: 'Elite',     massstab: 3.3, fx: 1.3 },
-  { ab: 13, name: 'Meister',   massstab: 3.7, fx: 1.75 },
+  { ab: 1,  name: 'Aufgebot',  massstab: 3.0, fx: 0.55 },
+  { ab: 4,  name: 'Besatzung', massstab: 3.4, fx: 0.75 },
+  { ab: 7,  name: 'Veteranen', massstab: 3.8, fx: 1.0 },
+  { ab: 10, name: 'Elite',     massstab: 4.2, fx: 1.3 },
+  { ab: 13, name: 'Meister',   massstab: 4.7, fx: 1.75 },
 ];
 
 function einheitStufe(rang) {
@@ -9269,7 +9571,7 @@ const GATTUNG_PROFIL = {
   artillerie: {
     figuren: [FIG_SCHLEUDER, FIG_SCHLEUDER, FIG_SCHLEUDER, FIG_SPEER, FIG_SPEER],
     geschoss: 'stein',
-    farbe: '#9a8straight',
+    farbe: '#9a8058',
     ton: 'einschlag', tonFern: 'einschlag',
     ruecklauf: 6,
     fliegt: 0.62,                 // hoher, langsamer Bogen
@@ -9288,7 +9590,6 @@ const GATTUNG_PROFIL = {
     einschlag: { staub: 12, farbe: '#4a4038', ruetteln: 9, blitz: 0.14 },
   },
 };
-GATTUNG_PROFIL.artillerie.farbe = '#9a8058';
 
 /*
  * Das Profil einer konkreten Einheit. Es entsteht aus Gattung und Rang und
@@ -9670,6 +9971,19 @@ function pkSetze(index, karte) {
   klang('bau');
   const turm = k.tuerme[index];
   staub(turm.col + 1, turm.row + 1, 8, '#e8d5a8');
+  /*
+   * Der Einzug auf der Burg. Er laeuft parallel zum Flug der Karte, nicht
+   * danach: die Karte fliegt zur Tafel, die Besatzung bezieht die Krone, und
+   * beides zusammen liest sich als EIN Vorgang.
+   *
+   * Beim ERSETZEN kommt ein Stoss dazu. Eine abgeloeste Einheit ist ein
+   * Verlust, und ein Verlust darf sich nicht wie ein leerer Turm anfuehlen.
+   */
+  turm.einzug = einzugDauer(einheitProfil(turm.einheit));
+  if (altEinheit) {
+    staub(turm.col + 1, turm.row + 1, 10, '#6b5a42');
+    ruetteln(3);
+  }
 
   const schaden = vorherHp - k.feind.hp;
   if (schaden > 0) {
