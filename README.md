@@ -113,6 +113,38 @@ Salve, der Schirmblitz und das Banner wurden ausgelöst und nie gezeichnet —
 drei Aufrufe ins Leere, wochenlang unbemerkt, weil nichts abstürzt, wenn ein
 Effekt einfach ausbleibt.
 
+**Eine Zahl, die stimmt, aber nicht dasteht, ist für den Spieler falsch.** Ein
+Bogen 9 mit +4 Schliff schlug auf dem Turm mit 13 ein — nachgemessen über den
+ganzen Weg Deck → Kampf → Hand → Turm, die Rechnung war zu keinem Zeitpunkt
+kaputt. Auf der Karte stand trotzdem eine 9, also sah es aus, als wäre das
+Gekaufte verloren gegangen. Der erste Reflex war, den Fehler in der Rechnung zu
+suchen; es gab keinen. Karte und Turm tragen jetzt beide Teile getrennt.
+
+**Ein unsichtbares Polster fängt Zeiger.** Die Hand ragt mit 44 px Innenabstand
+über die Formationsleiste, damit angehobene Karten frei stehen. Gemessen lagen
+damit 29 von 31 Pixeln der Leiste unter einem durchsichtigen Streifen, der jeden
+Zeiger abfing — die Marken waren buchstäblich nicht anzufassen, und es sah nach
+nichts aus.
+
+**Eine Obergrenze kann eine Wolke verhindern.** Der Pulverrauch war da,
+korrekt gefärbt, an der richtigen Stelle — und unsichtbar. Fünf Türme mal
+vierzig Schüssen schoben rund neunhundert Körner je Sekunde nach, und die
+Grenze von 300 gleichzeitigen Körnern warf sie nach einem Drittel einer Sekunde
+wieder heraus, lange bevor etwas aufsteigen konnte. Gefunden wurde das nicht am
+Bild, sondern indem die Körner gezählt und ihre Bildschirmkoordinaten
+ausgegeben wurden.
+
+**Mehr muss dichter werden, nicht langsamer.** Der erste Versuch, Salven auf
+eine Zielzeit zu strecken, hielt die Bündelgröße fest und leitete den Takt aus
+der Zeit ab. Ergebnis: 27 Salven als sieben Schüsse mit 0,19 s Pause — also
+träger als fünf Einzelschüsse. Richtig herum steht die Zielzeit zuerst fest und
+wird mit so vielen Schüssen gefüllt, wie hineinpassen.
+
+**Ein Messwert aus 40 Läufen ist eine Stimmung.** Zwei Durchgänge derselben
+unveränderten Fassung ergaben 40 % und 18 % Aktabschluss. Alle Balancezahlen in
+diesen Papieren stehen deshalb jetzt mit ihrer Stichprobe dabei, und die
+belastbaren stammen aus 300 Läufen.
+
 ---
 
 ## Starten

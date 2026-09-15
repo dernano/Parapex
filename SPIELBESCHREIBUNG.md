@@ -133,7 +133,7 @@ wie in einem Kartenspiel: gleiche Gattung, gleiche Ränge, eine Folge von Ränge
 Folge `5 / 6 / 7` wie jede andere Anordnung. Niemand muss vor dem Ausspielen
 sortieren.
 
-Elf Formationen in drei **Familien**. Aus jeder Familie gilt nur die **höchste**
+Zwölf Formationen in drei **Familien**. Aus jeder Familie gilt nur die **höchste**
 erreichte — fünf gleiche Gattungen sind eine Reine Garde und nicht zusätzlich
 ein Regiment und ein Großes Regiment.
 
@@ -151,15 +151,24 @@ ein Regiment und ein Großes Regiment.
 | Rangfolge | Großer Vormarsch | 4 aufeinanderfolgende Ränge | +4 |
 | Rangfolge | Perfekter Vormarsch | 5 aufeinanderfolgende Ränge | +7 |
 
-### Königlicher Aufmarsch
+### Die beiden Krönungen
 
-Fünf aufeinanderfolgende Ränge **derselben Gattung** — `Bogen 8/9/10/11/12`.
-**+15 Salven.** Er löst Gattungs- *und* Rangfolgen-Familie ab und ist das
-Seltenste, was sich aus einem Blatt von 52 Karten bauen lässt. Er bekommt einen
-eigenen Auftritt mit Beben und Blitz.
+| Formation | Bedingung | Salven |
+|---|---|---|
+| Königlicher Aufmarsch | 5 aufeinanderfolgende Ränge derselben Gattung | +15 |
+| **Königliche Garde** | **Neun bis König** in einer Gattung | **+25** |
+
+Beide stehen in der Familie *Gattung* und lösen zusätzlich die Familie
+*Rangfolge* ab. Weil die Garde in derselben Familie eine Stufe höher steht,
+gilt nie beides: `Bogen 9/10/11/12/13` ist eine Garde und **kein** Aufmarsch.
+
+Der Aufmarsch kann bei der Zwei anfangen. Die Garde ist der eine Aufmarsch,
+der oben endet — das Seltenste, was fünf Stellungen hergeben. Sie bekommt
+darum einen eigenen Auftritt: heller als der Aufmarsch, länger, mit einem
+zweiten Schlag nach kurzer Pause.
 
 Was das ausmacht, gemessen: fünf beliebige Einheiten bringen **70 Wucht**, ein
-Königlicher Aufmarsch **850**.
+Königlicher Aufmarsch **850**, eine Königliche Garde **1 566**.
 
 Gleiche Ränge zählen in einer Folge nur einmal — `8 / 8 / 9 / 10` ist eine Folge
 von drei, keine von vier.
@@ -190,20 +199,28 @@ Aufstellung — daher die Live-Vorschau, die neue *und* brechende Formationen ze
 ### Salven abspielen
 
 `pkSpielSalve` löst die Salvenzahl in sichtbares Feuern auf. Bis fünf Salven
-bekommt jeder Schuss seinen eigenen Auftritt, darüber wird gebündelt — im
-Browser gezählt:
+bekommt jeder Schuss seinen eigenen Auftritt, darüber wird gebündelt.
+
+Die **Zielzeit steht zuerst fest** (`mindestens` + `jeSalve` je Salve, gedeckelt
+durch `hoechstens`), und dann wird sie mit so vielen Sichtschüssen gefüllt, wie
+im straffen Takt der Stufe hineinpassen. Diese Richtung ist wichtig: der erste
+Entwurf hielt die Bündelgröße fest und leitete den Takt aus der Zeit ab — und
+lief damit genau falsch, nämlich 27 Salven als sieben Schüsse mit 0,19 s Pause,
+also **langsamer** als fünf Einzelschüsse. Mehr Salven müssen dichter feuern.
 
 | Salven | Sichtschüsse | je | Dauer |
 |---|---|---|---|
-| 2 | 2 | 1 | 160 ms |
-| 9 | 9 | 1 | 680 ms |
-| 17 | 9 | 2 | 600 ms |
-| 50 | 13 | 4 | 780 ms |
-| **100** | 13 | 8 | **660 ms** |
+| 3 | 3 | 1 | 0,32 s |
+| 10 | 10 | 1 | 0,83 s |
+| 27 | 20 | 2 | 1,31 s |
+| 80 | 40 | 2 | 2,20 s |
+| **2 000** | 44 | 46 | **2,20 s** |
 
-Hundert Salven dauern keine Sekunde länger als neun. Die Schwellen stehen in
-`SALVEN_TAKT`. Die Spielrechnung bleibt unberührt — hundert Salven sind hundert
-Salven, nur die Vorstellung wird verdichtet.
+Ab fünf Salven läuft ein **Salvenzähler** über der Bühne mit (`0 / 27 Salven`).
+Darunter wäre er eine Anzeige für etwas, das man ohnehin zählen kann.
+
+Die Schwellen stehen in `SALVEN_TAKT`. Die Spielrechnung bleibt unberührt —
+zweitausend Salven sind zweitausend Salven, nur die Vorstellung wird verdichtet.
 
 ---
 
@@ -318,14 +335,60 @@ Zeichnungen, sondern zwei Achsen:
 
 | Ränge | Stufe | Maßstab |
 |---|---|---|
-| 1–3 | Aufgebot | 2,4 |
-| 4–6 | Besatzung | 2,7 |
-| 7–9 | Veteranen | 3,0 |
-| 10–12 | Elite | 3,3 |
-| 13 | Meister | 3,7 (und eine zweite Fahne) |
+| 1–3 | Aufgebot | 3,0 |
+| 4–6 | Besatzung | 3,4 |
+| 7–9 | Veteranen | 3,8 |
+| 10–12 | Elite | 4,2 |
+| 13 | Meister | 4,7 (und eine zweite Fahne) |
 
 Auf den Türmen steht die **Einheit**, nicht die Karte. Die Karte bleibt die
 Karte — sie liegt im Deck, nicht auf der Mauer.
+
+### Das Bildergesetz der Besatzung
+
+Fünf Regeln, aus denen alles Übrige folgt. Sie stehen hier, weil jede von ihnen
+einmal *gefehlt* hat und das Ergebnis jedes Mal dasselbe war: eine Burg, die
+beschriftet aussah statt bemannt.
+
+**1. Die Figur zeigt den Rang, die Farbe zeigt die Gattung.** Nur der
+Waffenrock wird eingefärbt (`b/B`, `r/R`, `n/N` in der Palette); Haut, Stahl,
+Holz und Gold bleiben, wie sie sind — sonst verliert die Figur ihre Plastik und
+wird zum Scherenschnitt. Vorher trug ein Bogenschütze Rang 1 dasselbe Blau wie
+ein Armbruster Rang 5.
+
+**2. Drei Mann, eine Einheit.** Sie stehen eng genug, dass sie sich
+überschneiden. Drei überschneidende Silhouetten lesen sich als *eine* Einheit —
+genau das sollen sie sein. (`BATALLION_ABSTAND`, Faktor 3,1.)
+
+**3. Wer steht, hat einen Schatten und steht hinter der Brüstung.** Der Schatten
+hängt am Boden, nicht an der Figur: beim Atmen und beim Einzug bleibt er liegen,
+und genau daran sieht man, dass die Figur sich bewegt und der Turm nicht. Alles
+unterhalb der Kronenkante wird weggeschnitten.
+
+**4. Wer steht, atmet.** Ein Pixel auf und ab, je Mann und Turm anders gestimmt,
+damit die drei nicht im Gleichschritt wippen.
+
+**5. Wer feuert, wird zurückgeworfen.** Die Besatzung bekommt ihren eigenen
+Stoß, dem Rücklauf des Geräts nach — nicht nur der Turm sackt ab.
+
+Der **Einzug**: eine Einheit erscheint nicht, sie *bezieht eine Stellung*. Von
+oben herunter, Flanken zuerst, Mitte zuletzt, dann staubt die Krone. Leichte
+Einheiten sind in 0,37 s oben, schwere brauchen 0,61 — man sieht am Tempo, was
+aufzieht. Das Rangschild kommt erst, wenn die Besatzung steht.
+
+### Blitz, Rauch und Staub verblassen verschieden
+
+| Art | Deckung über die Zeit | wozu |
+|---|---|---|
+| Blitz | `1 − f³` | bleibt hell und geht dann aus |
+| Rauch | `√(1 − f)` | hält seine Deckung lange und steigt |
+| Staub | `1 − f` | verblasst gleichmäßig und fällt |
+
+Das Mündungsfeuer sitzt **vor** der Besatzung auf Rohrhöhe, nicht in der Mitte
+der Kachel — dort war es im Bild ein heller Fleck auf der Brust des Kanoniers.
+Der Pulverrauch ist **hell**; die dunkle Wolke, die zuerst dort stand, war vor
+der Mauer schlicht unsichtbar. Bei dichtem Feuer qualmt nur jeder dritte
+Schuss: eine Wolke, die steht, sagt mehr als vierzig, die sich überlagern.
 
 ---
 
@@ -353,8 +416,23 @@ Spielstand exakt derselbe.
 | Formation **bricht** | durchgestrichene Marke mit `−` |
 | Einheit gesetzt | Karte fliegt zum Turm, Schild federt ein, Turm zuckt |
 | Salve | Türme feuern versetzt, dann Treffer, dann die Kette |
-| Wappen zündet | der Kreis pulst |
+| Wappen zündet | das Schild pulst und leuchtet auf |
 | Schaden | Zahl wächst mit dem **Anteil** der gegnerischen Stärke |
+| Salve läuft | Zähler über der Bühne, `n / N Salven` |
+
+**Die Wappenleiste** steht dauerhaft oben rechts: fünf Schilde, auch die leeren.
+Jedes Wappen trägt sein eigenes Bild und seine eigene Tinktur — vorher trugen
+alle sechs dasselbe ⚜, man sah also, *dass* man Wappen hat, nie *welche*.
+
+**Die Formationsleiste** trägt je Familie ein Zeichen (⚑ Gattung, ⚔ Rang,
+➤ Rangfolge, ⛨ Grundstellung, ♛ Garde) und die Stufe als Striche. Wer eine
+Marke überfährt, sieht genau die Stellungen aufleuchten, die diese Formation
+tragen — das beantwortet die Frage, die man beim Planen wirklich hat: nicht
+*was gilt*, sondern *welche meiner fünf Türme hängen daran*.
+
+Beides benutzt dieselbe **Hinweisschicht** (`pkHefteHinweis`). Sie ersetzt den
+`title` des Betriebssystems, der erst nach einer Sekunde erscheint, nicht
+gestaltet werden kann und abbricht, sobald die Maus zuckt.
 
 Gemessen bei voll besetzter Burg mit fünf Wappen: Zeichnen 4,5 ms je Bild,
 Auffrischen 1,7 ms, Rechnen 0,04 ms, 184 DOM-Knoten.
@@ -414,23 +492,35 @@ In der Konsole: `PX.station(9)` springt an Station 9 mit passendem Deck,
 
 ## 11. Gemessene Balance
 
-70 Läufe mit dem Bot, der in jeder Runde die Setzung nimmt, die die Salve am
-stärksten hebt — also ein Spieler, der die Vorschau liest und sonst nichts
+**300 Läufe** mit dem Bot, der in jeder Runde die Setzung nimmt, die die Salve
+am stärksten hebt — also ein Spieler, der die Vorschau liest und sonst nichts
 weiter denkt:
 
-| Station | Art | gewonnen |
-|---|---|---|
-| 1 | Kampf | 100 % |
-| 2 | Kampf | 99 % |
-| 5 | Kampf | 96 % |
-| 6 | Sturmtrupp | 77 % |
-| 8 | Kampf | 84 % |
-| 10 | Sturmtrupp | 70 % |
-| 11 | Belagerungsmeister | **50 %** |
+| Station | Art | gespielt | gewonnen |
+|---|---|---|---|
+| 1 | Kampf | 300 | 100 % |
+| 2 | Kampf | 300 | 99 % |
+| 5 | Kampf | 297 | 94 % |
+| 6 | Sturmtrupp | 280 | 80 % |
+| 8 | Kampf | 223 | 88 % |
+| 10 | Sturmtrupp | 197 | 77 % |
+| 11 | Belagerungsmeister | 151 | **66 %** |
 
-**Akt geschafft: 21 %.** Die Mitte liegt bei Station 10 — die meisten Läufe
+**Akt geschafft: 33 %.** Die Mitte liegt bei Station 11 — die meisten Läufe
 sterben am Boss oder kurz davor, und der Boss ist mit Abstand die schwerste
 Hürde. Das ist die Form, die ein Akt haben soll.
+
+### Warum hier 300 Läufe stehen und nicht 40
+
+Weil vierzig zu wenig sind, um irgendetwas zu behaupten. Zwei Durchgänge
+derselben, unveränderten Fassung ergaben **40 %** und **18 %** Aktabschluss.
+Die früher hier stehenden 21 % waren eine solche Stichprobe.
+
+Deshalb wurde die Königliche Garde auch gegen ihre eigene Vorversion gemessen,
+beide Male mit 300 Läufen: **31 % ohne sie, 33 % mit ihr.** Das ist der
+erwartete Befund — Neun bis König in einer Gattung auf fünf Stellungen in fünf
+Runden ist so selten, dass sie in der Breite kaum vorkommt. Sie ist ein Gipfel,
+den man anstrebt, kein Hebel, der die Kurve verschiebt.
 
 ### Die Kurve ist flach — und warum
 
