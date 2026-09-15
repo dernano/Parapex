@@ -8180,7 +8180,10 @@ const PK_CSS = `
   animation: pk-kroenung 2.4s ease-in-out infinite; }
 @keyframes pk-kroenung { 50% { box-shadow: 0 0 22px rgba(255,214,120,0.9); } }
 #pk .pk-ruf.kroenung { font-size: 46px; color: #fff2c0; letter-spacing: 0.06em;
-  text-shadow: 0 4px 0 rgba(60,30,0,0.7), 0 0 44px rgba(255,190,70,0.95); }
+  padding: 14px 34px; border-radius: 8px;
+  background: radial-gradient(ellipse at center, rgba(40,22,4,0.92), rgba(40,22,4,0.55) 70%, transparent);
+  text-shadow: 0 4px 0 rgba(60,30,0,0.8), 0 0 44px rgba(255,190,70,0.95); }
+#pk .pk-ruf.kroenung small { color: #ffd166; font-size: 0.34em; letter-spacing: 0.3em; }
 #pk .pk-form.bricht { background: none; border: 1px solid #a8442b; color: #e08a72;
   text-decoration: line-through; }
 #pk .pk-form.still { background: none; color: #6d6252; border-color: transparent;
@@ -8386,6 +8389,12 @@ const PK_CSS = `
 /* ---------- Grosse Einblendungen: Formation, Kombo, Runde ---------- */
 #pk .pk-buehne { position: absolute; inset: 0; display: grid; place-items: center;
   pointer-events: none; z-index: 40; }
+/*
+ * Der Schadensruf gehoert ueber den GEGNER, nicht ueber die eigene Burg. Er
+ * stand mittig und damit ueber dem Mauerwerk - man las die Zahl und sah nicht,
+ * wen sie trifft. Der Gegner steht rechts im Bild.
+ */
+#pk .pk-ruf.schaden { left: 66%; top: 42%; transform-origin: center; }
 #pk .pk-ruf { position: absolute; text-align: center; white-space: nowrap;
   font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   text-shadow: 0 3px 0 rgba(0,0,0,0.6), 0 0 26px rgba(255,190,90,0.55); }
@@ -9396,10 +9405,15 @@ function pkRuf(text, { art = 'formation', unter = '', y = -60, dauer = 620, vorl
   el.style.transform = `translateY(${y}px)`;
   buehne.appendChild(el);
   if (wenigerBewegung) { setTimeout(() => el.remove(), dauer); return; }
+  /*
+   * Schnell da, lange lesbar, schnell weg. Der Ruf war vorher ein Fuenftel
+   * seiner Zeit am Einblenden und damit in genau dem Augenblick blass, in dem
+   * man hinsieht - beim Zuenden.
+   */
   el.animate([
     { transform: `translateY(${y + 16}px) scale(0.72)`, opacity: 0 },
-    { transform: `translateY(${y}px) scale(1.06)`, opacity: 1, offset: 0.22 },
-    { transform: `translateY(${y}px) scale(1)`, opacity: 1, offset: 0.68 },
+    { transform: `translateY(${y}px) scale(1.08)`, opacity: 1, offset: 0.12 },
+    { transform: `translateY(${y}px) scale(1)`, opacity: 1, offset: 0.8 },
     { transform: `translateY(${y - 22}px) scale(1.02)`, opacity: 0 },
   ], { duration: dauer, delay: vorlauf, easing: 'cubic-bezier(.2,1.3,.35,1)', fill: 'backwards' })
     .onfinish = () => el.remove();
@@ -9418,7 +9432,7 @@ function pkRufSchaden(wucht) {
   const anteil = k ? wucht / Math.max(1, k.feind.maxHp) : 0;
   const gross = Math.min(1, anteil * 2.4);
   const el = document.createElement('div');
-  el.className = 'pk-ruf';
+  el.className = 'pk-ruf schaden';
   el.style.cssText = 'font-size:' + Math.round(34 + gross * 46) + 'px;' +
     'color:' + (gross > 0.55 ? '#fff0c0' : '#ffd166') + ';' +
     'text-shadow: 0 3px 0 rgba(0,0,0,.65), 0 0 ' + Math.round(14 + gross * 40) + 'px rgba(255,170,60,' + (0.4 + gross * 0.5).toFixed(2) + ');';

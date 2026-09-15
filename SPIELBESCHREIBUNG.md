@@ -126,52 +126,84 @@ Mechanik.
 
 ## 4. Formationen
 
-Zehn Muster. Sie **überlappen** — eine Einheit kann in mehreren gleichzeitig
-stehen — und sie **vervielfachen sich miteinander**. Es gibt keine Obergrenze.
+Die fünf besetzten Stellungen sind ein **Blatt**. Was darin steckt, erkennt man
+wie in einem Kartenspiel: gleiche Gattung, gleiche Ränge, eine Folge von Rängen.
 
-| Formation | Bedingung | Wirkung |
-|---|---|---|
-| Schützenlinie | 3 benachbarte Bogenschützen | die drei feuern ein zweites Mal |
-| Bolzenwall | 3 Armbrustschützen (irgendwo) | ihre Wucht ×2 |
-| Schwere Batterie | 2 benachbarte Artillerie | ihre Wucht ×2 |
-| Pulverlinie | 3/4/5 Kanoniere (irgendwo) | ihre Wucht ×2 / ×3 / ×5 |
-| Wechselfeuer | 4 benachbarte Türme, Gattungen abwechselnd | ihre Wucht ×2 |
-| Zangenstellung | gleiche Gattung an beiden Enden einer Reihe | beide Enden feuern erneut |
-| Vorrückende Salve | 3/4/5 benachbarte Türme, steigende Ränge | ×1,5 / ×2 / ×3 |
-| Fallende Salve | 3/4/5 benachbarte Türme, fallende Ränge | ×1,75 / ×2,5 / ×4 |
-| Königshügel | mittlerer Turm trägt den höchsten Rang | sein Rang ×2 |
-| Geschlossene Front | alle fünf Türme besetzt | **Gesamtwucht** ×1,5 |
+**Die Stellung der Türme zählt nicht.** `7 / 3 / 6 / 12 / 5` enthält dieselbe
+Folge `5 / 6 / 7` wie jede andere Anordnung. Niemand muss vor dem Ausspielen
+sortieren.
 
-Die Namen sind absichtlich **keine Pokerbegriffe**: die Sprache soll von einer
-Burg erzählen, nicht von einem Blatt.
+Elf Formationen in drei **Familien**. Aus jeder Familie gilt nur die **höchste**
+erreichte — fünf gleiche Gattungen sind eine Reine Garde und nicht zusätzlich
+ein Regiment und ein Großes Regiment.
 
-Eine Formation liefert eines von drei Dingen:
+| Familie | Formation | Bedingung | Salven |
+|---|---|---|---|
+| Grundstellung | Geschlossene Front | alle fünf Stellungen besetzt | +1 |
+| Gattung | Regiment | 3 derselben Gattung | +2 |
+| Gattung | Großes Regiment | 4 derselben Gattung | +4 |
+| Gattung | Reine Garde | **alle 5** derselben Gattung | +7 |
+| Rang | Doppelposten | 2 desselben Rangs | +1 |
+| Rang | Doppelte Wache | zwei verschiedene Paare | +2 |
+| Rang | Drillingsposten | 3 desselben Rangs | +3 |
+| Rang | Viererblock | 4 desselben Rangs | +10 |
+| Rangfolge | Vormarsch | 3 aufeinanderfolgende Ränge | +2 |
+| Rangfolge | Großer Vormarsch | 4 aufeinanderfolgende Ränge | +4 |
+| Rangfolge | Perfekter Vormarsch | 5 aufeinanderfolgende Ränge | +7 |
 
-- `proTurm` — ein Faktor auf die Wucht der genannten Türme,
-- `nachschuss` — die genannten Türme feuern noch einmal,
-- `gesamt` — ein Faktor auf die Summe am Ende.
+### Königlicher Aufmarsch
 
-Neue Formationen sind ein Eintrag in `FORMATIONEN`, keine Änderung am Code.
+Fünf aufeinanderfolgende Ränge **derselben Gattung** — `Bogen 8/9/10/11/12`.
+**+15 Salven.** Er löst Gattungs- *und* Rangfolgen-Familie ab und ist das
+Seltenste, was sich aus einem Blatt von 52 Karten bauen lässt. Er bekommt einen
+eigenen Auftritt mit Beben und Blitz.
+
+Was das ausmacht, gemessen: fünf beliebige Einheiten bringen **70 Wucht**, ein
+Königlicher Aufmarsch **850**.
+
+Gleiche Ränge zählen in einer Folge nur einmal — `8 / 8 / 9 / 10` ist eine Folge
+von drei, keine von vier.
+
+### Formationsstufen
+
+Jede Formation trägt `salven` und `jeStufe`, der Lauf hält `formationsStufen`.
+Das Gerüst für spätere Aufwertungen einzelner Formationen steht damit; die
+Belohnungsökonomie dazu kommt später.
 
 ---
 
 ## 5. Die Wuchtkette
 
-Die Reihenfolge steht fest und wird als Protokoll zurückgegeben, damit der
-Spieler sehen kann, **wo** die Zahl herkommt:
-
 ```
-je Turm:   (Rang + Ausbau)  ×  Turmtyp  ×  Formationen(proTurm)  ×  (1 + Nachschüsse)
-danach:    Summe  ×  Formationen(gesamt)  ×  Wappen(gesamt)
+je Turm:   (Rang + Schliff) × Turmtyp
+Summe   ×  Salvenzahl  ×  Wappen
 ```
 
-`berechneWucht` gibt `{ posten, formationen, schritte, grund, wucht }` zurück.
-`schritte` ist die lesbare Kette; die Oberfläche zeigt sie nach jeder Salve und
-im Werkzeug.
+Die **Salvenzahl** ist eine Grundsalve plus, was die Formationen geben. Sie ist
+kein Rechentrick: **jede Salve ist ein Schuss, den man sieht.** Wer `+7 Salven`
+liest, sieht sieben Mal feuern.
 
-`vorschau(turm, karte)` rechnet dieselbe Kette für eine **hypothetische**
-Aufstellung — daher die Live-Vorschau, während eine Karte über einer Tafel
-hängt.
+`berechneWucht` gibt `{ posten, formationen, schritte, salven, jeSalve, wucht }`
+zurück. `vorschau(turm, karte)` rechnet dieselbe Kette für eine hypothetische
+Aufstellung — daher die Live-Vorschau, die neue *und* brechende Formationen zeigt.
+
+### Salven abspielen
+
+`pkSpielSalve` löst die Salvenzahl in sichtbares Feuern auf. Bis fünf Salven
+bekommt jeder Schuss seinen eigenen Auftritt, darüber wird gebündelt — im
+Browser gezählt:
+
+| Salven | Sichtschüsse | je | Dauer |
+|---|---|---|---|
+| 2 | 2 | 1 | 160 ms |
+| 9 | 9 | 1 | 680 ms |
+| 17 | 9 | 2 | 600 ms |
+| 50 | 13 | 4 | 780 ms |
+| **100** | 13 | 8 | **660 ms** |
+
+Hundert Salven dauern keine Sekunde länger als neun. Die Schwellen stehen in
+`SALVEN_TAKT`. Die Spielrechnung bleibt unberührt — hundert Salven sind hundert
+Salven, nur die Vorstellung wird verdichtet.
 
 ---
 
@@ -265,6 +297,35 @@ stehen — wer nicht kauft, darf nicht neu würfeln.
 Sechs, jede mit zwei Wahlen und einer Bedingung, die sie zurückhält, wenn sie
 gerade nichts bewirken könnte. Ein Wappenangebot ohne freien Platz ist kein
 Ereignis, sondern ein Ärgernis.
+
+---
+
+## 7a. Die 52 Einheiten
+
+Jede Einheit hat ein **Profil**, das aus Gattung und Rang folgt — nicht 52
+Zeichnungen, sondern zwei Achsen:
+
+**Die Gattung bestimmt die Sprache des Schusses.**
+
+| Gattung | Wie sie feuert |
+|---|---|
+| Bogenschützen | spannen sichtbar, hoher Bogen, leichter Einschlag |
+| Armbrustschützen | mechanisch, flacher schneller Bolzen, harter Treffer |
+| Artillerie | hoher langsamer Steinwurf, schwerer Aufschlag, starkes Beben |
+| Kanoniere | Mündungsfeuer, kräftiger Rückstoß, Kugel mit Rauchfahne, Detonation |
+
+**Der Rang bestimmt die Stufe** — Figur, Maßstab, Staub, Beben, Blitz:
+
+| Ränge | Stufe | Maßstab |
+|---|---|---|
+| 1–3 | Aufgebot | 2,4 |
+| 4–6 | Besatzung | 2,7 |
+| 7–9 | Veteranen | 3,0 |
+| 10–12 | Elite | 3,3 |
+| 13 | Meister | 3,7 (und eine zweite Fahne) |
+
+Auf den Türmen steht die **Einheit**, nicht die Karte. Die Karte bleibt die
+Karte — sie liegt im Deck, nicht auf der Mauer.
 
 ---
 
