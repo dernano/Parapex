@@ -5245,20 +5245,39 @@ function drawSprite(rows, x, y, scale, context = ctx, palette = PAL) {
  * aussieht, nicht wie sie rechnet.
  */
 
-/**
- * Wo die drei Mann eines Batallions stehen und wie gross jeder ist. Frueher
- * rechnete das nur `zeichneBatallion` fuer sich; seit der Bogen als eigene
- * Zeichnung ueber die Figuren gelegt wird, brauchen beide dieselben Punkte -
- * sonst spannt einer den Bogen neben sich.
+/*
+ * Wo die drei Mann stehen - in KACHELN auf der Turmkrone, nicht in Bildpunkten
+ * neben einem Mittelpunkt.
+ *
+ * Vorher bekam die Funktion einen Bildpunkt und hob die beiden Flanken um
+ * `massstab * 1,5` an. Das ist keine Projektion, sondern eine Faustregel, und
+ * sie haengt am FALSCHEN Wert: nicht am Ort, sondern an der Groesse. Je
+ * groesser die Figuren wurden, desto weiter schwebten die Flanken ueber der
+ * Krone - bei einem Meister sieben Pixel, bei einem Aufgebot viereinhalb. Man
+ * sah es dem Bild an, und man sah es umso mehr, je hoeher die Raenge stiegen.
+ *
+ * Jetzt stehen die drei auf drei Punkten der Krone, und wo ihre Fuesse
+ * aufsetzen, rechnet dieselbe Projektion aus, die auch den Turm malt. Damit
+ * sitzen sie richtig - bei jeder Groesse, auf jedem Turmmodell.
+ *
+ * Die drei Punkte liegen auf einer Tiefenlinie (Spalte plus Zeile ist gleich),
+ * damit die Reihe gerade steht; nur die Mitte tritt einen Viertelschritt vor
+ * und sitzt dadurch drei Pixel tiefer. Das ist die ganze Tiefenstaffelung, und
+ * mehr braucht es auch nicht.
  */
-function batallionStellungen(x, y, mitte) {
-  const seite = Math.max(1, mitte - 1);
-  const abstand = BATALLION_ABSTAND(mitte);
-  return [
-    { x: x - abstand, y: y - mitte * 1.5, s: seite, mitte: false },
-    { x: x + abstand, y: y - mitte * 1.5, s: seite, mitte: false },
-    { x, y, s: mitte, mitte: true },
-  ];
+const BATALLION_ORTE = [
+  { dc: 0.69, dr: 1.41 },   // links
+  { dc: 1.41, dr: 0.69 },   // rechts
+  { dc: 1.20, dr: 1.20 },   // Mitte, einen Schritt vor - darum zuletzt gemalt
+];
+
+function batallionStellungen(turm, hoehe, mass) {
+  return BATALLION_ORTE.map((o, i) => ({
+    x: isoX(turm.col + o.dc, turm.row + o.dr),
+    y: isoY(turm.col + o.dc, turm.row + o.dr) - hoehe,
+    s: mass,
+    mitte: i === 2,
+  }));
 }
 
 /*
@@ -8217,7 +8236,7 @@ function pkZeichneTurm(t) {
      */
     const p = einheitProfil(t.einheit);
     const spannt = p.spannt && t.spann > 0;
-    const stellungen = batallionStellungen(cx, cy + 4, p.massstab);
+    const stellungen = batallionStellungen(t, H, p.massstab);
     const ez = t.einzug || 0;
 
     /*
@@ -8275,7 +8294,11 @@ function pkZeichneTurm(t) {
      */
     const gestanden = einzugAnteil(ez, 2, p);
     if (gestanden > 0.2) {
-      const kopf = Math.round(cy + 4 - p.figur.length * p.massstab - 7);
+      const mitte = stellungen[2];
+      // Die Plakette wird von ihrem oberen Rand aus nach unten gefuellt - sie
+      // braucht also ihre eigene Hoehe Abstand, sonst sitzt sie dem mittleren
+      // Mann auf dem Helm. Genau das tat sie.
+      const kopf = Math.round(mitte.y - p.figur.length * p.massstab - 16);
       ctx.save();
       ctx.globalAlpha = Math.min(1, (gestanden - 0.2) / 0.5);
       drawBadge(cx, kopf, String(t.einheit.rang), GATTUNGEN[t.einheit.gattung].hell, '#1a1208');
@@ -9640,12 +9663,28 @@ function pkSpielSetzen(el, turmEl, { dauer = 230 } = {}) {
  * Alles Weitere - Figur, Massstab, Geschossart, Farbe, Einschlag, Ton - folgt
  * aus diesen beiden Zahlen. Eine neue Einheit braucht keinen neuen Code.
  */
+/*
+ * EINE Groesse fuer alle Raenge.
+ *
+ * Vorher wuchs die Figur mit dem Rang, von 3,0 auf 4,7. Das klingt richtig und
+ * ist es nicht: die Turmkrone waechst nicht mit. Ein Meisterbatallion stand
+ * damit ueber seine Krone hinaus, und weil die Flanken zusaetzlich am Massstab
+ * hingen, schwebten sie umso hoeher, je hoeher der Rang war. Der Fortschritt
+ * war also genau dort am schlechtesten zu sehen, wo er am groessten sein soll.
+ *
+ * Der Rang bleibt trotzdem ablesbar, an drei Stellen, die nichts mit Groesse
+ * zu tun haben: am Schild ueber dem Kopf, an der AUSRUESTUNG (die Figur
+ * wechselt mit der Stufe) und beim Meister an der zweiten, goldenen Fahne.
+ * `fx` waechst weiter - was ein hoher Rang anrichtet, ist eine andere Frage
+ * als wie gross er dasteht.
+ */
+const BESATZUNG_MASS = 3.2;
 const EINHEIT_STUFEN = [
-  { ab: 1,  name: 'Aufgebot',  massstab: 3.0, fx: 0.55 },
-  { ab: 4,  name: 'Besatzung', massstab: 3.4, fx: 0.75 },
-  { ab: 7,  name: 'Veteranen', massstab: 3.8, fx: 1.0 },
-  { ab: 10, name: 'Elite',     massstab: 4.2, fx: 1.3 },
-  { ab: 13, name: 'Meister',   massstab: 4.7, fx: 1.75 },
+  { ab: 1,  name: 'Aufgebot',  fx: 0.55 },
+  { ab: 4,  name: 'Besatzung', fx: 0.75 },
+  { ab: 7,  name: 'Veteranen', fx: 1.0 },
+  { ab: 10, name: 'Elite',     fx: 1.3 },
+  { ab: 13, name: 'Meister',   fx: 1.75 },
 ];
 
 function einheitStufe(rang) {
@@ -9723,7 +9762,7 @@ function einheitProfil(einheit) {
     rang: einheit.rang,
     stufe: stufe.name,
     figur: g.figuren[nr] || g.figuren[0],
-    massstab: stufe.massstab,
+    massstab: BESATZUNG_MASS,
     spannt: Boolean(g.spannt),
     muendung: Boolean(g.muendung),
     geschoss: g.geschoss,

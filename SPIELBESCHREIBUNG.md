@@ -331,15 +331,27 @@ Zeichnungen, sondern zwei Achsen:
 | Artillerie | hoher langsamer Steinwurf, schwerer Aufschlag, starkes Beben |
 | Kanoniere | Mündungsfeuer, kräftiger Rückstoß, Kugel mit Rauchfahne, Detonation |
 
-**Der Rang bestimmt die Stufe** — Figur, Maßstab, Staub, Beben, Blitz:
+**Der Rang bestimmt die Stufe** — Ausrüstung, Staub, Beben, Blitz:
 
-| Ränge | Stufe | Maßstab |
+| Ränge | Stufe | Wirkung (`fx`) |
 |---|---|---|
-| 1–3 | Aufgebot | 3,0 |
-| 4–6 | Besatzung | 3,4 |
-| 7–9 | Veteranen | 3,8 |
-| 10–12 | Elite | 4,2 |
-| 13 | Meister | 4,7 (und eine zweite Fahne) |
+| 1–3 | Aufgebot | 0,55 |
+| 4–6 | Besatzung | 0,75 |
+| 7–9 | Veteranen | 1,0 |
+| 10–12 | Elite | 1,3 |
+| 13 | Meister | 1,75 (und eine zweite, goldene Fahne) |
+
+**Die Figur wächst nicht mit dem Rang.** Alle Besatzungen stehen im selben
+Maßstab (`BESATZUNG_MASS`, 3,2). Vorher wuchsen sie von 3,0 auf 4,7 — das
+klingt richtig und ist es nicht, denn die Turmkrone wächst nicht mit. Ein
+Meisterbataillon stand über seine Krone hinaus, und weil die Flanken
+zusätzlich am Maßstab hingen (siehe unten), schwebten sie umso höher, je höher
+der Rang war. Der Fortschritt war also genau dort am schlechtesten zu sehen,
+wo er am größten sein soll.
+
+Ablesbar bleibt der Rang an drei Stellen, die nichts mit Größe zu tun haben:
+am **Schild über dem Kopf**, an der **Ausrüstung** (die Figur wechselt mit der
+Stufe) und beim Meister an der **zweiten Fahne**.
 
 Auf den Türmen steht die **Einheit**, nicht die Karte. Die Karte bleibt die
 Karte — sie liegt im Deck, nicht auf der Mauer.
@@ -356,9 +368,14 @@ Holz und Gold bleiben, wie sie sind — sonst verliert die Figur ihre Plastik un
 wird zum Scherenschnitt. Vorher trug ein Bogenschütze Rang 1 dasselbe Blau wie
 ein Armbruster Rang 5.
 
-**2. Drei Mann, eine Einheit.** Sie stehen eng genug, dass sie sich
-überschneiden. Drei überschneidende Silhouetten lesen sich als *eine* Einheit —
-genau das sollen sie sein. (`BATALLION_ABSTAND`, Faktor 3,1.)
+**2. Drei Mann, eine Einheit — und sie stehen auf der Krone, nicht daneben.**
+Die drei Standorte sind **Kachelkoordinaten auf der Turmkrone**
+(`BATALLION_ORTE`), und wo ihre Füße aufsetzen, rechnet dieselbe Projektion
+aus, die auch den Turm malt. Vorher bekam die Funktion einen Bildpunkt und hob
+die beiden Flanken um `Maßstab × 1,5` an — keine Projektion, sondern eine
+Faustregel, und sie hing am falschen Wert: nicht am Ort, sondern an der Größe.
+Sie stehen eng genug, dass sie sich überschneiden; drei überschneidende
+Silhouetten lesen sich als *eine* Einheit, und genau das sollen sie sein.
 
 **3. Wer steht, hat einen Schatten und steht hinter der Brüstung.** Der Schatten
 hängt am Boden, nicht an der Figur: beim Atmen und beim Einzug bleibt er liegen,
