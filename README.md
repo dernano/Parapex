@@ -15,11 +15,20 @@ Das Deck ist von Anfang an das **ganze Blatt**: alle 52 Karten. Ein Lauf lässt
 es nicht wachsen, er verschmälert es — die Bauernschützen gehen, damit die
 Marschälle öfter kommen.
 
-Ein Akt führt über elf Stationen zum Belagerungsmeister. Deck, Wappen und
-Turmtypen nimmt man mit; ein verlorener Kampf beendet den Akt.
+Daneben hängen **fünf Wappen in einer Reihe**, und die Reihenfolge ist eine
+Regel: ein Ereignis läuft strikt von links nach rechts durch sie hindurch, und
+jeder Platz sieht die Lage so, wie der Platz vor ihm sie hinterlassen hat.
+`(s+10)×3` ist nicht `s×3+10`. Der Spieler baut keine Sammlung, sondern eine
+**Maschine**.
+
+Es gibt keine Karte, die man abläuft. **Die Burg steht; die Heere kommen zu
+ihr.** Jede *Ante* ist ein Heer in drei Wellen — Vorhut, drei Divisionen,
+Heerführer —, und jede Division, die man durchlässt, gibt dem Heerführer ihre
+Regel. Der Boss wird gebaut, nicht gewürfelt, und zwar vom Spieler.
 
 Die Darstellung ist eine isometrische Pixel-Ansicht, vollständig im Code
-gezeichnet — keine Bilddateien, keine Abhängigkeiten, eine einzige Datei.
+gezeichnet — keine Bilddateien, keine Abhängigkeiten zur Laufzeit, eine einzige
+ausgelieferte Datei.
 
 **Die Regeln im Einzelnen stehen in [`SPIELBESCHREIBUNG.md`](SPIELBESCHREIBUNG.md).**
 Dieses Dokument ist das Entwicklungstagebuch: warum etwas so ist, wie es ist.
@@ -156,6 +165,151 @@ belastbaren stammen aus 300 Läufen.
 
 ---
 
+## Das Wappen-Fließband
+
+Die Wappen hingen an **fünf verschiedenen Hakenformen** an fünf Stellen im
+Kern: `rangFaktor` im Blatt, `gesamtFaktor` in der Wucht, `tauschRabatt` beim
+Tauschen, `zaehltDoppelt` beim Erkennen, `horcht` am Signalbus. Das hatte zwei
+Folgen, und beide waren schlecht.
+
+**Erstens konnte ein Wappen wirkungslos werden, ohne dass es auffiel.** Der
+Drache versprach „Jeder Nachschuss zählt doppelt" und trug dafür einen sechsten
+Haken, `retriggerFaktor` — der seit dem Salvenumbau an **keiner einzigen Stelle
+mehr gelesen wurde**. Auf der Tafel stand die Wirkung weiterhin. Gefunden wurde
+das nicht beim Spielen, sondern beim Zählen der Haken.
+
+**Zweitens konnten zwei Wappen einander nichts sagen.** Es gab keinen Ort, an
+dem sie sich begegnet wären — also gab es auch keine Kombination, nur eine
+Summe.
+
+Jetzt gibt es **einen Weg**: ein Ereignis geht durch die fünf Plätze, strikt
+von links nach rechts. Geprüft wird genau das, was daran die Regel ist:
+
+    ok   Die Reihenfolge ändert das Ergebnis
+
+### Verstärken ohne Wissen
+
+Jede Änderung wird als `{art, wert}` aufgezeichnet. Darum muss der Drache nicht
+kennen, was sein linker Nachbar getan hat — er liest dessen aufgezeichnete
+Wirkungen und wendet sie noch einmal an. **Ein Wappen, das es morgen gibt, ist
+heute schon verstärkbar.**
+
+Additiv und multiplikativ sind streng getrennt: verdoppelt man `+3`, wird daraus
+`+6`; verdoppelt man `×1,5`, wird daraus `×2,25` und nicht `×3`. Nur so heißt
+„zählt doppelt" bei beiden Bauarten dasselbe.
+
+### Der Signalbus ist weg
+
+`signale.js` hatte am Ende genau **einen** Nutzer: die `horcht`-Haken der
+Wappen. Die Oberfläche hörte auf kein einziges Signal — sie liest den Zustand
+direkt. Zwei Ereignissysteme nebeneinander wären genau die Unordnung gewesen,
+die abgeschafft werden sollte.
+
+### Die Synergie-Matrix
+
+Fünfzig Wappen sind 2450 geordnete Paare. Kein Mensch spielt die durch, und
+genau deshalb versteckt sich darin alles, was ein Wappensystem kaputt macht.
+`npm run matrix` misst jedes Paar als ganzen Kampf und meldet tote Wappen,
+Quellen ohne Abnehmer, Sprengsätze — und wie viele Paare ihr Ergebnis ändern,
+wenn man sie vertauscht (derzeit 37 % der wirksamen).
+
+Was sie gefunden hat, in der Reihenfolge des Findens:
+
+- **Die Schlange stand in keinem Kampfprotokoll.** Sie wirkte ausschließlich in
+  Proben — den Preisanfragen der Anzeige —, und Proben werden zu Recht nicht
+  aufgeschrieben. Anfrage und Vollzug sind jetzt getrennt.
+- **Der Steinbock halbierte den Wert fast jedes Partners.** Ein verbogener Rang
+  zerreißt die Folge, auf die alles andere baut.
+- **Steinadler und Ouroboros ergaben zusammen null Schaden.** Die Salvenzahl
+  halbierte sich sieben Mal. Solange jemand auf einem Turm steht, feuert er.
+
+Und drei Messfehler im Werkzeug selbst, die es beinahe zu falschen Befunden
+gebracht hätten. Der teuerste: ein Prüfstein mit 10^18 Trefferpunkten hat eine
+**Gleitkomma-Schrittweite von 128** — jeder Schaden unter einer Runde verschwand
+im Rundungsfehler, und die Matrix meldete zwei Durchgänge lang, der Stier sei
+wirkungslos.
+
+---
+
+## Die Welt kommt zur Burg
+
+Eine Burg läuft nicht, sie **steht**. Die alte Karte war ein Baum aus elf
+Knoten, den man von links nach rechts ablief — sie hat nie erzählt, warum man
+läuft, und sie hat dem widersprochen, was man die ganze Zeit ansieht.
+
+Eine **Ante** ist ein Heer, das anrückt, in drei Wellen. Jede Division trägt
+ein Merkmal, und das Merkmal ist eine Bossregel: wer sie schlägt, nimmt es dem
+Heerführer; wer sie durchlässt, gibt es ihm. Der Boss wird **gebaut, nicht
+gewürfelt** — und er ist vom ersten Augenblick an sichtbar, damit man liest,
+was man sich einhandelt, *bevor* man sich entscheidet.
+
+### Zwei Währungen, dieselbe Münze
+
+Bedrohung steigt, wenn man etwas durchlässt. Vorbereitung steigt genauso. Man
+kauft das eine mit dem anderen, und beides steht auf dem Tisch, bevor man wählt.
+Das ist der Unterschied zwischen einer Entscheidung und einem Würfel.
+
+### Bossregeln zielen auf die Maschine
+
+Ein Boss mit mehr Trefferpunkten ist kein Gegner, sondern eine längere
+Wartezeit. Der Usurpator vertauscht jede Runde Wappenplatz 2 und 4; der
+Inquisitor versiegelt genau das Wappen, um das alles gebaut ist; der Rote König
+lässt Salven über zwölf zur Hälfte verpuffen. Gemessen kostet jede Regel eine
+gute Maschine 24 bis 35 Prozent.
+
+Technisch sind sie **Wappen ohne Gestell**: dasselbe Fließband, dasselbe
+Protokoll — nur laufen sie *hinter* den fünf Plätzen des Spielers. Er rechnet
+zuerst, der Gegner antwortet. Ein Siegel des Spielers hält sie nicht auf; sonst
+wäre ein einziges Wappen die Antwort auf jeden Heerführer. Die Antwort liegt
+stattdessen in derselben Währung wie der Angriff: Umhängen kostet einen
+Tatendrang.
+
+### Eine Regel darf wehtun, aber keine Sackgasse bauen
+
+Der Belagerungsmeister nahm anfangs „die Wucht der stärksten Stellung". Bei
+**einer** besetzten Stellung ist das alles — und damit war die erste gesetzte
+Einheit wertlos. Ein Spieler, der rechnet (und jeder Bot, der es tut), setzt
+dann gar nichts und verliert mit fünf leeren Türmen.
+
+Gemessen, nicht vermutet: **80 von 80 Läufen, null Schaden in fünf Runden.**
+
+Der Abzug ist seitdem auf die halbe Salve gedeckelt. Das ist kein Nachgeben:
+bei fünf besetzten Stellungen greift die Deckelung gar nicht. Sie greift nur in
+dem Zustand, den es nicht geben darf — dem, in dem kein Zug mehr besser ist als
+kein Zug. Drei Prüfungen halten das für **jede** Bossregel fest, auch für die,
+die es noch nicht gibt.
+
+### Wenn die Sperren greifen, aber das Spiel nicht
+
+`npm run probe` spielt acht Fragen durch und meldet, wo man hinsehen muss. Eine
+davon ist eine gierige Suche über alle fünfzig Wappen. Sie fand eine Reihe aus
+**drei** Wappen, die 10^15 Schaden machte — gegen einen Heerführer mit
+viertausend.
+
+Die Sperren hatten das im Griff: es war endlich, es brauchte zwei
+Millisekunden. Das *Spiel* hatte es nicht im Griff. Der Ouroboros ließ die ganze
+Reihe noch einmal laufen — und lief darin selbst wieder mit, sodass jede Runde
+des Rades die nächste multiplizierte.
+
+Der Kreisschutz gilt jetzt für jede Zündungsart: ein Wappen zündet nicht in
+einem Ereignis, das es selbst ausgelöst hat. Danach findet dieselbe Suche als
+stärkste Reihe `Eisenring → Fackel → Basilisk → Greif → Ouroboros` mit
+**6,9 Mrd** gegen 7.480 mit leerem Gestell. Sechs Zehnerpotenzen, über einen
+ganzen Feldzug gebaut, auf fünf Plätzen statt auf drei.
+
+### Der Bündler musste etwas dazulernen
+
+In Modulen sind Ausfuhren **lebendige Bindungen** — wer `derKampf` einführt,
+sieht immer den aktuellen Wert. In *einem* Geltungsbereich, wie ihn der Bau
+erzeugt, wäre `window.PARAPEX = { derKampf }` dagegen eine Momentaufnahme beim
+Laden, also für immer `null`. Genau das ist passiert: `dieBelagerung` stand von
+außen ewig auf null, obwohl im Spiel längst eine Ante lief, und die Prüfungen im
+Browser meldeten einen Fehler, den es im Kern nicht gab.
+
+Der Bündler sucht jetzt jedes `export let` und gibt es als Lesezugriff aus.
+
+---
+
 ## Wie es gebaut wird
 
 Der Kern liegt in `quelle/` als ES-Module und wird zu `index.html` gebündelt —
@@ -166,8 +320,11 @@ Datei bleibt eine einzige, ohne Abhängigkeit, ohne Server; siehe
 ```bash
 npm run bauen     # quelle/ → index.html
 npm run typen     # tsc --noEmit über die Module (kein Übersetzungsschritt)
-npm run kern      # Kernprüfungen ohne Browser —  59 ms
-npm test          # bauen + Typen + Kern + die 78 Prüfungen im Browser
+npm run kern      # 55 Kernprüfungen ohne Browser
+npm run feldzug   # 41 Feldzugprüfungen ohne Browser
+npm run matrix    # die Synergie-Matrix: 2450 geordnete Wappenpaare
+npm run probe     # das Probespiel: acht Fragen, gemessen
+npm test          # bauen + Typen + Kern + Feldzug + die 80 im Browser
 ```
 
 Die Oberfläche (Zeichnung, Ton, Bedienung, rund 9.500 Zeilen) steht weiter
@@ -183,6 +340,12 @@ Kein `npm install` nötig, das Projekt hat keine Abhängigkeiten. Alles steckt i
 `index.html`, ein Doppelklick auf die Datei funktioniert ebenfalls.
 
 ## Feldzug und Route
+
+> **Das gibt es nicht mehr.** Der Abschnitt beschreibt Castle Master. In
+> Parapex läuft man keine Karte ab — die Burg steht, und die Heere kommen zu
+> ihr; siehe „Die Welt kommt zur Burg" weiter oben. Die Begründungen hier
+> gelten trotzdem weiter, und sie erklären, warum es die verzweigte Route
+> nicht mehr gibt.
 
 Ein **Feldzug** ist ein Durchlauf von siebzehn **Stationen**. Die Route wird zu
 Beginn zufällig erzeugt: Fünf Wege werden von unten nach oben gezogen, sie

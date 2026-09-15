@@ -23,11 +23,15 @@ Der nächste Verwandte ist Balatro, nicht Slay the Spire: es gibt keinen
 Schlagabtausch, keine Verteidigung und keinen Gegnerzug. Es gibt eine
 Aufstellung, ein Muster darin, und eine Zahl, die aus dem Muster folgt.
 
-- Ein Akt führt über **11 Stationen** zum Belagerungsmeister.
-- An jeder Kampfstation steht dieselbe Burg mit **genau fünf Türmen**.
+- Ein Feldzug führt über **drei Anten** — drei Heere, die anrücken. Jede Ante
+  hat mindestens zwei und höchstens fünf Schlachten, und **wie viele es sind,
+  entscheidet der Spieler**.
+- In jeder Schlacht steht dieselbe Burg mit **genau fünf Türmen**.
 - Auf jedem Turm steht **genau eine Einheit**.
-- Welche Einheiten nebeneinander stehen, ergibt **Formationen**; Formationen
-  überlappen und vervielfachen sich miteinander.
+- Welche Einheiten zusammen stehen, ergibt **Formationen**; Formationen geben
+  Salven, und jede Salve ist ein Schuss, den man sieht.
+- Daneben hängen **fünf Wappen in einer Reihe**, und die Reihenfolge ist eine
+  Regel: ein Ereignis läuft von links nach rechts durch sie hindurch.
 - Darstellung: isometrische Pixelgrafik, **vollständig im Code gezeichnet**
   (Canvas 2D), keine Bilddateien.
 - Sprache der Oberfläche und des Quelltextes: **Deutsch**, auch Bezeichner,
@@ -224,31 +228,93 @@ zweitausend Salven sind zweitausend Salven, nur die Vorstellung wird verdichtet.
 
 ---
 
-## 6. Wappen
+## 6. Wappen — das Fließband
 
-Fünf Plätze. Wappen brechen Regeln, statt Zahlen zu heben.
+Fünf Plätze, und **die Reihenfolge ist die Regel**.
 
-| Wappen | Wirkung | gemessener Wert |
+Ein Ereignis läuft strikt von links nach rechts durch die fünf Plätze. Jeder
+Platz sieht die Lage so, wie der Platz vor ihm sie hinterlassen hat.
+
+```
+  Platz 1  ──►  Platz 2  ──►  Platz 3  ──►  Platz 4  ──►  Platz 5
+   +10           ×3            …             …             …
+```
+
+`(s+10)×3` ist nicht `s×3+10`. Der Spieler baut also keine Sammlung, sondern
+eine **Maschine**, und die Anordnung ist ihre Konstruktion. Die Schilde lassen
+sich am Gestell ziehen; im Kampf kostet das einen Tatendrang, davor nichts.
+
+### Fünfzig Wappen
+
+| Seltenheit | Anzahl | Wofür sie da sind |
 |---|---|---|
-| Löwe | der mittlere Turm zählt seinen Rang **dreifach** | ×1,31 (bis ×2,71) |
-| Drache | jeder Nachschuss zählt **doppelt** | ×1,08 (bis ×1,55) |
-| Doppeladler | Turm 1 und Turm 5 gelten als **benachbart** (die Reihe wird zum Ring) | ×1,03 (bis ×1,72) |
-| Wolf | je leerem Turm **+60 %** Gesamtwucht | ×1,00 voll, **×3,06** mit leeren Türmen |
-| Eber | eine **ersetzte** Einheit feuert ein letztes Mal | wirkt außerhalb der Salve |
-| Schlange | die ersten **zwei** Kartentausche jeder Runde kosten nichts | reine Handarbeit |
+| gewöhnlich | 24 | **Quellen**: Pulver, Veteranenmarken, Verwüstung, Befehle |
+| ungewöhnlich | 15 | sie lesen einander und die Vorräte |
+| selten | 8 | sie arbeiten auf der Maschine: verstärken, kopieren, nachzünden, abriegeln |
+| legendär | 3 | sie ändern den Durchlauf selbst |
 
-Die Spalte rechts kommt aus `scripts/wappen.mjs`: 2000 zufällige Aufstellungen
-aus hohen Rängen, jeweils mit und ohne das Wappen gerechnet. Drei der sechs
-fassen die Wucht der Salve gar nicht an — Wolf ist ein eigener Bauplan (leere
-Türme), Eber schießt außerhalb der Abrechnung, Schlange ist Handarbeit. Wer
-einen vierten Multiplikator sucht, findet hier keinen.
+Angebote sind nach Seltenheit gewichtet und haben eine Schlacht, ab der sie
+überhaupt erscheinen — ein legendäres Wappen verstärkt nur, was schon da ist,
+und taugt in der ersten Schlacht nichts.
 
-Technisch hängt ein Wappen an einem von fünf Griffen: `rangFaktor`, `ring`,
-`gesamtFaktor`, `horcht` (Ereignisse), `tauschRabatt`, `retriggerFaktor`. Ein
-neues Wappen ist ein Eintrag in `WAPPEN`.
+### Die Vorräte
 
-Der Wolf ist absichtlich gegenläufig: leere Türme kosten Grundwucht **und**
-verhindern die Geschlossene Front. Er ist ein Angebot, kein Geschenk.
+Es gibt sie **nur, weil ein Wappen sie schafft**. Kein Hammer, kein Pulver;
+ohne Pulver ist das Pulverhorn ein leeres Feld. Die Leiste neben dem Gestell
+zeigt nur, was wirklich da ist.
+
+| Vorrat | bleibt | woher |
+|---|---|---|
+| Pulver ✸ | für den Kampf | Hammer (je Einheit), Mühlrad (je Tausch), Hetzhund (je Treffer) |
+| Veteranenmarke ✠ | den ganzen Feldzug | Hirsch (je Runde), Kriegskasse (je Formation), Pflugschar (je Sieg) |
+| Verwüstung ☄ | den ganzen Feldzug | Brandschatzung (was über die Stärke des Gegners hinausging) |
+| Befehl ⚑ | für den Kampf | Kriegshorn, Glocke |
+
+### Was ein Wappen anfassen darf
+
+Nichts direkt. Es ruft eine **Wirkung**, und die schreibt ihre Änderung ins
+Protokoll. Das kostet eine Zeile mehr und kauft zwei Dinge:
+
+1. Das Kampfprotokoll ist vollständig — jede Zahl, die sich bewegt hat, steht
+   mit ihrem Urheber da.
+2. **Verstärken und Kopieren gehen ohne Wissen.** Der Drache muss nicht
+   kennen, was sein linker Nachbar getan hat; er liest dessen aufgezeichnete
+   Wirkungen und wendet sie noch einmal an. Ein Wappen, das es morgen gibt,
+   ist heute schon verstärkbar.
+
+Additiv und multiplikativ sind streng getrennt: verdoppelt man `+3`, wird
+daraus `+6`; verdoppelt man `×1,5`, wird daraus `×2,25` und nicht `×3`.
+
+### Warum es nicht durchdreht
+
+Ein Spieler wird zwei Wappen zusammenstecken, die einander zünden. Das ist
+kein Fehler, das ist die Bauform. Sie muss enden, ohne dass irgendwo ein
+Wappenname steht:
+
+* **Tiefe** — wie tief Wappen einander noch zünden dürfen (6)
+* **je Platz** — wie oft ein Platz in *einem* Ereignis zündet (12)
+* **je Ereignis** — wie viele Zündungen ein Ereignis insgesamt hat (60)
+* **Kreis** — ein Wappen zündet nicht in einem Ereignis, das es selbst
+  ausgelöst hat
+
+Jede abgewiesene Zündung bleibt mit ihrem Grund im Kampfprotokoll stehen.
+
+### Wie weit es trägt
+
+Gemessen (`npm run probe`), gegen einen Prüfstein über fünf Runden:
+
+```
+leeres Gestell                                          7.480
+Eisenring → Fackel → Basilisk → Greif → Ouroboros    6,9 Mrd
+```
+
+Sechs Zehnerpotenzen zwischen einer nackten Burg und einer Maschine, die ein
+Spieler über einen ganzen Feldzug baut. Dieselbe Maschine umgedreht bringt
+ungefähr die Hälfte.
+
+`npm run matrix` misst alle 2450 geordneten Paare und meldet tote Wappen,
+Quellen ohne Abnehmer und Sprengsätze. Derzeit ändern **37 %** der wirksamen
+Paare ihr Ergebnis, wenn man sie vertauscht.
 
 ---
 
@@ -272,48 +338,81 @@ Baumeister sie hingestellt hat — die Anlage ist bei jedem Lauf dieselbe.
 
 ---
 
-## 8. Der Akt
+## 8. Der Feldzug — die Welt kommt zur Burg
 
-Elf Knoten in fester Reihenfolge:
+Eine Burg läuft nicht, sie **steht**. Es gibt keine Karte, die man abläuft;
+es gibt Heere, die anrücken.
 
-```
-1 Kampf · 2 Kampf · 3 Begegnung · 4 Händler · 5 Kampf · 6 Sturmtrupp
-7 Begegnung · 8 Kampf · 9 Händler · 10 Sturmtrupp · 11 Belagerungsmeister
-```
-
-Sieben Kämpfe, zwei Händler, zwei Begegnungen. **Ein verlorener Kampf beendet
-den Akt** (`LAUF.leben = 1`).
-
-Die Stärke des Gegners hängt an der **Kampfnummer**, nicht an der Station — an
-Station 5 steht der dritte Kampf:
+Eine **Ante** ist ein Heer, in drei Wellen:
 
 ```
-FEIND_STAERKE = [300, 340, 470, 520, 700, 880, 1150, 1400, 1700, 2050]
-Sturmtrupp ×1,3     Belagerungsmeister ×1,25
+  VORHUT          stellen  ──► −1 Bedrohung
+                  oder ziehen lassen ──► +1 Bedrohung, +2 Vorbereitung
+
+  DIVISIONEN ×3   stellen  ──► ihr Merkmal fällt beim Heerführer weg
+                  oder durchlassen   ──► +1 Bedrohung, +1 Vorbereitung,
+                                         und der Heerführer bekommt es
+
+  HEERFÜHRER      Grundregel + jede durchgelassene Division + Bedrohung
 ```
 
-**Sold** gibt es für jeden Sieg (25 / 45 / 120) plus 8 je Runde, die man nicht
-gebraucht hat. Wer in Runde zwei fertig ist, kauft mehr als wer in Runde fünf
-gerade so durchkommt.
+Der Boss wird also **gebaut, nicht gewürfelt** — vom Spieler. Er ist vom ersten
+Augenblick an sichtbar, mit Stärke und mit jeder Regel, die er gerade trägt.
 
-### Belohnung nach einem Sieg
+### Zwei Währungen, dieselbe Münze
 
-Drei Angebote, eines wird genommen. Eine Einheit steht immer dabei; die anderen
-zwei kommen aus Wappen, Turmausbau, Ausmustern und einer zweiten Einheit. Der
-Rang einer Belohnungskarte wächst mit der Kampfnummer
-(`rangKurve: ab 2, je 1.4` → vom dritten Rang bis an die Spitze).
+**Bedrohung** (0–5) steigt, wenn man etwas durchlässt; sie macht den
+Heerführer nicht nur stärker, sondern **anders**. **Vorbereitung** steigt
+genauso und ist das, was man im Heerlager ausgibt. Man kauft also das eine
+mit dem anderen, und beides steht auf dem Tisch, bevor man wählt.
 
-### Händler
+### Das Kampfbudget
 
-Drei Einheiten (Preis nach Rang), ein Wappen (130), ein Turmausbau (95),
-Ausmustern (60), Schleifen (75). Der Bestand wird einmal gebaut und bleibt
-stehen — wer nicht kauft, darf nicht neu würfeln.
+**Mindestens zwei, höchstens fünf** Schlachten je Ante. Nicht ungefähr,
+sondern geprüft — an allen sechzehn Wegen durch die Ante. Die Obergrenze ergibt
+sich aus dem Aufbau (1 + 3 + 1), die Untergrenze wird gerechnet: wer bei null
+Schlachten vor der letzten Division steht, muss sie stellen.
 
-### Begegnungen
+### Die Bossregeln
 
-Sechs, jede mit zwei Wahlen und einer Bedingung, die sie zurückhält, wenn sie
-gerade nichts bewirken könnte. Ein Wappenangebot ohne freien Platz ist kein
-Ereignis, sondern ein Ärgernis.
+Ein Boss mit mehr Trefferpunkten ist kein Gegner, sondern eine längere
+Wartezeit. Diese Regeln zielen auf die **Maschine**:
+
+| Regel | Was sie angreift | gemessen |
+|---|---|---|
+| Der Usurpator | vertauscht jede Runde Wappenplatz 2 und 4 | −30 % |
+| Der Inquisitor | versiegelt das Wappen, das am häufigsten zündet | −32 % |
+| Der Belagerungsmeister | nimmt die stärkste Stellung aus der Salve (höchstens die halbe Salve) | −24 % |
+| Die Weiße Königin | verhüllt je Runde eine andere Gattung | −32 % |
+| Der Rote König | über zwölf Salven zählt jede weitere nur halb | −35 % |
+
+Technisch sind sie **Wappen ohne Gestell**: dasselbe Fließband, dasselbe
+Protokoll — nur laufen sie *hinter* den fünf Plätzen des Spielers. Ein Siegel
+des Spielers hält sie nicht auf; sonst wäre ein einziges Wappen die Antwort auf
+jeden Heerführer. Die Antwort liegt in derselben Währung wie der Angriff:
+Umhängen kostet einen Tatendrang.
+
+### Das Heerlager
+
+Nach jeder gewonnenen Schlacht. Vier Dienste — **Händler**, **Herold**
+(Wappen), **Feldschmiede** (Türme), **Kriegsrat** (Formationsstufen) —, aber
+nie alle vier: bei jedem Halt stehen zwei da, in fester Folge. Wären immer
+alle da, hieße jeder Halt „nimm das Beste"; so heißt er „damit musst du
+auskommen". Bezahlt wird mit Vorbereitung, beim Händler mit Sold.
+
+### Sold und Belohnung
+
+Sold für jeden Sieg (Vorhut 25 / Division 45 / Heerführer 120) plus 8 je Runde,
+die man nicht gebraucht hat. Nach jedem Sieg drei Angebote, eines wird
+genommen. Bei einem Wappenangebot steht dabei, was es **an deinem Gestell**
+bringt — gemessen, nicht behauptet: der Kern spielt dafür dreißig kurze Kämpfe
+durch (rund 30 ms) und schreibt das Ergebnis auf die Karte.
+
+### Speichern
+
+Der Stand geht nach jedem Abschnitt in den Speicher des Browsers; beim Start
+wird gefragt. **Die Reihenfolge der Wappen ist Teil des Spielstands** — sie ist
+der Bauplan der Maschine.
 
 ---
 
@@ -458,34 +557,49 @@ Auffrischen 1,7 ms, Rechnen 0,04 ms, 184 DOM-Knoten.
 
 ## 9. Aufbau des Quelltextes
 
-`index.html`, rund 8.900 Zeilen, in dieser Reihenfolge:
+Geschrieben wird in `quelle/` — **neunzehn Module**. Geliefert wird
+`index.html`, eine einzige Datei ohne Build-Schritt und ohne Abhängigkeiten.
+Beides hält `scripts/baue.mjs` zusammen; wer `index.html` von Hand ändert,
+bekommt es gesagt.
 
-| Block | Inhalt |
+```
+quelle/kern.js          das Dach: was der Kern nach aussen zeigt
+quelle/kern/*.js        die Regeln des Kampfes
+quelle/wappen/*.js      das Wappen-Fließband
+quelle/feldzug/*.js     die Welt, die zur Burg kommt
+```
+
+| Modul | Inhalt |
 |---|---|
-| Stilblatt | 145 Regeln, die Oberfläche von Parapex |
-| **Kern** | `KERN`, Gattungen, Ränge, Pool, Turmtypen, Gegner, Wappen, Signale, Formationen, Wuchtkette, Kampf |
-| **Lauf** | `LAUF`, Knoten, Belohnung, Händler, Begegnungen |
-| Bühne | Bildgröße, Auflösung, Bedienelemente |
-| Bauwerks-Engine, Modelle, Wall, Himmel | die Zeichenmaschine |
-| Sinnbilder, Ton, Musik | |
-| Werkstatt, Einstellungen | Werkzeuge |
-| **Kampfoberfläche** | `pk*` — Zeichnen, Tafeln, Hand, Ziehen |
-| **Lauf-Oberfläche** | Belohnung, Händler, Begegnung, Laufende |
-| **Werkzeug** | `PX`, Strg+D |
+| `kern/regeln.js` | `KERN` — alles, was Balance des Kampfes ist |
+| `kern/einheiten.js` | Gattungen, Ränge, das Blatt aus 52 Karten |
+| `kern/tuerme.js`, `kern/feinde.js` | Turmtypen, Gegnervorlagen |
+| `wappen/ereignisse.js` | 16 Ereignisnamen, die Vorratsarten |
+| `wappen/fliessband.js` | der Durchlauf von links nach rechts, die Sperren, das Protokoll |
+| `wappen/wirkungen.js` | was ein Wappen ändern darf — und nur das |
+| `wappen/vorrat.js` | Pulver, Veteranenmarken, Verwüstung, Befehle |
+| `wappen/sammlung.js` | die fünfzig Wappen, als Daten |
+| `kern/formationen.js`, `kern/wucht.js` | Muster erkennen, Salve rechnen |
+| `kern/kampf.js` | fünf Runden, Tatendrang, Treffer |
+| `feldzug/bossregeln.js` | die fünf Regeln, die auf die Maschine zielen |
+| `feldzug/gegner.js` | Vorhuten, Divisionen, Heerführer, Anten |
+| `feldzug/belagerung.js` | der Ablauf, das Kampfbudget |
+| `feldzug/heerlager.js` | die vier Dienste |
+| `feldzug/speicher.js` | Speichern und Laden |
+| `kern/lauf.js` | Deck, Wappen, Türme, Sold — was über die Anten hinaus bleibt |
 
 Der Kern hat **keine Verbindung zur Anzeige**. Er kennt kein Dokument, keinen
 Zeichenkontext und keine Browser-Ereignisse — er rechnet nur. Das ist der Grund,
-warum er von außen prüfbar ist.
+warum `scripts/pruefe-kern.mjs` ohne Browser laufen kann.
 
-Alles, was Balance ist, steht in `KERN` und `LAUF`. Wer eine Zahl sucht, findet
-sie an einer Stelle.
+Die Oberfläche (rund 9.500 Zeilen, `pk*`) steht weiterhin direkt in
+`index.html`.
 
-### Ereignisse
+### Ein Ereignisbus, nicht zwei
 
-Ein kleiner Signalbus (`SIGNALE`, `hoereSignal`, `sendeSignal`) mit
-Tiefenschutz (`signalMaxTiefe: 8`): `rundeBeginnt`, `karteGezogen`,
-`karteGetauscht`, `einheitGesetzt`, `einheitErsetzt`, `salve`, `rundeEndet`,
-`feindBesiegt`, `kampfEndet`. Wappen hängen sich daran ein.
+Der alte Signalbus ist ersatzlos entfallen. Er hatte am Ende genau einen
+Nutzer — die Wappen —, und die laufen jetzt über das Fließband. Die Oberfläche
+hörte auf kein einziges Signal; sie liest den Zustand direkt.
 
 ---
 
@@ -493,89 +607,122 @@ Tiefenschutz (`signalMaxTiefe: 8`): `rundeBeginnt`, `karteGezogen`,
 
 | Befehl | Was er tut |
 |---|---|
-| `node scripts/pruefe.mjs` | 61 Prüfungen im echten Browser gegen `window.PARAPEX` |
-| `node scripts/bot.mjs [n] [strategie]` | n Akte durchspielen, Gewinnquote je Station |
-| `node scripts/kurve.mjs [n]` | wie viel Wucht ein Deck am n-ten Kampf bringt |
-| `node scripts/lauftest.mjs` | ein ganzer Akt **über die Oberfläche**, mit Klicks |
-| `node scripts/erreichbar.mjs` | welche Erklärungen niemand mehr ruft |
-| `node scripts/schneide.mjs tu` | die schneiden |
-| `node scripts/stil.mjs [tu]` | Stilregeln, die auf nichts greifen |
+| `npm test` | bauen, Typen prüfen, alle drei Prüfsuiten |
+| `npm run kern` | 55 Prüfungen, **ohne Browser** |
+| `npm run feldzug` | 41 Prüfungen zum Feldzug, ohne Browser |
+| `node scripts/pruefe.mjs` | 80 Prüfungen im echten Browser gegen `window.PARAPEX` |
+| `npm run matrix` | die Synergie-Matrix: 2450 geordnete Wappenpaare |
+| `npm run probe` | das Probespiel: acht Fragen, gemessen |
+| `npm run bot [n]` | n Feldzüge durchspielen, Gewinnquote je Schlacht |
+| `npm run kurve [n]` | wie viel Wucht ein Deck in der n-ten Schlacht bringt |
+| `npm run lauftest` | ein ganzer Feldzug **über die Oberfläche**, mit Klicks |
 
-Im Spiel: **Strg+D** öffnet das Werkzeug (Zustand, Wuchtkette, Eingriffe).
-In der Konsole: `PX.station(9)` springt an Station 9 mit passendem Deck,
+Im Spiel: **Strg+D** öffnet das Werkzeug (Ante, Bedrohung, Vorbereitung,
+Heerführer, Wuchtkette, Eingriffe, Kampfprotokoll). In der Konsole:
+`PX.station(9)` springt an die neunte Schlacht mit passendem Deck,
+`PX.heerfuehrer(false)` winkt eine Ante bis zum Endkampf durch,
 `PX.probe(['bogen-9', ...])` wiegt eine Aufstellung, ohne sie zu spielen.
 
 ---
 
 ## 11. Gemessene Balance
 
-**300 Läufe** mit dem Bot, der in jeder Runde die Setzung nimmt, die die Salve
+**80 Läufe** mit dem Bot, der in jeder Runde die Setzung nimmt, die die Salve
 am stärksten hebt — also ein Spieler, der die Vorschau liest und sonst nichts
-weiter denkt:
+weiter denkt. Er stellt jedes Mal jeden Gegner, hält die Bedrohung damit klein
+und bekommt den saubersten Heerführer:
 
-| Station | Art | gespielt | gewonnen |
-|---|---|---|---|
-| 1 | Kampf | 300 | 100 % |
-| 2 | Kampf | 300 | 99 % |
-| 5 | Kampf | 297 | 94 % |
-| 6 | Sturmtrupp | 280 | 80 % |
-| 8 | Kampf | 223 | 88 % |
-| 10 | Sturmtrupp | 197 | 77 % |
-| 11 | Belagerungsmeister | 151 | **66 %** |
+| Ante | Vorhut | Division 1 | Division 2 | Division 3 | Heerführer |
+|---|---|---|---|---|---|
+| 1 | 80/80 | 78/80 | 78/78 | 78/78 | **65/78** |
+| 2 | 65/65 | 59/65 | 59/59 | 59/59 | **51/59** |
+| 3 | 51/51 | 51/51 | 51/51 | 51/51 | **46/51** |
 
-**Akt geschafft: 33 %.** Die Mitte liegt bei Station 11 — die meisten Läufe
-sterben am Boss oder kurz davor, und der Boss ist mit Abstand die schwerste
-Hürde. Das ist die Form, die ein Akt haben soll.
+**Feldzug geschafft: 58 %.** Der Heerführer ist der Filter — 80 → 65 → 51 → 46.
+Genau das soll er sein.
 
-### Warum hier 300 Läufe stehen und nicht 40
+Wer stattdessen Vorbereitung sammelt, steht vor einem anderen Gegner: drei
+durchgelassene Divisionen heißen drei zusätzliche Bossregeln und vierzehn
+Prozent mehr Stärke je Bedrohungsstufe.
+
+### Warum hier 80 Läufe stehen und nicht 40
 
 Weil vierzig zu wenig sind, um irgendetwas zu behaupten. Zwei Durchgänge
-derselben, unveränderten Fassung ergaben **40 %** und **18 %** Aktabschluss.
-Die früher hier stehenden 21 % waren eine solche Stichprobe.
+derselben, unveränderten Fassung ergaben einmal **40 %** und einmal **18 %**
+Abschluss. Jede Zahl in diesem Abschnitt trägt deshalb ihre Stichprobengröße.
 
-Deshalb wurde die Königliche Garde auch gegen ihre eigene Vorversion gemessen,
-beide Male mit 300 Läufen: **31 % ohne sie, 33 % mit ihr.** Das ist der
-erwartete Befund — Neun bis König in einer Gattung auf fünf Stellungen in fünf
-Runden ist so selten, dass sie in der Breite kaum vorkommt. Sie ist ein Gipfel,
-den man anstrebt, kein Hebel, der die Kurve verschiebt.
+### Die Kurve war flach — und was daraus wurde
 
-### Die Kurve ist flach — und warum
-
-Wucht über fünf Runden, nach Kampfnummer (Mitte von 25 Läufen):
+Vor dem Wappen-Fließband stieg die Wucht über einen Akt nicht:
 
 ```
 Kampf     1       2       3       4       5       6       7
 Wucht   3.822   3.510   3.150   3.230   3.522   3.180   3.374
 ```
 
-Sie steigt nicht. **Das ist die Folge des vollen Blatts**, und es ist eine
-Rechnung, keine Meinung:
+Der Grund war eine Rechnung, keine Meinung:
 
 1. **Die Rangachse ist ab Kampf 1 fast ausgereizt.** Ein 52-Karten-Deck hat
    Rangschnitt 7; die besten fünf einer Hand von sieben liegen um 9. Die
-   Obergrenze ist 13. Über den ganzen Akt bringt Verschmälern den Schnitt von
+   Obergrenze ist 13. Über einen ganzen Akt bringt Verschmälern den Schnitt von
    8,5 auf 10,4 — Faktor 1,2, nicht Faktor 10.
-2. **Die Formationen feuern von Anfang an fast voll.** Das Vielfache liegt im
-   ersten Kampf bei 17 und bleibt dort, weil ein volles Blatt jede Formation
-   erreichen kann. Es gibt nichts mehr freizuschalten.
+2. **Die Formationen feuern von Anfang an fast voll.** Ein volles Blatt kann
+   jede Formation erreichen; es gibt nichts mehr freizuschalten.
 3. **Alles, was nur EINEN Turm vervielfacht, verdünnt sich auf ein Fünftel.**
-   Der Turmtyp gibt +40 %, auf die Gesamtwucht also +8 % — und die
-   Formationen, die ganze Gruppen verdoppeln, schlagen ihn. Gemessen: ein Bot,
+   Der Turmtyp gibt +40 %, auf die Gesamtwucht also +8 %. Gemessen: ein Bot,
    der konsequent ausbaute und am Ende 4,5 spezialisierte Türme hatte, kam auf
    **6 % mehr Wucht** als einer, der nie ausbaute.
-4. **Von sechs Wappen fasst nur eines die Wucht spürbar an** (Löwe ×1,31,
-   siehe Abschnitt 6).
+4. **Von sechs Wappen fasste nur eines die Wucht spürbar an.**
 
-Der Spannungsbogen liegt deshalb allein in der Gegnertabelle: sie steigt von
-gut vierzig Prozent der mittleren Wucht bis knapp darüber beim
-Belagerungsmeister. Die Spannung kommt aus der Streuung der Hand und aus den
-Entscheidungen, nicht aus wachsender Macht.
+Damals stand hier der Satz: *„Wer die Zahlen wachsen lassen will, muss an
+Gesamtfaktoren ansetzen — Wappen, die sich gegenseitig verstärken."*
 
-**Wer die Zahlen wachsen lassen will**, muss an `gesamt`-Faktoren ansetzen —
-alles andere verdünnt sich. Konkret: ein Ausbau, der die ganze Burg
-vervielfacht statt einen Turm; Wappen mit `gesamtFaktor`, die sich gegenseitig
-verstärken; oder Formationen, die ein volles Blatt gerade **nicht** trifft,
-sondern erst ein verschmälertes.
+Genau das ist das Fließband. Gemessen (`npm run probe`), über fünf Runden gegen
+einen Prüfstein:
+
+```
+leeres Gestell                                          7.480
+Eisenring → Fackel → Basilisk → Greif → Ouroboros    6,9 Mrd
+```
+
+Die vierte Achse trägt jetzt, und sie trägt weiter als alle drei anderen
+zusammen. Deck, Türme und Formationen bleiben trotzdem nötig: das Fließband
+vervielfacht, was sie liefern, und multipliziert mit null bleibt null.
+
+### Was die Bossregeln kosten
+
+Gemessen an einer Maschine aus fünf Wappen, ganzer Kampf über fünf Runden:
+
+```
+Der Usurpator          −30 %      Die Weiße Königin      −32 %
+Der Inquisitor         −32 %      Der Rote König         −35 %
+Der Belagerungsmeister −24 %
+```
+
+### Eine Regel darf wehtun, aber keine Sackgasse bauen
+
+Der Belagerungsmeister nahm anfangs *„die Wucht der stärksten Stellung"*. Bei
+einer besetzten Stellung ist das alles — und damit war die erste gesetzte
+Einheit wertlos. Ein Spieler, der rechnet, setzt dann gar nichts und verliert
+mit fünf leeren Türmen. Gemessen: **80 von 80 Läufen, null Schaden.**
+
+Der Abzug ist seitdem auf die halbe Salve gedeckelt. Bei fünf besetzten
+Stellungen greift die Deckelung gar nicht; sie greift nur in dem Zustand, den
+es nicht geben darf.
+
+Drei Prüfungen halten das fest — für jede Bossregel, auch für die, die es noch
+nicht gibt.
+
+### Wenn die Sperren greifen, aber das Spiel nicht
+
+Eine gierige Suche über alle fünfzig Wappen fand eine Reihe aus **drei**
+Wappen, die 10^15 Schaden machte — gegen einen Heerführer mit viertausend. Die
+Sperren hatten das im Griff: endlich, zwei Millisekunden. Das Spiel hatte es
+nicht im Griff.
+
+Der Grund: der Ouroboros ließ die Reihe noch einmal laufen — und lief darin
+selbst wieder mit. Der Kreisschutz gilt jetzt für jede Zündungsart: ein Wappen
+zündet nicht in einem Ereignis, das es selbst ausgelöst hat.
 
 ---
 
@@ -588,8 +735,12 @@ Absichtlich nicht, damit niemand danach sucht:
 - kein Zielen, kein Klick aufs Spielfeld — das Bild ist Kulisse
 - keine Befehlskarten, keine Karten außer Einheiten
 - kein freies Abwerfen
-- keine verzweigte Route — elf Knoten in fester Reihenfolge
-- nur ein Akt
+- **keine Karte, die man abläuft.** Die Burg steht; die Heere kommen zu ihr.
+- keine zufällig gewürfelten Bosse — der Heerführer wird gebaut, und zwar vom
+  Spieler
+- bisher **ein ausgeschriebenes Heer**: Anten zwei und drei rücken mit
+  demselben an, nur schwerer. Der Platz für die nächsten steht in
+  `quelle/feldzug/gegner.js`.
 
 Der gesamte alte Kampf (Castle Master) ist entfernt. Sein Stand liegt auf dem
 Zweig `stand/castle-master` und im Repository `dernano/CastleMaster`.
