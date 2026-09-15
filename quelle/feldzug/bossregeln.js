@@ -66,7 +66,7 @@ export const BOSSREGELN = {
 
   belagerungsmeister: {
     id: 'belagerungsmeister', name: 'Der Belagerungsmeister', zeichen: '☄', tinktur: '#6a4a2a',
-    text: 'Beschiesst die stärkste Stellung — ihre Wucht zählt nicht.',
+    text: 'Beschiesst die stärkste Stellung — ihre Wucht zählt nicht, höchstens aber die Hälfte der Salve.',
     antwort: 'Verteile die Wucht. Fünf mittlere Stellungen verlieren weniger als eine grosse.',
     hoert: {
       [EREIGNIS.salveGeplant]: (lage) => {
@@ -75,7 +75,20 @@ export const BOSSREGELN = {
         const stark = posten.reduce((/** @type {any} */ m, /** @type {any} */ p) =>
           (p.wucht > m.wucht ? p : m), posten[0]);
         if (!stark.wucht) return;
-        wirke(lage, 'zusatz', -stark.wucht, 'Stellung ' + (stark.turm + 1) + ' beschossen');
+        /*
+         * Die Deckelung ist kein Nachgeben, sie ist eine Reparatur.
+         *
+         * Ohne sie nahm diese Regel bei EINER besetzten Stellung genau hundert
+         * Prozent - und damit war die erste gesetzte Einheit wertlos. Ein
+         * Spieler, der rechnet (und jeder Bot, der es tut), setzt dann gar
+         * nichts, weil nichts einen Gewinn bringt, und verliert mit fuenf
+         * leeren Tuermen. Gemessen: 80 von 80 Laeufen, null Schaden.
+         *
+         * Eine Regel darf wehtun. Sie darf keinen Zustand herstellen, aus dem
+         * heraus kein Zug mehr besser ist als kein Zug.
+         */
+        const abzug = Math.min(stark.wucht, lage.daten.jeSalve * BELAGERER_HOECHSTENS);
+        wirke(lage, 'zusatz', -abzug, 'Stellung ' + (stark.turm + 1) + ' beschossen');
       },
     },
   },
@@ -114,6 +127,8 @@ export const BOSSREGELN = {
 };
 
 export const ROTER_KOENIG_AB = 12;
+/* Hoechstens so viel der Salve nimmt der Belagerungsmeister - siehe oben. */
+export const BELAGERER_HOECHSTENS = 0.5;
 
 export const BOSSREGEL_LISTE = Object.keys(BOSSREGELN);
 

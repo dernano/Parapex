@@ -410,6 +410,58 @@ pruefe('Eine verlorene Schlacht beendet die Ante', () => {
 });
 
 
+/* ---------- Keine Regel darf eine Sackgasse bauen ---------- */
+/*
+ * Die teuerste Lektion dieser Sitzung, als Pruefung.
+ *
+ * Der Belagerungsmeister nahm "die Wucht der staerksten Stellung" - bei EINER
+ * besetzten Stellung also alles. Damit brachte die erste gesetzte Einheit
+ * genau null, ein rechnender Spieler setzte gar nichts, und die Burg verlor
+ * mit fuenf leeren Tuermen. Gemessen: 80 von 80 Laeufen, null Schaden.
+ *
+ * Eine Regel darf wehtun. Sie darf keinen Zustand herstellen, aus dem heraus
+ * kein Zug mehr besser ist als kein Zug.
+ */
+pruefe('Unter keiner Bossregel ist eine Einheit mehr wertlos', () => {
+  for (const id of P.BOSSREGEL_LISTE) {
+    const feind = mitRegel(id);
+    for (let n = 1; n <= P.KERN.tuerme; n++) {
+      P.neuerVorrat();
+      P.neuesBand([], feind);
+      const weniger = P.berechneWucht(stellungen(n - 1), P.dasBand.reihe).wucht;
+      P.neuesBand([], feind);
+      const mehr = P.berechneWucht(stellungen(n), P.dasBand.reihe).wucht;
+      if (mehr <= weniger) {
+        return id + ': die ' + n + '. Einheit bringt ' + mehr + ' statt mehr als ' + weniger;
+      }
+    }
+  }
+  return true;
+});
+
+/** Ein Blatt mit genau n besetzten Stellungen, alle gleich stark. */
+function stellungen(n) {
+  const ids = ['bogen-8', 'armbrust-8', 'kanonier-8', 'artillerie-8', 'bogen-7'];
+  return blatt(...ids.map((id, i) => (i < n ? id : null)));
+}
+
+pruefe('Unter keiner Bossregel fällt eine besetzte Burg auf null', () => {
+  for (const id of P.BOSSREGEL_LISTE) {
+    P.neuerVorrat();
+    P.neuesBand([], mitRegel(id));
+    const w = P.berechneWucht(fuenf(), P.dasBand.reihe, false).wucht;
+    if (w <= 0) return id + ': volle Burg macht ' + w + ' Wucht';
+  }
+  return true;
+});
+
+pruefe('Auch mit allen Regeln zugleich bleibt Wucht übrig', () => {
+  P.neuerVorrat();
+  P.neuesBand([], { name: 'Alles', hp: 1e9, maxHp: 1e9, regeln: P.baueRegeln(P.BOSSREGEL_LISTE) });
+  const w = P.berechneWucht(fuenf(), P.dasBand.reihe, false).wucht;
+  return w > 0 ? true : 'die Burg macht ' + w + ' Wucht';
+});
+
 /* ---------- Der Spielstand ---------- */
 pruefe('Ein Feldzug lässt sich sichern und genau so zurückholen', () => {
   P.neuerLauf();
