@@ -5,9 +5,12 @@ Hier wird geschrieben. In `index.html` wird **geliefert**.
 ```
 quelle/kern.js          das Dach: was der Kern nach aussen zeigt
 quelle/kern/typen.js    die Formen, als JSDoc
-quelle/kern/*.js        zwölf Module, in dieser Reihenfolge abhängig:
+quelle/kern/*.js        die Regeln des Kampfes
+quelle/wappen/*.js      das Wappen-Fließband
 
-  regeln → einheiten → tuerme → feinde → wappen → signale
+  regeln → einheiten → tuerme → feinde
+         → wappen/ereignisse → wappen/fliessband → wappen/vorrat
+         → wappen/wirkungen → wappen/sammlung
          → formationen → wucht → kampf → lauf → haendler → begegnungen
 ```
 
@@ -82,13 +85,99 @@ Der Kern enthält keine Zeile Browser. Seit er ein Modul ist, lässt er sich
 darum einfach importieren:
 
 ```bash
-node scripts/pruefe-kern.mjs    #  15 Prüfungen,   59 ms
-node scripts/pruefe.mjs         #  78 Prüfungen, 1305 ms (startet Chromium)
+node scripts/pruefe-kern.mjs    #  43 Prüfungen (startet keinen Browser)
+node scripts/pruefe.mjs         #  78 Prüfungen (startet Chromium)
 ```
 
 Gemessen, nicht geschätzt: **Faktor 22**. Reine Regelfragen gehören in die
 erste Datei, das Zusammenspiel mit der Oberfläche in die zweite — das geht nur
 im Browser, und deshalb bleibt es dort.
+
+## Das Wappen-Fließband
+
+Die Wappen hatten vorher **fünf verschiedene Hakenformen** an fünf Stellen im
+Kern: `rangFaktor` im Blatt, `gesamtFaktor` in der Wucht, `tauschRabatt` beim
+Tauschen, `zaehltDoppelt` beim Erkennen, `horcht` am Signalbus. Das hatte zwei
+Folgen, und beide waren schlecht.
+
+**Erstens** konnte ein Wappen wirkungslos werden, ohne dass es auffiel. Der
+Drache versprach „Jeder Nachschuss zählt doppelt" und trug dafür einen
+sechsten Haken, `retriggerFaktor` — der seit dem Salvenumbau **an keiner
+einzigen Stelle mehr gelesen wurde**. Auf der Tafel stand die Wirkung
+weiterhin. Gefunden wurde das nicht beim Spielen, sondern beim Zählen der
+Haken.
+
+**Zweitens** konnten zwei Wappen einander nichts sagen. Es gab keinen Ort, an
+dem sie sich begegnet wären — also gab es auch keine Kombination, nur eine
+Summe.
+
+Jetzt gibt es **einen Weg**: ein Ereignis geht durch die fünf Plätze, **strikt
+von links nach rechts**, und jeder Platz sieht die Lage so, wie der Platz vor
+ihm sie hinterlassen hat.
+
+```
+  Platz 1  ──►  Platz 2  ──►  Platz 3  ──►  Platz 4  ──►  Platz 5
+   +10           ×3            …             …             …
+```
+
+`(s+10)×3` ist nicht `s×3+10`. Die Anordnung am Gestell ist damit keine
+Geschmacksfrage, sondern der Bauplan. Geprüft wird genau das:
+
+    ok   Die Reihenfolge ändert das Ergebnis
+
+| Datei | Was darin steht |
+|---|---|
+| `ereignisse.js` | die 16 Ereignisnamen und die Vorratsarten |
+| `fliessband.js` | der Durchlauf, die Sperren, das Protokoll |
+| `wirkungen.js` | was ein Wappen ändern darf — und nur das |
+| `vorrat.js` | Veteranenmarken, Pulver, Verwüstung, Befehle |
+| `sammlung.js` | die Wappen selbst, als Daten |
+
+### Der Signalbus ist weg
+
+`signale.js` hatte am Ende genau **einen** Nutzer: die `horcht`-Haken der
+Wappen. Die Oberfläche hörte auf kein einziges Signal — sie liest den Zustand
+direkt. Mit dem Fließband ist der Bus ersatzlos entfallen; zwei Ereignis-
+systeme nebeneinander wären genau die Unordnung, die abgeschafft werden sollte.
+
+### Warum es nicht durchdreht
+
+Ein Spieler wird früher oder später zwei Wappen zusammenstecken, die einander
+zünden. Das ist kein Fehler, das ist die Bauform. Sie muss **enden**, ohne dass
+irgendwo ein Wappenname steht:
+
+* **Tiefe** — wie tief Wappen einander noch zünden dürfen (6)
+* **je Platz** — wie oft ein Platz in *einem* Ereignis zündet (12)
+* **je Ereignis** — wie viele Zündungen ein Ereignis insgesamt hat (60)
+* **Kreis** — ein Ereignis zündet das Wappen nicht noch einmal, über das es
+  überhaupt erst entstanden ist
+
+Der Schlüssel dazu ist ein einziger Satz in `loeseAus`: ein Ereignis, das
+entsteht, **während** ein anderes noch läuft, hängt sich automatisch darunter.
+Ohne ihn wäre jede Rückkehr aus dem Spiel ins Band ein frischer Anfang bei
+Tiefe 0 — und die sauberste Sperre der Welt zählte bis zum Stapelüberlauf mit.
+
+Jede abgewiesene Zündung **bleibt im Protokoll stehen**, mit ihrem Grund. Wer
+sie nicht sieht, sucht sie stundenlang.
+
+### Verstärken ohne Wissen
+
+Jede Änderung wird als `{art, wert}` aufgezeichnet. Darum muss der Drache
+nicht wissen, was sein linker Nachbar getan hat — er liest dessen
+aufgezeichnete Wirkungen und wendet sie noch einmal an. **Ein Wappen, das es
+morgen gibt, ist heute schon verstärkbar.**
+
+Additiv und multiplikativ sind dabei streng getrennt: verdoppelt man `+3`,
+wird daraus `+6`; verdoppelt man `×1,5`, wird daraus `×2,25` und nicht `×3`.
+Nur so heisst „zählt doppelt" bei beiden Bauarten dasselbe.
+
+### Rechnen, ohne die Welt zu berühren
+
+Die Anzeige fragt `berechneWucht` dutzendfach je Sekunde — Vorschau, Leiste,
+Tafel. Darum läuft diese Rechnung standardmässig als **Probe**: sie verbrennt
+kein Pulver und schreibt nicht ins Kampfprotokoll. Nur die Salve am Rundenende
+fragt echt. Der Vorgabewert steht auf `probe = true`, weil der teure Fehler in
+die andere Richtung geht.
 
 ## Was NICHT in `quelle/` liegt
 

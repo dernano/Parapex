@@ -2,7 +2,7 @@ import { KERN } from './regeln.js';
 import { GATTUNGEN, GATTUNG_LISTE, START_DECK, grundwucht, neueEinheit, verbessereEinheit } from './einheiten.js';
 import { TURMTYPEN, TURM_START } from './tuerme.js';
 import { baueFeind } from './feinde.js';
-import { WAPPEN, WAPPEN_LISTE, WAPPEN_PLAETZE } from './wappen.js';
+import { WAPPEN, WAPPEN_LISTE, WAPPEN_PLAETZE } from '../wappen/sammlung.js';
 import { setzeStufenquelle } from './formationen.js';
 import { derKampf, neuerKampf } from './kampf.js';
 

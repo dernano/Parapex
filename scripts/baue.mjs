@@ -131,7 +131,7 @@ const kern = teile.join('\n\n') + `
       ${flaeche.join(', ').replace(/(.{72}) /g, '$1\n      ')},
       kampf: () => derKampf,
       lauf: () => derLauf,
-      ueberlauf: () => signalUeberlauf,
+      ueberlauf: () => abgewiesene(),
     };
   }`;
 

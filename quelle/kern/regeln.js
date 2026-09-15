@@ -37,7 +37,6 @@ export const KERN = {
    * Fuenf passende Tuerme sind 1,4^5, also gut das Fuenffache.
    */
   turmFaktor: 1.4,            // Turmtyp passt zur Gattung
-  signalMaxTiefe: 8,          // Schutz gegen sich selbst ausloesende Ketten
   /*
    * Die Grundsalve. Jede besetzte Stellung feuert einmal, auch ohne jede
    * Formation - alles Weitere kommt aus FORMATIONEN dazu.
@@ -50,11 +49,16 @@ export const KERN = {
    * ersten Fassung war es das nicht - der Bot, der nie ein Wappen nahm, kam
    * in der Haelfte der Laeufe durch, der, der immer eines nahm, in einem
    * Siebtel. Ein regelbrechendes Wappen darf keine Falle sein.
+   *
+   * Hier stehen nur noch die Zahlen der Wappen, die AUF DEN KAMPF greifen -
+   * der Loewe auf den Rang, der Wolf auf die Gesamtwucht. Was ein Wappen
+   * ganz fuer sich macht, steht bei ihm in `quelle/wappen/sammlung.js`; bei
+   * fuenfzig Wappen waere eine zweite Tabelle hier nur der Ort, an dem die
+   * veraltete Zahl steht.
    */
   wappen: {
     loewe: 3,                 // Rang des mittleren Turms mal drei
     wolf: 0.6,                // je leerem Turm
     schlange: 2,              // so viele Tauesche je Runde sind frei
-    drache: { jeder: 1, faktor: 2 },
   },
 };

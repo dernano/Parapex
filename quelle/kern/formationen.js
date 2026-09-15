@@ -1,5 +1,6 @@
 import { KERN } from './regeln.js';
-import { WAPPEN } from './wappen.js';
+import { EREIGNIS } from '../wappen/ereignisse.js';
+import { loeseAus, mitReihe } from '../wappen/fliessband.js';
 
 // ---------- Formationen ----------
 /*
@@ -179,21 +180,33 @@ export const KOENIGSRAENGE = [9, 10, 11, 12, 13];
  * hier arbeitet auf MENGEN, nicht auf Nachbarschaft - deshalb ist
  * `7 / 3 / 6 / 12 / 5` genau dieselbe Folge wie `5 / 6 / 7`.
  */
-export function baueBlatt(tuerme, wappen = []) {
-  const rangFaktoren = wappen.map(w => WAPPEN[w] && WAPPEN[w].rangFaktor).filter(Boolean);
-  const doppelt = wappen
-    .map(w => (WAPPEN[w] ? WAPPEN[w].zaehltDoppelt : undefined))
-    .filter(i => i !== undefined);
+export function baueBlatt(tuerme, wappen = [], probe = true) {
   const alle = [];
   const karten = [];
-  tuerme.forEach((t, i) => {
-    if (!t || !t.einheit) return;
-    const rang = Math.round(rangFaktoren.reduce((r, f) => r * (f(t, i) || 1), t.einheit.rang));
-    alle.push(i);
-    karten.push({ turm: i, rang, gattung: t.einheit.gattung });
-    // Ein Wappen kann eine Stellung doppelt zaehlen lassen. Die Kopie traegt
-    // denselben Turm - so leuchtet beim Zuenden die richtige Stellung auf.
-    if (doppelt.includes(i)) karten.push({ turm: i, rang, gattung: t.einheit.gattung, kopie: true });
+  /*
+   * Bevor Muster gesucht werden, darf jede Stellung noch einmal durch die
+   * Wappenreihe. Hier aendern sich RAENGE und die Zahl der Kopien - was
+   * frueher `rangFaktor` und `zaehltDoppelt` waren, zwei Sonderhaken, die
+   * nur genau diese zwei Wappen bedienen konnten.
+   *
+   * Und weil es durch die Reihe geht, zaehlt die Reihenfolge: ein Wappen,
+   * das den Rang der mittleren Stellung verdreifacht, und eines, das +2 auf
+   * alle gibt, ergeben je nach Anordnung 3*(r+2) oder 3r+2.
+   */
+  mitReihe(wappen, () => {
+    tuerme.forEach((t, i) => {
+      if (!t || !t.einheit) return;
+      const lage = loeseAus(EREIGNIS.blattGelesen, {
+        turm: i, rang: t.einheit.rang, gattung: t.einheit.gattung, kopien: 0,
+      }, null, probe);
+      const rang = Math.max(1, Math.round(lage.daten.rang));
+      const gattung = lage.daten.gattung;
+      alle.push(i);
+      karten.push({ turm: i, rang, gattung });
+      // Eine Kopie traegt denselben Turm - so leuchtet beim Zuenden die
+      // richtige Stellung auf.
+      for (let n = 0; n < lage.daten.kopien; n++) karten.push({ turm: i, rang, gattung, kopie: true });
+    });
   });
 
   /** Die n haeufigste Gattung - wenn sie mindestens n mal vorkommt. */
@@ -282,8 +295,8 @@ export function formationsSalven(f, stufe) {
  * Erkennen. Erst alles sammeln, was zutrifft, dann je Familie nur die hoechste
  * stehen lassen - und was eine Kroenung abloest, faellt mit.
  */
-export function erkenneFormationen(tuerme, wappen = []) {
-  const blatt = baueBlatt(tuerme, wappen);
+export function erkenneFormationen(tuerme, wappen = [], probe = true) {
+  const blatt = baueBlatt(tuerme, wappen, probe);
   if (!blatt.anzahl) return [];
 
   const treffer = [];

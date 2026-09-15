@@ -584,12 +584,28 @@ const ergebnis = await seite.evaluate(() => {
   });
 
   // ---------- Sicherheit ----------
-  pruefe('Signalketten laufen nicht endlos', () => {
-    P.neuerKampf({ feind: P.baueFeind(9), deck: P.START_DECK.map(id => P.neueEinheit(id)) });
-    let laeufe = 0;
-    P.hoereSignal('einheitFeuert', () => { laeufe++; P.sendeSignal('einheitFeuert', {}); });
-    P.sendeSignal('einheitFeuert', {});
-    if (laeufe > 20) return 'die Kette lief ' + laeufe + ' mal';
+  pruefe('Wappenketten laufen nicht endlos', () => {
+    /*
+     * Zwei Wappen, die einander zuenden. Das ist keine ausgedachte Not: es
+     * ist die Bauform, die ein Spieler frueher oder spaeter zusammensteckt,
+     * und sie muss enden, ohne dass jemand ihre Namen kennt.
+     */
+    P.meldeWappen({
+      id: 'pruefHin', name: 'Prüfhin', zeichen: '↔', seltenheit: 'gewoehnlich',
+      text: 'zündet rechts.', hinweis: 'nur zum Prüfen',
+      hoert: P.aufAllem((l) => { P.zuendeErneut(l, l.platz + 1); }),
+    });
+    P.meldeWappen({
+      id: 'pruefHer', name: 'Prüfher', zeichen: '↔', seltenheit: 'gewoehnlich',
+      text: 'zündet links.', hinweis: 'nur zum Prüfen',
+      hoert: P.aufAllem((l) => { P.zuendeErneut(l, l.platz - 1); }),
+    });
+    const band = P.neuesBand(['pruefHin', 'pruefHer']);
+    const t0 = Date.now();
+    P.neuerKampf({ feind: P.baueFeind(9), deck: P.START_DECK.map(id => P.neueEinheit(id)),
+      wappen: band.reihe.slice() });
+    P.beendeRunde();
+    if (Date.now() - t0 > 3000) return 'es dauerte ' + (Date.now() - t0) + ' ms';
     return P.ueberlauf() > 0 ? true : 'die Bremse hat nicht gegriffen';
   });
   pruefe('Gegnerstärke steht in einer Tabelle', () => {

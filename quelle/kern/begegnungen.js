@@ -1,6 +1,6 @@
 import { KERN } from './regeln.js';
 import { GATTUNG_LISTE, grundwucht, neueEinheit, verbessereEinheit } from './einheiten.js';
-import { WAPPEN_LISTE, WAPPEN_PLAETZE } from './wappen.js';
+import { WAPPEN_LISTE, WAPPEN_PLAETZE } from '../wappen/sammlung.js';
 import { LAUF, angebotAusbau, angebotKarte, angebotWappen, baueTurmAus, belohnungsRang, derLauf, entferneKarte, fuegeWappenHinzu, kampfNrJetzt } from './lauf.js';
 
 // ---------- Begegnungen ----------

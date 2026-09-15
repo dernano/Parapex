@@ -791,7 +791,6 @@
      * Fuenf passende Tuerme sind 1,4^5, also gut das Fuenffache.
      */
     turmFaktor: 1.4,            // Turmtyp passt zur Gattung
-    signalMaxTiefe: 8,          // Schutz gegen sich selbst ausloesende Ketten
     /*
      * Die Grundsalve. Jede besetzte Stellung feuert einmal, auch ohne jede
      * Formation - alles Weitere kommt aus FORMATIONEN dazu.
@@ -804,12 +803,17 @@
      * ersten Fassung war es das nicht - der Bot, der nie ein Wappen nahm, kam
      * in der Haelfte der Laeufe durch, der, der immer eines nahm, in einem
      * Siebtel. Ein regelbrechendes Wappen darf keine Falle sein.
+     *
+     * Hier stehen nur noch die Zahlen der Wappen, die AUF DEN KAMPF greifen -
+     * der Loewe auf den Rang, der Wolf auf die Gesamtwucht. Was ein Wappen
+     * ganz fuer sich macht, steht bei ihm in `quelle/wappen/sammlung.js`; bei
+     * fuenfzig Wappen waere eine zweite Tabelle hier nur der Ort, an dem die
+     * veraltete Zahl steht.
      */
     wappen: {
       loewe: 3,                 // Rang des mittleren Turms mal drei
       wolf: 0.6,                // je leerem Turm
       schlange: 2,              // so viele Tauesche je Runde sind frei
-      drache: { jeder: 1, faktor: 2 },
     },
   };
 
@@ -1001,106 +1005,1126 @@
       hp, maxHp: hp, regeln: [] };
   }
 
-  // ===== quelle/kern/wappen.js =====
-  // ---------- Wappen ----------
+  // ===== quelle/wappen/ereignisse.js =====
   /*
-   * Wappen sind keine Karten. Sie liegen neben dem Kampf und brechen Regeln -
-   * darum geben sie bewusst keine kleinen Prozentboni, sondern ändern, wie
-   * gerechnet wird. Jedes Wappen ist ein Datensatz mit Haken; der Kampf kennt
-   * keinen einzigen Wappennamen.
+   * Die Ereignisse, auf die ein Wappen hoeren kann.
+   *
+   * Bisher hatte jedes Wappen seine eigene Bauform: `rangFaktor` wurde im Blatt
+   * gelesen, `gesamtFaktor` in der Wucht, `tauschRabatt` beim Tauschen, `horcht`
+   * am Signalbus - fuenf verschiedene Haken an fuenf verschiedenen Stellen im
+   * Kern. Ein sechster (`retriggerFaktor` des Drachen) wurde ueberhaupt nicht
+   * mehr gelesen: das Wappen behauptete auf der Tafel eine Wirkung, die es seit
+   * dem Salvenumbau nicht mehr hatte. In einem System aus verstreuten Haken
+   * faellt so etwas nicht auf.
+   *
+   * Jetzt gibt es EINE Liste. Ein Wappen, das auf kein Ereignis hoert, ist
+   * auffindbar; ein Ereignis, das niemand meldet, auch.
    */
+  const EREIGNIS = {
+    // --- Rahmen ---
+    kampfBeginnt:    'kampfBeginnt',
+    rundeBeginnt:    'rundeBeginnt',
+    rundeEndet:      'rundeEndet',
+    kampfEndet:      'kampfEndet',
+
+    // --- Hand und Tatendrang ---
+    karteGezogen:    'karteGezogen',
+    kartenGetauscht: 'kartenGetauscht',
+
+    // --- Die Tuerme ---
+    einheitGesetzt:  'einheitGesetzt',
+    einheitErsetzt:  'einheitErsetzt',
+
+    // --- Formationen ---
+    blattGelesen:    'blattGelesen',     // bevor Muster gesucht werden: Raenge und Gattungen sind noch aenderbar
+    formationenErkannt: 'formationenErkannt',
+
+    /*
+     * Das wichtigste Ereignis des ganzen Systems. Hier stehen Wucht und Salven
+     * noch offen, und hier entscheidet sich, was eine Runde anrichtet. Was
+     * frueher `gesamtFaktor` war, ist jetzt ein Platz in dieser Kette - mit dem
+     * Unterschied, dass die REIHENFOLGE zaehlt.
+     */
+    salveGeplant:    'salveGeplant',
+    salveGefeuert:   'salveGefeuert',
+
+    // --- Wirkung am Gegner ---
+    feindGetroffen:  'feindGetroffen',
+    ueberschlag:     'ueberschlag',      // was ueber die Staerke des Gegners hinausging
+    feindBesiegt:    'feindBesiegt',
+
+    // --- Wappen ueber Wappen ---
+    wappenZuendet:   'wappenZuendet',
+  };
+
+  const EREIGNIS_LISTE = Object.values(EREIGNIS);
+
+  /*
+   * Die Vorraete, die es nur gibt, weil Wappen sie schaffen. Kein Wappen, kein
+   * Vorrat - das ist Absicht: wer das erste Pulverhorn findet, bekommt kein
+   * hoeheres Zahlenband, sondern eine Regel, die es vorher nicht gab.
+   */
+  const VORRAT_ARTEN = {
+    veteran:     { id: 'veteran',     name: 'Veteranenmarke', zeichen: '✠', bleibt: 'lauf'  },
+    pulver:      { id: 'pulver',      name: 'Pulver',         zeichen: '✸', bleibt: 'kampf' },
+    verwuestung: { id: 'verwuestung', name: 'Verwüstung',     zeichen: '☄', bleibt: 'lauf'  },
+    befehl:      { id: 'befehl',      name: 'Befehl',         zeichen: '⚑', bleibt: 'kampf' },
+  };
+
+  // ===== quelle/wappen/fliessband.js =====
+  /*
+   * Das Fliessband: EIN Weg, auf dem jedes Wappen zuendet.
+   *
+   * Vorher hatte jedes Wappen seinen eigenen Haken an seiner eigenen Stelle im
+   * Kern. Das hatte zwei Folgen, und beide waren schlecht: ein Wappen konnte
+   * wirkungslos werden, ohne dass es auffiel (der Drache), und zwei Wappen
+   * konnten einander nichts sagen - es gab keinen Ort, an dem sie sich
+   * begegnet waeren.
+   *
+   * DIE REIHENFOLGE IST DIE REGEL. Die fuenf Plaetze werden strikt von links
+   * nach rechts abgearbeitet. Platz 1 aendert die Lage, Platz 2 bekommt die
+   * GEAENDERTE Lage, Platz 3 die von Platz 2 geaenderte, und so weiter. Ein
+   * Wappen, das verdoppelt, was der Platz vor ihm getan hat, ist damit auf
+   * Platz 4 etwas voellig anderes als auf Platz 2. Das ist kein Nebeneffekt,
+   * das ist der Kern des Systems: der Spieler baut keine Sammlung, er baut
+   * eine MASCHINE, und die Anordnung ist die Konstruktion.
+   *
+   * Darum ist hier auch nichts nebenlaeufig und nichts gesammelt-am-Ende. Jede
+   * Zuendung liegt im Protokoll mit ihrem Platz, ihrer Art und ihrer Tiefe -
+   * wer wissen will, warum eine Runde 4,2 Millionen Wucht hatte, liest die
+   * Kette nach, statt sie zu erraten.
+   */
+
+
+  /** So viele Wappen kann die Burg zugleich fuehren. */
+  const PLAETZE = 5;
+
+  /*
+   * Woher eine Zuendung kommt. Das System MUSS das unterscheiden koennen,
+   * sonst laesst sich kein Wappen bauen, das "jede fremde Zuendung" oder "jede
+   * eigene, aber keine Kopie" zaehlt - und ohne die Unterscheidung wuerde jede
+   * Rekursionssperre entweder zu frueh oder gar nicht greifen.
+   */
+  const ZUENDART = {
+    urspruenglich: 'urspruenglich',   // der Durchlauf der Reihe selbst
+    nachzuendung:  'nachzuendung',    // ein Wappen laesst einen frueheren Platz noch einmal zuenden
+    kopie:         'kopie',           // ein Wappen fuehrt die Wirkung eines anderen aus
+    erzeugt:       'erzeugt',         // ein Wappen loest ein ganz neues Ereignis aus
+  };
+
+  /*
+   * Die Sperren. Sie sind absichtlich harte Zahlen und keine Klugheit: ein
+   * Wappenpaar, das sich gegenseitig nachzuendet, ist kein Fehler im Spiel,
+   * sondern eine Bauform, die ein Spieler frueher oder spaeter finden WIRD.
+   * Sie darf viel duerfen und muss irgendwo enden.
+   */
+  const GRENZEN = {
+    tiefe: 6,          // so tief duerfen Wappen einander noch zuenden
+    jePlatz: 12,       // so oft darf EIN Platz in EINEM Ereignis hoechstens zuenden
+    jeEreignis: 60,    // so viele Zuendungen hat ein Ereignis hoechstens insgesamt
+    ketten: 24,        // so viele erzeugte Folgeereignisse haelt ein Ereignis aus
+  };
+
+  /*
+   * Alle gemeldeten Wappen. Die Sammlung meldet sich hier an, statt dass das
+   * Fliessband sie kennt - sonst haenge das Band an den Daten und die Daten am
+   * Band, und der Bau braeche mit einem Kreis ab (siehe scripts/baue.mjs).
+   */
+  /** @type {Record<string, any>} */
+  const WAPPEN_REGISTER = {};
+
+  /**
+   * Ein Wappen anmelden. Prueft beim Anmelden, was sonst niemand prueft: dass
+   * die Ereignisse, auf die es hoert, ueberhaupt existieren. Genau der Fehler,
+   * an dem der Drache jahrelang wirkungslos hing, faellt hier beim Start auf.
+   * @param {any} def
+   */
+  function meldeWappen(def) {
+    if (!def || !def.id) throw new Error('Ein Wappen ohne Kennung.');
+    if (WAPPEN_REGISTER[def.id]) throw new Error('Wappen doppelt gemeldet: ' + def.id);
+    const hoert = def.hoert || {};
+    const namen = Object.keys(hoert);
+    if (!namen.length) throw new Error('Wappen ohne Wirkung: ' + def.id + ' hoert auf kein Ereignis.');
+    for (const name of namen) {
+      if (!EREIGNIS_LISTE.includes(name)) {
+        throw new Error('Wappen ' + def.id + ' hoert auf ein Ereignis, das es nicht gibt: ' + name);
+      }
+      if (typeof hoert[name] !== 'function') {
+        throw new Error('Wappen ' + def.id + ': ' + name + ' ist keine Wirkung.');
+      }
+    }
+    WAPPEN_REGISTER[def.id] = def;
+    return def;
+  }
+
+  /**
+   * Ein Wappen, das auf JEDES Ereignis hoert. Verstaerker und Zaehler brauchen
+   * das: was der Platz links getan hat, kann in jedem Ereignis geschehen sein,
+   * und ein Verstaerker, der nur bei Salven hinsieht, waere ein halber.
+   * @param {(lage: any, zuendung: any) => void} fn
+   */
+  function aufAllem(fn) {
+    /** @type {Record<string, typeof fn>} */
+    const hoert = {};
+    for (const name of EREIGNIS_LISTE) hoert[name] = fn;
+    return hoert;
+  }
+
+  /** Nur fuer Pruefungen: alles wieder abmelden. */
+  function leereRegister() {
+    for (const id in WAPPEN_REGISTER) delete WAPPEN_REGISTER[id];
+  }
+
+  // ---------- Das Band ----------
+  /*
+   * Ein Band je Kampf. Es haelt die Reihenfolge, die Siegel (Bossregeln
+   * verschliessen Plaetze), die Zaehlung und das Protokoll.
+   */
+  let dasBand = null;
+
+  /**
+   * @param {string[]} [reihe] Wappenkennungen in ihrer Platzfolge
+   * @param {any} [feind] der Gegner dieses Kampfes - Wappen duerfen ihn LESEN
+   */
+  function neuesBand(reihe = [], feind = null) {
+    dasBand = {
+      reihe: reihe.slice(0, PLAETZE),
+      feind,
+      /** @type {number[]} Plaetze, die eine Bossregel verschlossen hat */
+      gesiegelt: [],
+      /** @type {any[]} jede Zuendung des ganzen Kampfes, in der Reihenfolge des Geschehens */
+      protokoll: [],
+      /** @type {Record<number, number>} wie oft ein Platz im ganzen Kampf gezuendet hat */
+      zaehlung: {},
+      nr: 0,
+    };
+    return dasBand;
+  }
+
+  function raeumeBand() { dasBand = null; laufende = null; }
+
+  /**
+   * Etwas mit einer bestimmten Reihenfolge rechnen, ohne das laufende Band zu
+   * stoeren. Die Pruefungen und die Vorschau rufen `berechneWucht` mit einer
+   * Liste von Wappen statt mit einem Kampf; dann steht hier kurz ein Band, und
+   * danach steht wieder das echte da.
+   *
+   * Die Pruefung ist auf IDENTITAET, nicht auf Inhalt: der Kampf reicht seine
+   * eigene Reihe herein (`k.wappen` IST `dasBand.reihe`), und nur dann soll
+   * gerechnet werden, was wirklich laeuft.
+   *
+   * @param {string[] | null} reihe @param {() => any} fn
+   */
+  function mitReihe(reihe, fn) {
+    const vorher = dasBand;
+    // `null` heisst: das Band, das ohnehin laeuft. Eine leere LISTE heisst
+    // dagegen ausdruecklich `ohne Wappen` - die beiden zu verwechseln kostet
+    // stumm jede Wappenwirkung, und man sucht sie in der Wucht statt hier.
+    const eigen = reihe != null && (!vorher || reihe !== vorher.reihe);
+    if (eigen) neuesBand(Array.isArray(reihe) ? reihe : [], vorher ? vorher.feind : null);
+    try { return fn(); } finally { if (eigen) dasBand = vorher; }
+  }
+
+  /** Die Wappen in ihrer jetzigen Ordnung. */
+  function reihe() { return dasBand ? dasBand.reihe.slice() : []; }
+
+  /**
+   * Zwei Plaetze tauschen. Der Spieler tut das am Gestell, DER USURPATOR tut es
+   * ihm an - fuer das Band ist es dasselbe, und genau deshalb kann die Bossregel
+   * spaeter zwei Zeilen lang sein.
+   * @param {number} a @param {number} b
+   */
+  function vertauschePlaetze(a, b) {
+    if (!dasBand) return false;
+    const r = dasBand.reihe;
+    if (a < 0 || b < 0 || a >= r.length || b >= r.length || a === b) return false;
+    [r[a], r[b]] = [r[b], r[a]];
+    return true;
+  }
+
+  /**
+   * Ein Wappen an einen anderen Platz ziehen; alles dazwischen rueckt auf.
+   * Das ist das Schieben am Gestell - nicht dasselbe wie Vertauschen, denn es
+   * haelt die uebrige Ordnung.
+   * @param {number} von @param {number} nach
+   */
+  function verschiebePlatz(von, nach) {
+    if (!dasBand) return false;
+    const r = dasBand.reihe;
+    if (von < 0 || von >= r.length || nach < 0 || nach >= r.length || von === nach) return false;
+    const [w] = r.splice(von, 1);
+    r.splice(nach, 0, w);
+    return true;
+  }
+
+  /** Einen Platz verschliessen - er zuendet nicht mehr, bleibt aber sichtbar. */
+  function siegelePlatz(platz) {
+    if (!dasBand || dasBand.gesiegelt.includes(platz)) return false;
+    dasBand.gesiegelt.push(platz);
+    return true;
+  }
+
+  function entsiegle() { if (dasBand) dasBand.gesiegelt = []; }
+
+  /**
+   * Der Platz, der im ganzen Kampf am haeufigsten gezuendet hat. DER INQUISITOR
+   * versiegelt genau ihn - er trifft also nicht das teuerste Wappen, sondern
+   * das, um das der Spieler seine Maschine gebaut hat.
+   */
+  function lautesterPlatz() {
+    if (!dasBand) return -1;
+    let bester = -1;
+    let hoechste = 0;
+    for (let i = 0; i < dasBand.reihe.length; i++) {
+      const n = dasBand.zaehlung[i] || 0;
+      if (n > hoechste) { hoechste = n; bester = i; }
+    }
+    return bester;
+  }
+
+  // ---------- Die Lage ----------
+  /*
+   * Die Lage ist das Ereignis, waehrend es durch die Reihe laeuft. `daten` ist
+   * der Inhalt, den die Wappen aendern duerfen - eine Salve mit ihrer Wucht,
+   * eine gezogene Karte, ein gefallener Gegner. Alles andere ist Buchhaltung.
+   */
+
+  /**
+   * @param {string} ereignis
+   * @param {any} daten
+   * @param {any} [eltern] die Lage, aus der diese hier erzeugt wurde
+   */
+  function neueLage(ereignis, daten = {}, eltern = null, probe = false) {
+    return {
+      ereignis,
+      daten,
+      /*
+       * Eine Probe rechnet, ohne die Welt zu beruehren. Die Anzeige fragt bei
+       * jedem Schweben einer Karte ueber einem Turm, was die Burg dann woege -
+       * wuerde diese Frage Vorraete verbrauchen oder ins Kampfprotokoll
+       * schreiben, kaeme das Protokoll nach einer Runde Mausbewegung auf
+       * zweitausend Zeilen und der Spieler haette Pulver verloren, ohne je
+       * eine Karte gelegt zu haben.
+       */
+      probe: probe || (eltern ? eltern.probe : false),
+      /*
+       * Der Gegner liegt neben den Daten, nicht darin: Wappen duerfen ihn
+       * lesen (`Siegel` sieht nach, ob er unter der Haelfte steht), aber keine
+       * Wirkung darf ihn anfassen. Was den Gegner trifft, geht durch
+       * `feindGetroffen` - eine Tuer, nicht fuenfzig.
+       */
+      feind: dasBand ? dasBand.feind : null,
+      /** @type {any[]} was in DIESEM Ereignis schon gezuendet hat, in Reihenfolge */
+      gezuendet: [],
+      /** @type {Record<number, number>} Zuendungen je Platz in diesem Ereignis */
+      zaehler: {},
+      /** @type {any} die Zuendung, die gerade laeuft */
+      ich: null,
+      platz: -1,
+      tiefe: eltern ? eltern.tiefe + 1 : 0,
+      /** @type {string[]} die Wappen, ueber die dieses Ereignis zustande kam */
+      herkunft: eltern ? eltern.herkunft.concat(eltern.ich ? [eltern.ich.id] : []) : [],
+      art: eltern ? ZUENDART.erzeugt : ZUENDART.urspruenglich,
+      eltern,
+      ketten: 0,
+      abgebrochen: false,
+      /** @type {any[]} Ausschnitt des Bandprotokolls, der zu dieser Lage gehoert */
+      protokoll: [],
+    };
+  }
+
+  /**
+   * Ein Ereignis durch die Reihe schicken. Das ist die EINE Tuer; der Kampf
+   * ruft sie, die Wappen kennen den Kampf nicht.
+   *
+   * @param {string} ereignis
+   * @param {any} [daten]
+   * @param {any} [eltern]
+   * @returns {any} die Lage mit den geaenderten Daten und dem Protokoll
+   */
+  function loeseAus(ereignis, daten = {}, eltern = null, probe = false) {
+    /*
+     * DER WICHTIGSTE SATZ DES GANZEN SYSTEMS.
+     *
+     * Ein Ereignis, das entsteht, WAEHREND ein anderes noch durch die Reihe
+     * laeuft, haengt sich automatisch darunter. Der Kampf muss dafuer nichts
+     * wissen und nichts weiterreichen: laesst ein Wappen auf `feindGetroffen`
+     * eine Einheit feuern, und die trifft wieder, dann ist der zweite Treffer
+     * ein Kind des ersten - und die Tiefensperre greift.
+     *
+     * Ohne diesen Satz waere jede Rueckkehr aus dem Spiel in das Band ein
+     * frischer Anfang bei Tiefe 0, und die sauberste Sperre der Welt zaehlte
+     * bis zum Stapelueberlauf mit.
+     */
+    const vater = eltern || laufende;
+    if (!vater) return fuehreAus(ereignis, daten, null, probe);
+    if (vater.tiefe + 1 > GRENZEN.tiefe) {
+      halteFest(vater, -1, ereignis, ZUENDART.erzeugt, 'tiefe');
+      return neueLage(ereignis, daten, vater, probe);
+    }
+    if (++vater.ketten > GRENZEN.ketten) {
+      halteFest(vater, -1, ereignis, ZUENDART.erzeugt, 'ketten');
+      return neueLage(ereignis, daten, vater, probe);
+    }
+    const kind = fuehreAus(ereignis, daten, vater, probe);
+    vater.protokoll.push(...kind.protokoll);
+    return kind;
+  }
+
+  /** Die Lage, die gerade durch die Reihe laeuft - oder null. */
+  let laufende = null;
+
+  /** Der Durchlauf selbst: von links nach rechts, Platz fuer Platz. */
+  function fuehreAus(ereignis, daten, eltern, probe) {
+    const lage = neueLage(ereignis, daten, eltern, probe);
+    if (!dasBand) return lage;
+    const vorher = laufende;
+    laufende = lage;
+    try {
+      for (let platz = 0; platz < dasBand.reihe.length; platz++) {
+        if (lage.abgebrochen) break;
+        zuendePlatz(lage, platz, ZUENDART.urspruenglich);
+      }
+    } finally { laufende = vorher; }
+    return lage;
+  }
+
+  /**
+   * Ein neues Ereignis MITTEN aus einem Wappen heraus. Seit `loeseAus` sich
+   * selbst einhaengt, ist das nur noch die ausdrueckliche Schreibweise davon.
+   * @param {any} lage @param {string} ereignis @param {any} [daten]
+   */
+  function loeseAusIn(lage, ereignis, daten = {}) {
+    return loeseAus(ereignis, daten, lage, lage.probe);
+  }
+
+  /**
+   * Einen frueheren Platz noch einmal zuenden lassen - das, was ein
+   * Nachzuendungs-Wappen tut. Der Platz sieht die Lage, wie sie JETZT ist,
+   * nicht wie sie beim ersten Mal war.
+   * @param {any} lage @param {number} platz
+   */
+  function zuendeErneut(lage, platz) {
+    return zuendePlatz(lage, platz, ZUENDART.nachzuendung, lage.ich);
+  }
+
+  /**
+   * Die Wirkung eines anderen Platzes ausfuehren, aber unter eigenem Namen.
+   * Der Unterschied zur Nachzuendung ist nicht kosmetisch: eine Kopie zaehlt
+   * fuer den kopierten Platz NICHT als eigene Zuendung, also treibt ein
+   * Kopierwappen die Grenze des kopierten Wappens nicht voll.
+   * @param {any} lage @param {number} platz
+   */
+  function kopiere(lage, platz) {
+    return zuendePlatz(lage, platz, ZUENDART.kopie, lage.ich);
+  }
+
+  /**
+   * Der eigentliche Vorgang. Alle Sperren sitzen hier und nur hier - es gibt
+   * keinen zweiten Weg, ein Wappen zum Zuenden zu bringen.
+   *
+   * @param {any} lage
+   * @param {number} platz
+   * @param {string} art
+   * @param {any} [durch] die Zuendung, die diese hier ausgeloest hat
+   */
+  function zuendePlatz(lage, platz, art, durch = null) {
+    if (!dasBand) return null;
+    const id = dasBand.reihe[platz];
+    const def = id && WAPPEN_REGISTER[id];
+    if (!def) return null;
+    const wirkung = (def.hoert || {})[lage.ereignis];
+    if (!wirkung) return null;
+
+    const grund = warumNicht(lage, platz, id, art);
+    if (grund) { halteFest(lage, platz, id, art, grund); return null; }
+
+    const zuendung = {
+      nr: ++dasBand.nr,
+      platz, id, name: def.name, ereignis: lage.ereignis, art,
+      tiefe: lage.tiefe,
+      durch: durch ? durch.nr : null,
+      /** @type {any[]} was dieses Wappen an der Lage geaendert hat */
+      wirkungen: [],
+      abgewiesen: null,
+    };
+
+    // Buchfuehrung VOR der Wirkung: ein Wappen, das sich selbst nachzuendet,
+    // muss sich beim zweiten Betreten schon gezaehlt vorfinden.
+    if (art !== ZUENDART.kopie) {
+      lage.zaehler[platz] = (lage.zaehler[platz] || 0) + 1;
+      if (!lage.probe) dasBand.zaehlung[platz] = (dasBand.zaehlung[platz] || 0) + 1;
+    }
+    lage.gezuendet.push(zuendung);
+    lage.protokoll.push(zuendung);
+    if (!lage.probe) dasBand.protokoll.push(zuendung);
+
+    const vorher = lage.ich;
+    const vorherPlatz = lage.platz;
+    lage.ich = zuendung;
+    lage.platz = platz;
+    try {
+      wirkung(lage, zuendung);
+    } finally {
+      lage.ich = vorher;
+      lage.platz = vorherPlatz;
+    }
+    return zuendung;
+  }
+
+  /**
+   * Warum ein Platz gerade NICHT zuenden darf - oder null, wenn er darf.
+   * Jeder Grund ist eine eigene Zeile, weil jeder einen eigenen Fall im Spiel
+   * hat und im Protokoll auch so stehen soll.
+   * @param {any} lage @param {number} platz @param {string} id @param {string} art
+   */
+  function warumNicht(lage, platz, id, art) {
+    if (dasBand.gesiegelt.includes(platz)) return 'siegel';
+    if (lage.tiefe > GRENZEN.tiefe) return 'tiefe';
+    if ((lage.zaehler[platz] || 0) >= GRENZEN.jePlatz) return 'jePlatz';
+    if (lage.gezuendet.length >= GRENZEN.jeEreignis) return 'jeEreignis';
+    /*
+     * Der Kreis: A zuendet B nach, B zuendet A nach. Beide sind fuer sich
+     * sinnvolle Wappen, zusammen sind sie eine Schleife. Sie wird nicht
+     * verboten - sie darf ihre Tiefe ausschoepfen -, aber ein Ereignis, das
+     * ueber dieses Wappen erst entstanden ist, zuendet es nicht ein zweites
+     * Mal. Sonst waechst die Kette in der Breite statt in der Tiefe und die
+     * Tiefensperre greift nie.
+     */
+    if (art === ZUENDART.erzeugt && lage.herkunft.includes(id)) return 'kreis';
+    return null;
+  }
+
+  /** Eine abgewiesene Zuendung bleibt im Protokoll stehen. Wer sie nicht sieht, sucht sie stundenlang. */
+  function halteFest(lage, platz, id, art, grund) {
+    const eintrag = {
+      nr: ++dasBand.nr,
+      platz, id, name: (WAPPEN_REGISTER[id] || {}).name || id,
+      ereignis: lage.ereignis, art, tiefe: lage.tiefe,
+      durch: lage.ich ? lage.ich.nr : null,
+      wirkungen: [],
+      abgewiesen: grund,
+    };
+    lage.protokoll.push(eintrag);
+    if (!lage.probe) dasBand.protokoll.push(eintrag);
+    return eintrag;
+  }
+
+  // ---------- Was die Wappen zurueckmelden ----------
+  /**
+   * Jede Aenderung an der Lage wird hier vermerkt. Die Wirkungen in
+   * `wirkungen.js` rufen das; ein Wappen, das die Lage direkt anfasst, taucht
+   * im Protokoll mit leerer Wirkung auf und ist damit als Schlamperei
+   * erkennbar.
+   * @param {any} lage @param {string} art @param {any} wert @param {string} [text]
+   */
+  function notiere(lage, art, wert, text = '') {
+    if (!lage.ich) return null;
+    const w = { art, wert, text };
+    lage.ich.wirkungen.push(w);
+    return w;
+  }
+
+  /**
+   * Die letzte Zuendung VOR dem laufenden Platz - das, woran ein
+   * Verstaerker-Wappen ansetzt. Genau hier haengt die Reihenfolge: auf Platz 2
+   * findet es nur Platz 1, auf Platz 5 findet es alles davor.
+   * @param {any} lage
+   */
+  function vorherigeZuendung(lage) {
+    const alle = lage.gezuendet.filter(z => !z.abgewiesen && z !== lage.ich);
+    return alle.length ? alle[alle.length - 1] : null;
+  }
+
+  /** Alle Zuendungen aus frueheren Plaetzen dieses Ereignisses. */
+  function zuendungenDavor(lage) {
+    const platz = lage.platz;
+    return lage.gezuendet.filter(z => z !== lage.ich && z.platz < platz && !z.abgewiesen);
+  }
+
+  /**
+   * Wie oft in diesem Kampf eine Zuendung abgewiesen wurde - und warum.
+   * Nicht nur fuer die Pruefung: eine Reihe, die staendig an die Tiefensperre
+   * stoesst, ist eine Reihe, die anders gedacht ist als sie gebaut wurde, und
+   * das soll man sehen koennen.
+   */
+  function abgewiesene() {
+    if (!dasBand) return 0;
+    return dasBand.protokoll.filter((/** @type {any} */ z) => z.abgewiesen).length;
+  }
+
+  /** Dasselbe, nach Grund aufgeschluesselt. */
+  function abweisungen() {
+    /** @type {Record<string, number>} */
+    const nach = {};
+    if (!dasBand) return nach;
+    for (const z of dasBand.protokoll) {
+      if (z.abgewiesen) nach[z.abgewiesen] = (nach[z.abgewiesen] || 0) + 1;
+    }
+    return nach;
+  }
+
+  /** Was ein Ereignis insgesamt bewegt hat - fuer das Kampfprotokoll. */
+  function fasseZusammen(lage) {
+    const echt = lage.protokoll.filter(z => !z.abgewiesen);
+    return {
+      ereignis: lage.ereignis,
+      zuendungen: echt.length,
+      abgewiesen: lage.protokoll.length - echt.length,
+      tiefste: lage.protokoll.reduce((m, z) => Math.max(m, z.tiefe), 0),
+      plaetze: echt.map(z => z.platz),
+    };
+  }
+
+  // ===== quelle/wappen/vorrat.js =====
+  /*
+   * Die Vorraete, die es nur gibt, weil Wappen sie schaffen.
+   *
+   * Ein Wappen, das +20 % Wucht gibt, macht die Zahl groesser. Ein Wappen, das
+   * Veteranenmarken einfuehrt, macht das SPIEL groesser: ab jetzt gibt es eine
+   * Waehrung, die vorher nicht existierte, und jedes andere Wappen, das sie
+   * liest, wird dadurch interessanter. Darum liegt hier kein Zahlenband,
+   * sondern ein Regalbrett, das erst durch Wappen Faecher bekommt.
+   *
+   * Zwei Haltbarkeiten: `kampf` wird zu jedem Kampf geleert (Pulver, Befehle -
+   * Dinge, die man in dieser Schlacht verbraucht), `lauf` bleibt ueber den
+   * ganzen Feldzug (Veteranenmarken, Verwuestung - Dinge, die man ansammelt).
+   */
+
+
+  /** @type {Record<string, number> | null} */
+  let derVorrat = null;
+
+  /** Ein neuer Feldzug: alles auf null. */
+  function neuerVorrat() {
+    derVorrat = {};
+    for (const id in VORRAT_ARTEN) derVorrat[id] = 0;
+    return derVorrat;
+  }
+
+  /** Ein neuer Kampf: was nur fuer den Kampf galt, ist verbraucht. */
+  function frischerKampfvorrat() {
+    if (!derVorrat) return neuerVorrat();
+    for (const id in VORRAT_ARTEN) {
+      if (VORRAT_ARTEN[id].bleibt === 'kampf') derVorrat[id] = 0;
+    }
+    return derVorrat;
+  }
+
+  /** @param {string} art */
+  function bestand(art) { return (derVorrat && derVorrat[art]) || 0; }
+
+  /**
+   * Dazulegen. Gibt zurueck, wie viel tatsaechlich dazukam - das ist nicht
+   * dasselbe wie das Gewuenschte, sobald eine Art einmal eine Obergrenze
+   * bekommt, und ein Wappen, das "je dazugelegter Marke" zaehlt, muss die
+   * echte Zahl sehen.
+   * @param {string} art @param {number} menge
+   */
+  function lege(art, menge) {
+    if (!derVorrat || !VORRAT_ARTEN[art] || menge <= 0) return 0;
+    derVorrat[art] += menge;
+    return menge;
+  }
+
+  /**
+   * Wegnehmen. Nimmt nur, was da ist, und meldet die genommene Menge - ein
+   * Wappen, das Pulver verbrennt, soll nicht ins Minus rutschen und auch nicht
+   * so tun, als haette es gezuendet.
+   * @param {string} art @param {number} menge
+   */
+  function zehre(art, menge) {
+    if (!derVorrat || !VORRAT_ARTEN[art] || menge <= 0) return 0;
+    const echt = Math.min(derVorrat[art], menge);
+    derVorrat[art] -= echt;
+    return echt;
+  }
+
+  /** Reicht der Vorrat? Fuer Wappen, die eine Bedingung stellen statt zu zahlen. */
+  function reicht(art, menge) { return bestand(art) >= menge; }
+
+  /** Was im Regal steht, fuer die Anzeige - nur die Faecher, die nicht leer sind. */
+  function sichtbarerVorrat() {
+    if (!derVorrat) return [];
+    return Object.keys(VORRAT_ARTEN)
+      .filter(id => derVorrat && derVorrat[id] > 0)
+      .map(id => ({ ...VORRAT_ARTEN[id], menge: (derVorrat && derVorrat[id]) || 0 }));
+  }
+
+  // ===== quelle/wappen/wirkungen.js =====
+  /*
+   * Die Wirkungen: alles, was ein Wappen an der Lage aendern kann.
+   *
+   * Ein Wappen fasst die Lage NIE selbst an. Es ruft eine Wirkung, und die
+   * Wirkung schreibt ihre Aenderung ins Protokoll. Das kostet eine Zeile mehr
+   * und kauft zwei Dinge, die anders nicht zu haben sind:
+   *
+   * 1. Das Kampfprotokoll ist vollstaendig. Jede Zahl, die sich bewegt hat,
+   *    steht mit ihrem Urheber da.
+   * 2. VERSTAERKEN UND KOPIEREN GEHEN OHNE WISSEN. `verstaerke` muss nicht
+   *    kennen, was der Platz davor getan hat - es liest dessen aufgezeichnete
+   *    Wirkungen und wendet sie noch einmal an. Ein Wappen, das es morgen gibt,
+   *    ist damit heute schon verstaerkbar.
+   *
+   * Deshalb sind additive und multiplikative Wirkungen streng getrennt. Wer
+   * eine Wirkung verdoppelt, verdoppelt bei `+3 Salven` die Drei und bei
+   * `x1,5 Wucht` den Exponenten - `x2,25`, nicht `x3`. Das ist der einzige
+   * Weg, auf dem "zaehlt doppelt" bei beiden Bauarten dasselbe bedeutet.
+   */
+
+
+  /*
+   * Welches Feld der Lage eine Wirkung anfasst und wie. Mehr Arten gibt es
+   * nicht - wer eine neue braucht, traegt sie hier ein, und sie ist damit in
+   * demselben Zug verstaerkbar, kopierbar und protokolliert.
+   */
+  const WIRKUNGSARTEN = {
+    salven:       { feld: 'salven',      rechnung: 'plus' },
+    salvenFaktor: { feld: 'salven',      rechnung: 'mal'  },
+    zusatz:       { feld: 'zusatz',      rechnung: 'plus' },
+    faktor:       { feld: 'faktor',      rechnung: 'mal'  },
+    wucht:        { feld: 'wucht',       rechnung: 'plus' },
+    wuchtFaktor:  { feld: 'wucht',       rechnung: 'mal'  },
+    tatendrang:   { feld: 'tatendrang',  rechnung: 'plus' },
+    rang:         { feld: 'rang',        rechnung: 'plus' },
+    ziehen:       { feld: 'ziehen',      rechnung: 'plus' },
+    kosten:       { feld: 'kosten',      rechnung: 'plus' },
+    kopien:       { feld: 'kopien',      rechnung: 'plus' },
+  };
+
+  /**
+   * Die eine Stelle, an der sich etwas aendert.
+   *
+   * @param {any} lage
+   * @param {string} art eine Kennung aus WIRKUNGSARTEN, oder 'vorrat'
+   * @param {any} wert Zahl - bei 'vorrat' ein {art, menge}
+   * @param {string} [text] was im Protokoll stehen soll
+   */
+  function wirke(lage, art, wert, text = '') {
+    if (art === 'vorrat') return wirkeVorrat(lage, wert, text);
+    const regel = WIRKUNGSARTEN[art];
+    if (!regel) return null;
+    const feld = regel.feld;
+    /*
+     * Ein Wappen, das auf ein Ereignis ohne dieses Feld wirkt, ist ein Fehler
+     * im Wappen und keiner in der Lage. Er wird festgehalten statt still
+     * geschluckt - sonst haben wir wieder einen Drachen, der nichts tut.
+     */
+    if (!(feld in lage.daten)) {
+      return notiere(lage, 'daneben', 0, art + ' geht auf ' + lage.ereignis + ' ins Leere');
+    }
+    if (regel.rechnung === 'plus') {
+      if (!wert) return null;
+      lage.daten[feld] += wert;
+    } else {
+      if (wert === 1) return null;
+      lage.daten[feld] *= wert;
+    }
+    return notiere(lage, art, wert, text);
+  }
+
+  /** @param {any} lage @param {{art: string, menge: number}} wert @param {string} text */
+  function wirkeVorrat(lage, wert, text) {
+    if (!wert || !wert.art || !wert.menge) return null;
+    /*
+     * In der Probe wird gerechnet, als haette es geklappt - aber das Regal
+     * bleibt unberuehrt. Sonst kostete jede Mausbewegung ueber einem Turm
+     * Pulver.
+     */
+    let echt;
+    if (wert.menge > 0) {
+      echt = lage.probe ? wert.menge : lege(wert.art, wert.menge);
+    } else {
+      echt = -(lage.probe ? Math.min(bestand(wert.art), -wert.menge) : zehre(wert.art, -wert.menge));
+    }
+    if (!echt) return null;
+    return notiere(lage, 'vorrat', { art: wert.art, menge: echt }, text);
+  }
+
+  // ---------- Die handlichen Formen ----------
+  /* Damit ein Wappen `salvenDazu(lage, 3)` schreibt und nicht die Tabelle kennt. */
+
+  /** @param {any} l @param {number} n @param {string} [t] */
+  function salvenDazu(l, n, t = '') { return wirke(l, 'salven', n, t); }
+  /** @param {any} l @param {number} f @param {string} [t] */
+  function salvenMal(l, f, t = '') { return wirke(l, 'salvenFaktor', f, t); }
+  /** @param {any} l @param {number} n @param {string} [t] */
+  function wuchtDazu(l, n, t = '') { return wirke(l, 'zusatz', n, t); }
+  /** @param {any} l @param {number} f @param {string} [t] */
+  function wuchtMal(l, f, t = '') { return wirke(l, 'faktor', f, t); }
+  /** @param {any} l @param {number} n @param {string} [t] */
+  function trefferDazu(l, n, t = '') { return wirke(l, 'wucht', n, t); }
+  /** @param {any} l @param {number} f @param {string} [t] */
+  function trefferMal(l, f, t = '') { return wirke(l, 'wuchtFaktor', f, t); }
+  /** @param {any} l @param {number} n @param {string} [t] */
+  function tatendrangDazu(l, n, t = '') { return wirke(l, 'tatendrang', n, t); }
+  /** @param {any} l @param {number} n @param {string} [t] */
+  function rangDazu(l, n, t = '') { return wirke(l, 'rang', n, t); }
+  /** @param {any} l @param {number} n @param {string} [t] */
+  function zieheDazu(l, n, t = '') { return wirke(l, 'ziehen', n, t); }
+  /** @param {any} l @param {number} n @param {string} [t] */
+  function kostenDazu(l, n, t = '') { return wirke(l, 'kosten', n, t); }
+  /** @param {any} l @param {number} n @param {string} [t] */
+  function kopienDazu(l, n, t = '') { return wirke(l, 'kopien', n, t); }
+  /** @param {any} l @param {string} art @param {number} menge @param {string} [t] */
+  function gib(l, art, menge, t = '') { return wirke(l, 'vorrat', { art, menge }, t); }
+  /** @param {any} l @param {string} art @param {number} menge @param {string} [t] */
+  function nimm(l, art, menge, t = '') { return wirke(l, 'vorrat', { art, menge: -menge }, t); }
+  /** @param {string} art */
+  function habe(art) { return bestand(art); }
+
+  // ---------- Wirkungen auf Wirkungen ----------
+  /*
+   * Hier wird aus einer Sammlung eine Maschine. Diese drei kennen keinen
+   * einzigen Wappennamen - sie arbeiten auf dem, was die Plaetze LINKS von
+   * ihnen aufgezeichnet haben. Darum ist die Reihenfolge am Gestell nicht
+   * Geschmack, sondern Bauplan.
+   */
+
+  /**
+   * Was ein Platz getan hat, ein weiteres Mal anwenden.
+   *
+   * `mal = 1` heisst: noch einmal, also insgesamt doppelt. Additive Wirkungen
+   * werden mit `mal` multipliziert, multiplikative potenziert - `x1,5` ein
+   * weiteres Mal ist `x1,5`, nicht `x0,5`.
+   *
+   * @param {any} lage @param {any} zuendung die zu verstaerkende Zuendung
+   * @param {number} [mal] wie oft zusaetzlich
+   */
+  function wendeNochmalAn(lage, zuendung, mal = 1) {
+    if (!zuendung || mal <= 0) return 0;
+    let getan = 0;
+    // Die Liste kopieren: die eigenen Wirkungen landen sonst in derselben
+    // Schleife und verstaerken sich selbst, bis der Stapel voll ist.
+    for (const w of zuendung.wirkungen.slice()) {
+      if (w.art === 'daneben') continue;
+      if (w.art === 'vorrat') {
+        const v = /** @type {{art: string, menge: number}} */ (w.wert);
+        if (wirke(lage, 'vorrat', { art: v.art, menge: v.menge * mal }, 'verstärkt')) getan++;
+        continue;
+      }
+      const regel = WIRKUNGSARTEN[w.art];
+      if (!regel) continue;
+      const wert = regel.rechnung === 'plus' ? w.wert * mal : Math.pow(w.wert, mal);
+      if (wirke(lage, w.art, wert, 'verstärkt')) getan++;
+    }
+    return getan;
+  }
+
+  /**
+   * Den Platz unmittelbar davor verstaerken. Das gewoehnlichste
+   * Zusammenspiel-Wappen ueberhaupt - und das, an dem ein Spieler zum ersten
+   * Mal merkt, dass er seine Wappen umsortieren kann.
+   * @param {any} lage @param {number} [mal]
+   */
+  function verstaerkeDavor(lage, mal = 1) {
+    return wendeNochmalAn(lage, vorherigeZuendung(lage), mal);
+  }
+
+  /**
+   * Alles verstaerken, was links steht. Teuer, selten, und der Grund, warum
+   * ein solches Wappen auf Platz 5 gehoert und auf Platz 1 nichts tut.
+   * @param {any} lage @param {number} [mal]
+   */
+  function verstaerkeAlleDavor(lage, mal = 1) {
+    let getan = 0;
+    for (const z of zuendungenDavor(lage)) getan += wendeNochmalAn(lage, z, mal);
+    return getan;
+  }
+
+  /**
+   * Ein neues Ereignis aus einem Wappen heraus. Geht durch die ganze Reihe,
+   * kostet eine Stufe Tiefe und ist damit gesichert.
+   * @param {any} lage @param {string} ereignis @param {any} [daten]
+   */
+  function melde(lage, ereignis, daten = {}) {
+    return loeseAusIn(lage, ereignis, daten);
+  }
+
+  /**
+   * Melden, dass ein Wappen gezuendet hat - fuer Wappen, die andere Wappen
+   * zaehlen. Getrennt von `melde`, weil es das einzige Ereignis ist, das aus
+   * dem Fliessband selbst kommt und nicht aus dem Spiel.
+   * @param {any} lage @param {any} zuendung
+   */
+  function meldeZuendung(lage, zuendung) {
+    return loeseAusIn(lage, EREIGNIS.wappenZuendet, {
+      platz: zuendung.platz, id: zuendung.id, art: zuendung.art,
+    });
+  }
+
+  // ===== quelle/wappen/sammlung.js =====
+  /*
+   * Die Wappen selbst - als Daten, nicht als Code im Kern.
+   *
+   * Der Kern kennt keinen einzigen Wappennamen mehr. Er meldet Ereignisse, die
+   * Wappen hoeren zu. Wer ein Wappen dazuerfindet, fasst diese Datei an und
+   * sonst nichts.
+   *
+   * WAS IN EINEM WAPPEN STEHT
+   *   id, name, zeichen, tinktur  - wer es ist
+   *   seltenheit                   - gewoehnlich | ungewoehnlich | selten | legendaer
+   *   text                         - was es tut, in einem Satz
+   *   hinweis                      - womit es zusammenspielt (Tafel und Belohnung)
+   *   hoert                        - Ereignis -> Wirkung
+   *
+   * DIE LAGE, DIE EIN WAPPEN BEKOMMT
+   * `lage.daten` traegt je Ereignis andere Felder. Nur diese darf ein Wappen
+   * anfassen, und nur ueber die Wirkungen aus `wirkungen.js`:
+   *
+   *   blattGelesen        turm, rang, gattung, kopien
+   *   formationenErkannt  formationen, salven
+   *   salveGeplant        tuerme, posten, formationen, salven, jeSalve, zusatz, faktor
+   *   salveGefeuert       wucht, salven
+   *   feindGetroffen      wucht, quelle
+   *   ueberschlag         ueber, quelle
+   *   kartenGetauscht     anzahl, kosten
+   *   einheitGesetzt      turm, einheit
+   *   einheitErsetzt      turm, alt, neu
+   *   rundeBeginnt        runde, ziehen
+   *   rundeEndet          runde, wucht
+   *   wappenZuendet       platz, id, art
+   *
+   * WO DIE ZAHLEN STEHEN
+   * Die Balance des Kampfes steht in KERN, und das bleibt so. Die Zahl EINES
+   * Wappens steht bei diesem Wappen - bei fuenfzig Wappen waere eine zentrale
+   * Tabelle nur ein zweiter Ort, an dem dieselbe Zahl steht, und der zweite Ort
+   * ist immer der veraltete. Was ein Wappen wert ist, liest man da, wo steht,
+   * was es tut.
+   */
+
+
   /*
    * Der Eber laesst eine abgeloeste Einheit ein letztes Mal feuern - aber WIE
-   * geschossen wird, weiss der Kampf und nicht das Wappen. Frueher rief das
-   * Wappen `schiesseEinzeln` direkt; in einer Datei faellt so etwas nicht auf,
-   * als Modul ist es ein Kreis: die Wappen haengen am Kampf, der Kampf an den
-   * Wappen. Jetzt reicht der Kampf seinen Schuss hier herein, und die Richtung
-   * stimmt wieder - unten weiss nichts von oben.
+   * geschossen wird, weiss der Kampf und nicht das Wappen. Der Kampf reicht
+   * seinen Schuss hier herein; so haengen die Wappen nicht am Kampf.
    */
-  /** @type {(einheit: import('./typen.js').Einheit, turm: number, quelle: string) => number} */
+  /** @type {(einheit: any, turm: number, quelle: string) => number} */
   let feuerEinzeln = () => 0;
   /** @param {typeof feuerEinzeln} fn */
   function setzeEinzelschuss(fn) { feuerEinzeln = fn; }
 
-  const WAPPEN = {
-    loewe: {
+  const SELTENHEITEN = {
+    gewoehnlich:   { id: 'gewoehnlich',   name: 'gewöhnlich',   tinktur: '#8a8478' },
+    ungewoehnlich: { id: 'ungewoehnlich', name: 'ungewöhnlich', tinktur: '#3c7a6a' },
+    selten:        { id: 'selten',        name: 'selten',       tinktur: '#3c5a9a' },
+    legendaer:     { id: 'legendaer',     name: 'legendär',     tinktur: '#9a6a1c' },
+  };
+
+  const alle = [
+
+    // ======================= GEWOEHNLICH =======================
+    {
       id: 'loewe', name: 'Wappen des Löwen', zeichen: '🦁', tinktur: '#a8791c',
-      text: 'Der mittlere Turm zählt seinen Rang dreifach.',
-      rangFaktor: (turm, i) => (i === Math.floor(KERN.tuerme / 2) ? KERN.wappen.loewe : 1),
+      seltenheit: 'gewoehnlich',
+      text: 'Die mittlere Stellung zählt ihren Rang dreifach.',
+      hinweis: 'Gleiche Ränge, Rangfolgen.',
+      hoert: {
+        [EREIGNIS.blattGelesen]: (lage) => {
+          if (lage.daten.turm !== Math.floor(KERN.tuerme / 2)) return;
+          rangDazu(lage, lage.daten.rang * (KERN.wappen.loewe - 1), 'dreifacher Rang');
+        },
+      },
     },
-    doppeladler: {
+    {
       /*
-       * Frueher schloss dieses Wappen die Turmreihe zum Ring - sinnvoll,
+       * Frueher schloss der Doppeladler die Turmreihe zum Ring - sinnvoll,
        * solange Formationen an Nachbarschaft haengen. Seit sie ueber die MENGE
-       * der besetzten Stellungen gehen, gibt es keine Nachbarn mehr, und der
-       * Doppeladler waere ein Wappen ohne Wirkung geworden.
-       *
-       * Er behaelt sein Bild und bekommt eine Wirkung, die dazu passt: zwei
-       * Koepfe, eine Einheit. Die Einheit auf der ersten Stellung zaehlt beim
-       * Erkennen doppelt - sie kann also mit sich selbst ein Paar bilden, ein
-       * Regiment vervollstaendigen oder eine Luecke in einer Folge fuellen.
+       * gehen, gibt es keine Nachbarn mehr. Er behaelt sein Bild und bekommt
+       * die Wirkung, die dazu passt: zwei Koepfe, eine Einheit.
        */
       id: 'doppeladler', name: 'Wappen des Doppeladlers', zeichen: '🦅', tinktur: '#4a4f5c',
-      text: 'Die Einheit auf Turm 1 zählt für Formationen doppelt.',
-      zaehltDoppelt: 0,
+      seltenheit: 'gewoehnlich',
+      text: 'Die Einheit auf Stellung 1 zählt für Formationen doppelt.',
+      hinweis: 'Regiment, Doppelposten, Rangfolge.',
+      hoert: {
+        [EREIGNIS.blattGelesen]: (lage) => {
+          if (lage.daten.turm !== 0) return;
+          kopienDazu(lage, 1, 'zwei Köpfe');
+        },
+      },
     },
-    wolf: {
-      id: 'wolf', name: 'Wappen des Wolfs', zeichen: '🐺', tinktur: '#3c5a72',
-      text: 'Je leerem Turm +60 % Gesamtwucht.',
-      gesamtFaktor: (ctx) => 1 + KERN.wappen.wolf * ctx.tuerme.filter(t => !t.einheit).length,
-    },
-    eber: {
-      id: 'eber', name: 'Wappen des Ebers', zeichen: '🐗', tinktur: '#6b3a2a',
-      text: 'Eine ersetzte Einheit feuert ein letztes Mal.',
-      horcht: { einheitErsetzt: (daten) => { if (daten.alt) feuerEinzeln(daten.alt, daten.turm, 'Wappen des Ebers'); } },
-    },
-    schlange: {
+    {
       id: 'schlange', name: 'Wappen der Schlange', zeichen: '🐍', tinktur: '#2f6a4a',
+      seltenheit: 'gewoehnlich',
       text: 'Die ersten zwei Kartentausche jeder Runde kosten nichts.',
-      tauschRabatt: (kampf) => (kampf.tauschInRunde < KERN.wappen.schlange ? KERN.kosten.tauschen : 0),
+      hinweis: 'Alles, was viele Karten sehen will.',
+      hoert: {
+        [EREIGNIS.kartenGetauscht]: (lage) => {
+          if (lage.daten.schonGetauscht >= KERN.wappen.schlange) return;
+          kostenDazu(lage, -KERN.kosten.tauschen, 'freier Tausch');
+        },
+      },
     },
-    drache: {
+    {
+      id: 'hirsch', name: 'Wappen des Hirschen', zeichen: '🦌', tinktur: '#6a5a3a',
+      seltenheit: 'gewoehnlich',
+      text: 'Jede Runde eine Veteranenmarke. Je Marke +3 % Wucht.',
+      hinweis: 'Alles, was Veteranenmarken liest.',
+      hoert: {
+        [EREIGNIS.rundeEndet]: (lage) => { gib(lage, 'veteran', 1, 'überlebte Runde'); },
+        [EREIGNIS.salveGeplant]: (lage) => {
+          const n = habe('veteran');
+          if (n) wuchtMal(lage, 1 + 0.03 * n, n + ' Veteranen');
+        },
+      },
+    },
+    {
+      id: 'schmiedehammer', name: 'Wappen des Hammers', zeichen: '🔨', tinktur: '#5a4a42',
+      seltenheit: 'gewoehnlich',
+      text: 'Jede gesetzte Einheit gibt ein Pulver.',
+      hinweis: 'Pulverhorn, Brandpfeil.',
+      hoert: {
+        [EREIGNIS.einheitGesetzt]: (lage) => { gib(lage, 'pulver', 1, 'frisch gemahlen'); },
+      },
+    },
+    {
+      id: 'stier', name: 'Wappen des Stiers', zeichen: '🐂', tinktur: '#7a3a2a',
+      seltenheit: 'gewoehnlich',
+      text: 'Stehen alle fünf Stellungen, +3 Salven.',
+      hinweis: 'Geschlossene Front, Reine Garde.',
+      hoert: {
+        [EREIGNIS.salveGeplant]: (lage) => {
+          const besetzt = lage.daten.tuerme.filter((/** @type {any} */ t) => t && t.einheit).length;
+          if (besetzt < KERN.tuerme) return;
+          salvenDazu(lage, 3, 'volle Burg');
+        },
+      },
+    },
+    {
+      id: 'verwuester', name: 'Wappen der Brandschatzung', zeichen: '☄', tinktur: '#8a3a1a',
+      seltenheit: 'gewoehnlich',
+      text: 'Was über die Stärke des Gegners hinausging, wird zu Verwüstung.',
+      hinweis: 'Triumphbogen. Braucht große Salven.',
+      hoert: {
+        [EREIGNIS.ueberschlag]: (lage) => {
+          gib(lage, 'verwuestung', Math.round(lage.daten.ueber), 'Überschlag');
+        },
+      },
+    },
+
+    // ======================= UNGEWOEHNLICH =======================
+    {
+      id: 'wolf', name: 'Wappen des Wolfs', zeichen: '🐺', tinktur: '#3c5a72',
+      seltenheit: 'ungewoehnlich',
+      text: 'Je leerer Stellung +60 % Gesamtwucht.',
+      hinweis: 'Gegen alles, was volle Burgen belohnt. Niemals mit dem Stier.',
+      hoert: {
+        [EREIGNIS.salveGeplant]: (lage) => {
+          const leer = lage.daten.tuerme.filter((/** @type {any} */ t) => !t || !t.einheit).length;
+          if (!leer) return;
+          wuchtMal(lage, 1 + KERN.wappen.wolf * leer, leer + ' leere Stellungen');
+        },
+      },
+    },
+    {
+      id: 'eber', name: 'Wappen des Ebers', zeichen: '🐗', tinktur: '#6b3a2a',
+      seltenheit: 'ungewoehnlich',
+      text: 'Eine ersetzte Einheit feuert ein letztes Mal.',
+      hinweis: 'Alles, was Einheiten austauscht.',
+      hoert: {
+        [EREIGNIS.einheitErsetzt]: (lage) => {
+          if (lage.probe || !lage.daten.alt) return;
+          feuerEinzeln(lage.daten.alt, lage.daten.turm, 'Wappen des Ebers');
+        },
+      },
+    },
+    {
+      id: 'pulverhorn', name: 'Wappen des Pulverhorns', zeichen: '✸', tinktur: '#4a4a52',
+      seltenheit: 'ungewoehnlich',
+      text: 'Verbrennt alles Pulver: je Pulver +1 Salve.',
+      hinweis: 'Braucht ein Wappen, das Pulver macht. Ohne eines tut es nichts.',
+      hoert: {
+        [EREIGNIS.salveGeplant]: (lage) => {
+          const n = habe('pulver');
+          if (!n) return;
+          nimm(lage, 'pulver', n, 'verbrannt');
+          salvenDazu(lage, n, n + ' Pulver');
+        },
+      },
+    },
+    {
+      id: 'rabe', name: 'Wappen des Raben', zeichen: '🐦‍⬛', tinktur: '#2a2a32',
+      seltenheit: 'ungewoehnlich',
+      text: 'Führt die Wirkung des ersten Wappens ein zweites Mal aus.',
+      hinweis: 'Wertlos auf Platz 1. Setze links, was du doppelt willst.',
+      hoert: aufAllem((lage) => {
+        if (lage.platz === 0) return;
+        kopiere(lage, 0);
+      }),
+    },
+
+    // ======================= SELTEN =======================
+    {
+      /*
+       * Der Drache behauptete seit dem Salvenumbau eine Wirkung, die es nicht
+       * mehr gab: `retriggerFaktor` wurde nirgends gelesen. Er bekommt jetzt,
+       * was er immer versprochen hat - Verdopplung -, nur an einer Stelle, die
+       * es wirklich gibt.
+       */
       id: 'drache', name: 'Wappen des Drachen', zeichen: '🐉', tinktur: '#7a2a3a',
-      text: 'Jeder Nachschuss zählt doppelt.',
-      retriggerFaktor: (nummer) => (nummer % KERN.wappen.drache.jeder === 0 ? KERN.wappen.drache.faktor : 1),
+      seltenheit: 'selten',
+      text: 'Verdoppelt, was das Wappen links von ihm bewirkt hat.',
+      hinweis: 'Je stärker der linke Nachbar, desto stärker der Drache.',
+      hoert: aufAllem((lage) => { verstaerkeDavor(lage, 1); }),
     },
-  };
-  const WAPPEN_LISTE = Object.keys(WAPPEN);
-  const WAPPEN_PLAETZE = 5;
+    {
+      id: 'phoenix', name: 'Wappen des Phönix', zeichen: '🔥', tinktur: '#a85a1c',
+      seltenheit: 'selten',
+      text: 'Lässt das Wappen links von ihm noch einmal zünden.',
+      hinweis: 'Anders als der Drache: das Wappen prüft seine Bedingung neu.',
+      hoert: aufAllem((lage) => {
+        if (lage.platz <= 0) return;
+        zuendeErneut(lage, lage.platz - 1);
+      }),
+    },
+    {
+      id: 'siegel', name: 'Wappen des Siegels', zeichen: '⛓', tinktur: '#52525a',
+      seltenheit: 'selten',
+      text: 'Wappen rechts davon zünden erst, wenn der Gegner unter der Hälfte steht.',
+      hinweis: 'Ein Riegel. Was dahinter liegt, muss die zweite Hälfte wert sein.',
+      hoert: aufAllem((lage) => {
+        const f = lage.feind;
+        if (f && f.hp * 2 <= f.hpMax) return;
+        lage.abgebrochen = true;
+      }),
+    },
+    {
+      id: 'triumphbogen', name: 'Wappen des Triumphbogens', zeichen: '⛫', tinktur: '#8a7a4a',
+      seltenheit: 'selten',
+      text: 'Je 100 Verwüstung +1 Salve.',
+      hinweis: 'Braucht die Brandschatzung. Wächst über den ganzen Feldzug.',
+      hoert: {
+        [EREIGNIS.salveGeplant]: (lage) => {
+          const n = Math.floor(habe('verwuestung') / 100);
+          if (n) salvenDazu(lage, n, n + '00 Verwüstung');
+        },
+      },
+    },
 
-  // ===== quelle/kern/signale.js =====
-  // ---------- Signale ----------
-  /*
-   * Ein kleiner Ereignisbus. Wappen, Turmtypen und später Karten hängen sich
-   * hier ein, statt dass der Kampf ihre Namen kennt - sonst steht am Ende ein
-   * if/else-Block mit fünfzig Wappen-Kennungen mitten in der Regel.
-   *
-   * `signalTiefe` ist der Schutz gegen Ketten, die sich selbst auslösen: ein
-   * Wappen, das auf `einheitFeuert` hört und dabei feuern lässt, würde sonst
-   * das Blatt bis zum Stapelüberlauf beschäftigen.
-   */
-  const SIGNALE = ['rundeBeginnt', 'karteGezogen', 'karteGetauscht', 'einheitGesetzt',
-    'einheitErsetzt', 'einheitEntfernt', 'formationAktiv', 'einheitFeuert', 'nachschuss',
-    'salve', 'rundeEndet', 'feindBesiegt', 'kampfEndet'];
+    // ======================= LEGENDAER =======================
+    {
+      id: 'greif', name: 'Wappen des Greifen', zeichen: '🦁‍🦅', tinktur: '#9a6a1c',
+      seltenheit: 'legendaer',
+      text: 'Verdoppelt alles, was links von ihm steht.',
+      hinweis: 'Gehört ganz nach rechts. Auf Platz 1 ist er ein leeres Feld.',
+      hoert: aufAllem((lage) => { verstaerkeAlleDavor(lage, 1); }),
+    },
+  ];
 
-  let signalHoerer = {};
-  let signalTiefe = 0;
-  let signalUeberlauf = 0;
+  for (const w of alle) meldeWappen(w);
 
-  function hoereSignal(name, was) {
-    if (!signalHoerer[name]) signalHoerer[name] = [];
-    signalHoerer[name].push(was);
+  /** @type {Record<string, any>} */
+  const WAPPEN = {};
+  for (const w of alle) WAPPEN[w.id] = w;
+
+  const WAPPEN_LISTE = alle.map(w => w.id);
+  const WAPPEN_PLAETZE = PLAETZE;
+
+  /** Alle Wappen einer Seltenheit - fuer das Angebot nach einem Kampf. */
+  function wappenNach(seltenheit) {
+    return alle.filter(w => w.seltenheit === seltenheit).map(w => w.id);
   }
-
-  function sendeSignal(name, daten = {}) {
-    if (signalTiefe >= KERN.signalMaxTiefe) { signalUeberlauf++; return; }
-    signalTiefe++;
-    try {
-      for (const was of signalHoerer[name] || []) was(daten);
-    } finally { signalTiefe--; }
-  }
-
-  function leereSignale() { signalHoerer = {}; signalTiefe = 0; signalUeberlauf = 0; }
 
   // ===== quelle/kern/formationen.js =====
   // ---------- Formationen ----------
@@ -1281,21 +2305,33 @@
    * hier arbeitet auf MENGEN, nicht auf Nachbarschaft - deshalb ist
    * `7 / 3 / 6 / 12 / 5` genau dieselbe Folge wie `5 / 6 / 7`.
    */
-  function baueBlatt(tuerme, wappen = []) {
-    const rangFaktoren = wappen.map(w => WAPPEN[w] && WAPPEN[w].rangFaktor).filter(Boolean);
-    const doppelt = wappen
-      .map(w => (WAPPEN[w] ? WAPPEN[w].zaehltDoppelt : undefined))
-      .filter(i => i !== undefined);
+  function baueBlatt(tuerme, wappen = [], probe = true) {
     const alle = [];
     const karten = [];
-    tuerme.forEach((t, i) => {
-      if (!t || !t.einheit) return;
-      const rang = Math.round(rangFaktoren.reduce((r, f) => r * (f(t, i) || 1), t.einheit.rang));
-      alle.push(i);
-      karten.push({ turm: i, rang, gattung: t.einheit.gattung });
-      // Ein Wappen kann eine Stellung doppelt zaehlen lassen. Die Kopie traegt
-      // denselben Turm - so leuchtet beim Zuenden die richtige Stellung auf.
-      if (doppelt.includes(i)) karten.push({ turm: i, rang, gattung: t.einheit.gattung, kopie: true });
+    /*
+     * Bevor Muster gesucht werden, darf jede Stellung noch einmal durch die
+     * Wappenreihe. Hier aendern sich RAENGE und die Zahl der Kopien - was
+     * frueher `rangFaktor` und `zaehltDoppelt` waren, zwei Sonderhaken, die
+     * nur genau diese zwei Wappen bedienen konnten.
+     *
+     * Und weil es durch die Reihe geht, zaehlt die Reihenfolge: ein Wappen,
+     * das den Rang der mittleren Stellung verdreifacht, und eines, das +2 auf
+     * alle gibt, ergeben je nach Anordnung 3*(r+2) oder 3r+2.
+     */
+    mitReihe(wappen, () => {
+      tuerme.forEach((t, i) => {
+        if (!t || !t.einheit) return;
+        const lage = loeseAus(EREIGNIS.blattGelesen, {
+          turm: i, rang: t.einheit.rang, gattung: t.einheit.gattung, kopien: 0,
+        }, null, probe);
+        const rang = Math.max(1, Math.round(lage.daten.rang));
+        const gattung = lage.daten.gattung;
+        alle.push(i);
+        karten.push({ turm: i, rang, gattung });
+        // Eine Kopie traegt denselben Turm - so leuchtet beim Zuenden die
+        // richtige Stellung auf.
+        for (let n = 0; n < lage.daten.kopien; n++) karten.push({ turm: i, rang, gattung, kopie: true });
+      });
     });
 
     /** Die n haeufigste Gattung - wenn sie mindestens n mal vorkommt. */
@@ -1384,8 +2420,8 @@
    * Erkennen. Erst alles sammeln, was zutrifft, dann je Familie nur die hoechste
    * stehen lassen - und was eine Kroenung abloest, faellt mit.
    */
-  function erkenneFormationen(tuerme, wappen = []) {
-    const blatt = baueBlatt(tuerme, wappen);
+  function erkenneFormationen(tuerme, wappen = [], probe = true) {
+    const blatt = baueBlatt(tuerme, wappen, probe);
     if (!blatt.anzahl) return [];
 
     const treffer = [];
@@ -1435,10 +2471,29 @@
    * Gesamtfaktoren. Sie rechnete richtig, aber niemand konnte sie im Kopf
    * mitfuehren - und was man nicht mitfuehren kann, kann man auch nicht planen.
    */
-  function berechneWucht(tuerme, wappen = []) {
-    const formationen = erkenneFormationen(tuerme, wappen);
+  /**
+   * @param {any[]} tuerme
+   * @param {string[]} [wappen] die Reihe, in ihrer Ordnung
+   * @param {boolean} [probe] rechnen, ohne die Welt zu beruehren
+   *
+   * `probe` steht auf WAHR, und das ist Absicht. Die Anzeige fragt diese
+   * Rechnung dutzendfach je Sekunde (Vorschau, Leiste, Tafel); wuerde sie dabei
+   * Pulver verbrennen und ins Kampfprotokoll schreiben, waere nach einer Runde
+   * Mausbewegung nichts mehr richtig. Nur die Salve am Rundenende fragt echt.
+   */
+  function berechneWucht(tuerme, wappen = [], probe = true) {
+    return mitReihe(wappen, () => rechneSalve(tuerme, probe));
+  }
+
+  /** @param {any[]} tuerme @param {boolean} probe */
+  function rechneSalve(tuerme, probe) {
+    /*
+     * `null` und nicht `[]`: das Band steht schon (`mitReihe` oben hat es
+     * gesetzt), und eine leere LISTE hiesse ausdruecklich `ohne Wappen` - dann
+     * faende der Loewe die mittlere Stellung nicht mehr.
+     */
+    const formationen = erkenneFormationen(tuerme, null, probe);
     const besetzt = tuerme.map((t, i) => (t.einheit ? i : -1)).filter(i => i >= 0);
-    const salven = salvenZahl(formationen);
 
     const posten = besetzt.map(i => {
       const t = tuerme[i];
@@ -1448,38 +2503,86 @@
         // Beide Zahlen mitfuehren: die Anzeige soll `9 +4` schreiben koennen,
         // ohne selbst zu rechnen.
         grund: t.einheit.grundwucht, bonus: bonusWucht(t.einheit),
-        basis, turmFaktor: tf, wucht: basis * tf, faktoren: [], schuesse: salven };
+        basis, turmFaktor: tf, wucht: basis * tf, faktoren: [], schuesse: 0 };
     });
 
     const schritte = [];
     const grundsumme = posten.reduce((s, p) => s + p.wucht, 0);
     schritte.push({ art: 'grund', name: 'Wucht je Salve', wert: null, wucht: grundsumme });
 
+    // Die Salven, die aus den Formationen kommen - noch ohne Wappen.
+    const ausFormationen = salvenZahl(formationen);
     for (const f of formationen) {
       schritte.push({ art: 'formation', id: f.id, name: f.name, wert: '+' + f.salven,
-        salven: f.salven, wucht: grundsumme * salven });
+        salven: f.salven, wucht: grundsumme * ausFormationen });
     }
-    schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
-      salven, wucht: grundsumme * salven });
 
-    let gesamt = grundsumme * salven;
-    const ctx = { tuerme, wappen };
-    for (const w of wappen) {
-      const fn = WAPPEN[w] && WAPPEN[w].gesamtFaktor;
-      if (!fn) continue;
-      const faktor = fn(ctx) || 1;
-      if (faktor === 1) continue;
-      gesamt *= faktor;
-      schritte.push({ art: 'wappen', id: w, name: WAPPEN[w].name, wert: '×' + faktor, wucht: gesamt });
+    /*
+     * Und jetzt durch die Wappenreihe, von links nach rechts.
+     *
+     * `jeSalve` und `zusatz` sind die Wucht EINES Schusses, `salven` die Zahl
+     * der Schuesse, `faktor` was am Ende ueber allem steht. Drei Stellschrauben
+     * und nicht dreissig - so bleibt die Kette lesbar, egal wie viele Wappen
+     * daran ziehen:
+     *
+     *     (jeSalve + zusatz) x salven x faktor
+     */
+    const lage = loeseAus(EREIGNIS.salveGeplant, {
+      tuerme, posten, formationen,
+      salven: ausFormationen,
+      jeSalve: grundsumme,
+      zusatz: 0,
+      faktor: 1,
+    }, null, probe);
+
+    const salven = Math.max(0, Math.round(lage.daten.salven));
+    const jeSalve = Math.max(0, lage.daten.jeSalve + lage.daten.zusatz);
+    for (const p of posten) p.schuesse = salven;
+
+    schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
+      salven, wucht: jeSalve * salven });
+
+    /*
+     * Was die Wappen getan haben, kommt als Schritte in dieselbe Liste - die
+     * Tafel zeigt also nicht mehr nur `Wappen x2`, sondern welches Wappen auf
+     * welchem Platz was getan hat. Genau das war vorher nicht zu sehen.
+     */
+    let gesamt = jeSalve * salven;
+    for (const z of lage.protokoll) {
+      if (z.abgewiesen || !z.wirkungen.length) continue;
+      for (const w of z.wirkungen) {
+        if (w.art === 'faktor') gesamt *= w.wert;
+      }
+      schritte.push({
+        art: 'wappen', id: z.id, name: z.name, platz: z.platz, zuendart: z.art,
+        wert: beschreibeWirkungen(z.wirkungen), wucht: gesamt,
+      });
     }
 
     return {
       posten, formationen, schritte, salven,
       grund: posten.reduce((s, p) => s + p.basis, 0),
-      jeSalve: Math.round(grundsumme),
+      jeSalve: Math.round(jeSalve),
       wucht: Math.round(gesamt),
+      protokoll: lage.protokoll,
+      kette: fasseZusammen(lage),
     };
   }
+
+  /** Was ein Wappen getan hat, in einer Zeile fuer die Tafel. */
+  function beschreibeWirkungen(wirkungen) {
+    const teile = [];
+    for (const w of wirkungen) {
+      if (w.art === 'salven') teile.push((w.wert > 0 ? '+' : '') + rund(w.wert) + ' Salven');
+      else if (w.art === 'salvenFaktor') teile.push('×' + rund(w.wert) + ' Salven');
+      else if (w.art === 'zusatz') teile.push((w.wert > 0 ? '+' : '') + rund(w.wert));
+      else if (w.art === 'faktor') teile.push('×' + rund(w.wert));
+      else if (w.art === 'vorrat') teile.push((w.wert.menge > 0 ? '+' : '') + w.wert.menge + ' ' + w.wert.art);
+    }
+    return teile.join(' · ');
+  }
+
+  const rund = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0$/, ''));
 
   // ===== quelle/kern/kampf.js =====
   // ---------- Der Kampf ----------
@@ -1496,7 +2599,6 @@
 
   /** @param {import('./typen.js').Kampfauftrag} [auftrag] */
   function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null } = {}) {
-    leereSignale();
     /*
      * `stellungen` sind die Turmobjekte, die die Anzeige ohnehin schon hat -
      * mit Feld, Modell und allem, was zum Zeichnen gehört. Der Kern hängt seine
@@ -1513,6 +2615,16 @@
     const tuerme = roh
       .slice(0, KERN.tuerme)
       .map((t, i) => Object.assign(t, { nr: i + 1, typ: t.typ || turmTypen[i] || 'wachturm', einheit: null }));
+    const gegner = feind || baueFeind(1);
+    /*
+     * Das Band traegt die Reihenfolge, und `k.wappen` IST seine Liste - nicht
+     * eine Kopie davon. Sonst haette der Kampf eine Ordnung und das Band eine
+     * andere, und ein Zug am Gestell aenderte nur eine von beiden.
+     */
+    const band = neuesBand(wappen.slice(0, WAPPEN_PLAETZE), gegner);
+    if (!derVorrat) neuerVorrat();
+    frischerKampfvorrat();
+
     const k = {
       runde: 1,
       rundenMax: KERN.runden,
@@ -1523,21 +2635,22 @@
       zug: (deck || START_DECK.map(id => neueEinheit(id))).slice(),
       hand: [],
       ablage: [],
-      wappen: wappen.slice(0, WAPPEN_PLAETZE),
-      feind: feind || baueFeind(1),
+      wappen: band.reihe,
+      feind: gegner,
       ende: null,           // null | 'sieg' | 'niederlage'
       log: [],              // was in dieser Runde geschah, für Anzeige und Prüfung
     };
     derKampf = k;
     mischeZug();
-    // Wappen hängen sich ein, sobald der Kampf steht - nicht der Kampf kennt sie.
-    for (const w of k.wappen) {
-      const horcht = WAPPEN[w] && WAPPEN[w].horcht;
-      for (const name in horcht || {}) hoereSignal(name, horcht[name]);
-    }
-    sendeSignal('rundeBeginnt', { runde: 1 });
-    zieheAuf(KERN.handGroesse);
+    loeseAus(EREIGNIS.kampfBeginnt, { feind: gegner });
+    beginneRunde(1);
     return k;
+  }
+
+  /** Rundenanfang an einer Stelle: Wappen duerfen sagen, wie viel gezogen wird. */
+  function beginneRunde(runde) {
+    const lage = loeseAus(EREIGNIS.rundeBeginnt, { runde, ziehen: KERN.handGroesse });
+    zieheAuf(Math.max(1, Math.round(lage.daten.ziehen)));
   }
 
   function mischeZug() {
@@ -1558,7 +2671,7 @@
       mischeZug();
     }
     const karte = k.zug.pop();
-    if (karte) { k.hand.push(karte); sendeSignal('karteGezogen', { karte }); }
+    if (karte) { k.hand.push(karte); loeseAus(EREIGNIS.karteGezogen, { karte }); }
     return karte;
   }
 
@@ -1598,10 +2711,9 @@
     turm.einheit = inHand;
     if (alt) {
       k.ablage.push(alt);
-      sendeSignal('einheitErsetzt', { turm: index, alt, neu: inHand });
-      sendeSignal('einheitEntfernt', { turm: index, einheit: alt });
+      loeseAus(EREIGNIS.einheitErsetzt, { turm: index, alt, neu: inHand });
     }
-    sendeSignal('einheitGesetzt', { turm: index, einheit: inHand });
+    loeseAus(EREIGNIS.einheitGesetzt, { turm: index, einheit: inHand });
     const schaden = schiesseEinzeln(inHand, index, 'Einsatz');
     return { ok: true, kosten, ersetzt: alt, schaden };
   }
@@ -1616,7 +2728,6 @@
     if (!k || k.ende) return 0;
     const turm = k.tuerme[index] || { typ: 'wachturm', einheit };
     const wucht = Math.round(grundwucht(einheit) * turmFaktor({ ...turm, einheit }));
-    sendeSignal('einheitFeuert', { turm: index, einheit, wucht, quelle });
     trefferAufFeind(wucht, quelle);
     k.log.push({ art: 'schuss', quelle, turm: index, einheit: einheit.name, wucht });
     return wucht;
@@ -1628,7 +2739,7 @@
     if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
     const inHand = k.hand.find(c => c.uid === karte.uid);
     if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
-    const kosten = Math.max(0, KERN.kosten.tauschen - tauschRabatt());
+    const kosten = tauschKostenFuer(1);
     if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
 
     k.tatendrang -= kosten;
@@ -1636,11 +2747,9 @@
     k.hand = k.hand.filter(c => c.uid !== karte.uid);
     k.ablage.push(inHand);
     const neu = ziehe();
-    sendeSignal('karteGetauscht', { alt: inHand, neu });
     return { ok: true, kosten, neu };
   }
 
-  /** Was der Tausch gerade billiger ist - das Schlangenwappen zahlt den ersten. */
   /*
    * Mehrere Handkarten auf einmal tauschen. Jede kostet fuer sich, der Rabatt
    * der Schlange greift also nur auf die ersten.
@@ -1672,47 +2781,69 @@
       if (g) neu.push(g);
     }
     k.ablage.push(...liste);          // erst JETZT, nach dem Nachziehen
-    sendeSignal('karteGetauscht', { alt: liste, neu });
     return { ok: true, kosten, alt: liste, neu };
   }
 
   /*
-   * Was n Tausche zusammen kosten. Der Rabatt der Schlange gilt je Tausch und
-   * nur solange er reicht - drei Karten bei zwei freien Tauschen kosten eins.
+   * Was ein Tausch kostet, entscheidet die Wappenreihe. Vorher gab es dafuer
+   * einen eigenen Haken (`tauschRabatt`), den genau ein Wappen bediente und
+   * den niemand verstaerken, kopieren oder versiegeln konnte.
+   *
+   * Jetzt ist es ein Ereignis wie jedes andere: `kartenGetauscht` geht mit dem
+   * vollen Preis hinein und kommt mit dem echten heraus. Es laeuft als PROBE -
+   * die Anzeige fragt bei jedem Klick auf eine Handkarte nach dem Preis, und
+   * das darf weder Pulver kosten noch im Protokoll stehen.
+   */
+  /** @param {number} schonGetauscht @param {number} [anzahl] */
+  function tauschpreis(schonGetauscht, anzahl = 1) {
+    const lage = loeseAus(EREIGNIS.kartenGetauscht,
+      { anzahl, schonGetauscht, kosten: KERN.kosten.tauschen }, null, true);
+    return Math.max(0, Math.round(lage.daten.kosten));
+  }
+
+  /*
+   * Was n Tausche zusammen kosten. Der Rabatt gilt je Tausch und nur solange
+   * er reicht - drei Karten bei zwei freien Tauschen kosten eins.
    */
   function tauschKostenFuer(n) {
     const k = derKampf;
     if (!k) return n * KERN.kosten.tauschen;
     let summe = 0;
-    const gemerkt = k.tauschInRunde;
-    for (let i = 0; i < n; i++) {
-      k.tauschInRunde = gemerkt + i;
-      summe += Math.max(0, KERN.kosten.tauschen - tauschRabatt());
-    }
-    k.tauschInRunde = gemerkt;
+    for (let i = 0; i < n; i++) summe += tauschpreis(k.tauschInRunde + i, n);
     return summe;
   }
 
-  function tauschRabatt() {
-    const k = derKampf;
-    return k.wappen.reduce((r, w) => {
-      const fn = WAPPEN[w] && WAPPEN[w].tauschRabatt;
-      return Math.max(r, fn ? fn(k) : 0);
-    }, 0);
-  }
+  /** Wie viel der naechste einzelne Tausch kostet. */
+  function tauschKosten() { return tauschKostenFuer(1); }
 
-  function tauschKosten() { return Math.max(0, KERN.kosten.tauschen - tauschRabatt()); }
-
-  /** Schaden am Gegner, an einer einzigen Stelle - damit der Sieg nur hier fällt. */
+  /*
+   * Schaden am Gegner, an einer einzigen Stelle - damit der Sieg nur hier faellt
+   * und damit es genau EINEN Ort gibt, an dem Wappen einen Treffer noch
+   * anfassen koennen.
+   *
+   * Drei Ereignisse hintereinander, und die Reihenfolge ist die Geschichte des
+   * Treffers: er wird gefuehrt (`feindGetroffen`, hier laesst sich die Wucht
+   * noch aendern), er geht ueber das Ziel hinaus (`ueberschlag`, was die
+   * Brandschatzung einsammelt), er faellt (`feindBesiegt`).
+   */
   function trefferAufFeind(wucht, quelle) {
     const k = derKampf;
-    if (!k || k.ende || wucht <= 0) return;
-    k.feind.hp = Math.max(0, k.feind.hp - wucht);
+    if (!k || k.ende || wucht <= 0) return 0;
+
+    const lage = loeseAus(EREIGNIS.feindGetroffen, { wucht, quelle });
+    const echt = Math.max(0, Math.round(lage.daten.wucht));
+    if (echt <= 0) return 0;
+
+    const ueber = echt - k.feind.hp;
+    k.feind.hp = Math.max(0, k.feind.hp - echt);
+    if (ueber > 0) loeseAus(EREIGNIS.ueberschlag, { ueber, quelle });
+
     if (k.feind.hp <= 0 && !k.ende) {
       k.ende = 'sieg';
-      sendeSignal('feindBesiegt', { quelle });
-      sendeSignal('kampfEndet', { ende: 'sieg' });
+      loeseAus(EREIGNIS.feindBesiegt, { quelle });
+      loeseAus(EREIGNIS.kampfEndet, { ende: 'sieg' });
     }
+    return echt;
   }
 
   /**
@@ -1724,16 +2855,19 @@
     const k = derKampf;
     if (!k || k.ende) return { ende: k && k.ende };
 
-    const abrechnung = berechneWucht(k.tuerme, k.wappen);
-    sendeSignal('salve', { wucht: abrechnung.wucht });
+    // Diese eine Rechnung ist KEINE Probe: hier wird Pulver wirklich verbrannt
+    // und hier steht das Kampfprotokoll.
+    const abrechnung = berechneWucht(k.tuerme, k.wappen, false);
+    loeseAus(EREIGNIS.salveGefeuert, { wucht: abrechnung.wucht, salven: abrechnung.salven });
     trefferAufFeind(abrechnung.wucht, 'Salve');
-    k.log.push({ art: 'salve', runde: k.runde, wucht: abrechnung.wucht });
-    sendeSignal('rundeEndet', { runde: k.runde, wucht: abrechnung.wucht });
+    k.log.push({ art: 'salve', runde: k.runde, wucht: abrechnung.wucht,
+      salven: abrechnung.salven, kette: abrechnung.kette });
+    loeseAus(EREIGNIS.rundeEndet, { runde: k.runde, wucht: abrechnung.wucht });
 
     if (k.ende === 'sieg') return { ende: 'sieg', abrechnung };
     if (k.runde >= k.rundenMax) {
       k.ende = 'niederlage';
-      sendeSignal('kampfEndet', { ende: 'niederlage' });
+      loeseAus(EREIGNIS.kampfEndet, { ende: 'niederlage' });
       return { ende: 'niederlage', abrechnung };
     }
 
@@ -1743,8 +2877,7 @@
     k.runde++;
     k.tatendrang = k.tatendrangMax;
     k.tauschInRunde = 0;
-    sendeSignal('rundeBeginnt', { runde: k.runde });
-    zieheAuf(KERN.handGroesse);
+    beginneRunde(k.runde);
     return { ende: null, abrechnung, runde: k.runde };
   }
 
@@ -1756,14 +2889,14 @@
   function vorschau(index, karte) {
     const k = derKampf;
     const probe = k.tuerme.map((t, i) => (i === index ? { ...t, einheit: karte } : { ...t }));
-    return berechneWucht(probe, k.wappen);
+    return berechneWucht(probe, k.wappen, true);
   }
 
   /** Der Kampf ist vorbei: die Besatzung räumt die Türme, die Gebäude bleiben. */
   function raeumeKampf() {
     if (!derKampf) return;
     for (const t of derKampf.tuerme) t.einheit = null;
-    leereSignale();
+    raeumeBand();
   }
 
   // ===== quelle/kern/lauf.js =====
@@ -2271,20 +3404,25 @@
    */
   if (typeof window !== 'undefined') {
     window.PARAPEX = {
-      BEGEGNUNGEN, EINHEITEN_POOL, FAMILIEN_ZEICHEN, FEIND_STAERKE, FORMATIONEN,
-      FORMATIONS_FAMILIEN, GATTUNGEN, GATTUNG_LISTE, KERN, KNOTEN_ARTEN, KOENIGSRAENGE,
-      LAUF, RANG_NAMEN, SIGNALE, START_DECK, TURMTYPEN, TURM_START, WAPPEN, WAPPEN_LISTE,
-      WAPPEN_PLAETZE, baueBelohnung, baueBlatt, baueFeind, baueTurmAus, beendeRunde,
-      beginneKampfAmKnoten, berechneWucht, bonusWucht, derKampf, derKnoten, derLauf,
-      entferneKarte, erkenneFormationen, feindStaerke, formationsSalven, fuegeWappenHinzu,
-      grundwucht, hoereSignal, kaufe, leereSignale, neueEinheit, neuerKampf, neuerLauf,
-      nimmAngebot, oeffneHaendler, raeumeKampf, salvenZahl, schleifeKarte, sendeSignal,
-      setzeEinheit, signalUeberlauf, tauschKosten, tauschKostenFuer, tauscheHandkarte,
-      tauscheHandkarten, turmFaktor, verbessereEinheit, verlasseKnoten, vorschau,
-      waehleInBegegnung, werteKampfAus, wirkwucht, ziehBegegnung, ziehe, zieheAuf,
+      BEGEGNUNGEN, EINHEITEN_POOL, EREIGNIS, EREIGNIS_LISTE, FAMILIEN_ZEICHEN,
+      FEIND_STAERKE, FORMATIONEN, FORMATIONS_FAMILIEN, GATTUNGEN, GATTUNG_LISTE,
+      GRENZEN, KERN, KNOTEN_ARTEN, KOENIGSRAENGE, LAUF, PLAETZE, RANG_NAMEN, SELTENHEITEN,
+      START_DECK, TURMTYPEN, TURM_START, VORRAT_ARTEN, WAPPEN, WAPPEN_LISTE, WAPPEN_PLAETZE,
+      WAPPEN_REGISTER, ZUENDART, abgewiesene, abweisungen, aufAllem, baueBelohnung,
+      baueBlatt, baueFeind, baueTurmAus, beendeRunde, beginneKampfAmKnoten, berechneWucht,
+      bestand, bonusWucht, dasBand, derKampf, derKnoten, derLauf, derVorrat, entferneKarte,
+      entsiegle, erkenneFormationen, fasseZusammen, feindStaerke, formationsSalven,
+      frischerKampfvorrat, fuegeWappenHinzu, grundwucht, kaufe, kopiere, lautesterPlatz,
+      lege, loeseAus, meldeWappen, mitReihe, neueEinheit, neuerKampf, neuerLauf,
+      neuerVorrat, neuesBand, nimmAngebot, oeffneHaendler, raeumeBand, raeumeKampf,
+      reicht, reihe, salvenZahl, schleifeKarte, setzeEinheit, sichtbarerVorrat,
+      siegelePlatz, tauschKosten, tauschKostenFuer, tauscheHandkarte, tauscheHandkarten,
+      turmFaktor, verbessereEinheit, verlasseKnoten, verschiebePlatz, vertauschePlaetze,
+      vorschau, waehleInBegegnung, wappenNach, werteKampfAus, wirkwucht, zehre,
+      ziehBegegnung, ziehe, zieheAuf, zuendeErneut,
       kampf: () => derKampf,
       lauf: () => derLauf,
-      ueberlauf: () => signalUeberlauf,
+      ueberlauf: () => abgewiesene(),
     };
   }
   /* ---- Ende des gebauten Kerns ---- */

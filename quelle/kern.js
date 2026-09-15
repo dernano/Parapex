@@ -16,8 +16,18 @@ export {
 } from './kern/einheiten.js';
 export { TURMTYPEN, TURM_START, turmFaktor } from './kern/tuerme.js';
 export { FEIND_STAERKE, feindStaerke, baueFeind } from './kern/feinde.js';
-export { WAPPEN, WAPPEN_LISTE, WAPPEN_PLAETZE } from './kern/wappen.js';
-export { SIGNALE, signalUeberlauf, hoereSignal, sendeSignal, leereSignale } from './kern/signale.js';
+export { EREIGNIS, EREIGNIS_LISTE, VORRAT_ARTEN } from './wappen/ereignisse.js';
+export {
+  PLAETZE, ZUENDART, GRENZEN, WAPPEN_REGISTER, dasBand, neuesBand, raeumeBand,
+  reihe, vertauschePlaetze, verschiebePlatz, siegelePlatz, entsiegle, lautesterPlatz,
+  loeseAus, zuendeErneut, kopiere, fasseZusammen, abgewiesene, abweisungen,
+  meldeWappen, mitReihe, aufAllem,
+} from './wappen/fliessband.js';
+export {
+  derVorrat, neuerVorrat, frischerKampfvorrat, bestand, lege, zehre, reicht,
+  sichtbarerVorrat,
+} from './wappen/vorrat.js';
+export { WAPPEN, WAPPEN_LISTE, WAPPEN_PLAETZE, SELTENHEITEN, wappenNach } from './wappen/sammlung.js';
 export {
   FORMATIONEN, FORMATIONS_FAMILIEN, FAMILIEN_ZEICHEN, KOENIGSRAENGE,
   baueBlatt, erkenneFormationen, salvenZahl, formationsSalven,

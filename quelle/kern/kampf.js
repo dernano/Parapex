@@ -2,8 +2,10 @@ import { KERN } from './regeln.js';
 import { START_DECK, grundwucht, neueEinheit } from './einheiten.js';
 import { TURM_START, turmFaktor } from './tuerme.js';
 import { baueFeind } from './feinde.js';
-import { WAPPEN, WAPPEN_PLAETZE, setzeEinzelschuss } from './wappen.js';
-import { hoereSignal, leereSignale, sendeSignal } from './signale.js';
+import { WAPPEN_PLAETZE, setzeEinzelschuss } from '../wappen/sammlung.js';
+import { EREIGNIS } from '../wappen/ereignisse.js';
+import { loeseAus, neuesBand, raeumeBand } from '../wappen/fliessband.js';
+import { frischerKampfvorrat, neuerVorrat, derVorrat } from '../wappen/vorrat.js';
 import { berechneWucht } from './wucht.js';
 
 // ---------- Der Kampf ----------
@@ -20,7 +22,6 @@ setzeEinzelschuss((einheit, index, quelle) => schiesseEinzeln(einheit, index, qu
 
 /** @param {import('./typen.js').Kampfauftrag} [auftrag] */
 export function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null } = {}) {
-  leereSignale();
   /*
    * `stellungen` sind die Turmobjekte, die die Anzeige ohnehin schon hat -
    * mit Feld, Modell und allem, was zum Zeichnen gehört. Der Kern hängt seine
@@ -37,6 +38,16 @@ export function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, s
   const tuerme = roh
     .slice(0, KERN.tuerme)
     .map((t, i) => Object.assign(t, { nr: i + 1, typ: t.typ || turmTypen[i] || 'wachturm', einheit: null }));
+  const gegner = feind || baueFeind(1);
+  /*
+   * Das Band traegt die Reihenfolge, und `k.wappen` IST seine Liste - nicht
+   * eine Kopie davon. Sonst haette der Kampf eine Ordnung und das Band eine
+   * andere, und ein Zug am Gestell aenderte nur eine von beiden.
+   */
+  const band = neuesBand(wappen.slice(0, WAPPEN_PLAETZE), gegner);
+  if (!derVorrat) neuerVorrat();
+  frischerKampfvorrat();
+
   const k = {
     runde: 1,
     rundenMax: KERN.runden,
@@ -47,21 +58,22 @@ export function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, s
     zug: (deck || START_DECK.map(id => neueEinheit(id))).slice(),
     hand: [],
     ablage: [],
-    wappen: wappen.slice(0, WAPPEN_PLAETZE),
-    feind: feind || baueFeind(1),
+    wappen: band.reihe,
+    feind: gegner,
     ende: null,           // null | 'sieg' | 'niederlage'
     log: [],              // was in dieser Runde geschah, für Anzeige und Prüfung
   };
   derKampf = k;
   mischeZug();
-  // Wappen hängen sich ein, sobald der Kampf steht - nicht der Kampf kennt sie.
-  for (const w of k.wappen) {
-    const horcht = WAPPEN[w] && WAPPEN[w].horcht;
-    for (const name in horcht || {}) hoereSignal(name, horcht[name]);
-  }
-  sendeSignal('rundeBeginnt', { runde: 1 });
-  zieheAuf(KERN.handGroesse);
+  loeseAus(EREIGNIS.kampfBeginnt, { feind: gegner });
+  beginneRunde(1);
   return k;
+}
+
+/** Rundenanfang an einer Stelle: Wappen duerfen sagen, wie viel gezogen wird. */
+function beginneRunde(runde) {
+  const lage = loeseAus(EREIGNIS.rundeBeginnt, { runde, ziehen: KERN.handGroesse });
+  zieheAuf(Math.max(1, Math.round(lage.daten.ziehen)));
 }
 
 export function mischeZug() {
@@ -82,7 +94,7 @@ export function ziehe() {
     mischeZug();
   }
   const karte = k.zug.pop();
-  if (karte) { k.hand.push(karte); sendeSignal('karteGezogen', { karte }); }
+  if (karte) { k.hand.push(karte); loeseAus(EREIGNIS.karteGezogen, { karte }); }
   return karte;
 }
 
@@ -122,10 +134,9 @@ export function setzeEinheit(index, karte) {
   turm.einheit = inHand;
   if (alt) {
     k.ablage.push(alt);
-    sendeSignal('einheitErsetzt', { turm: index, alt, neu: inHand });
-    sendeSignal('einheitEntfernt', { turm: index, einheit: alt });
+    loeseAus(EREIGNIS.einheitErsetzt, { turm: index, alt, neu: inHand });
   }
-  sendeSignal('einheitGesetzt', { turm: index, einheit: inHand });
+  loeseAus(EREIGNIS.einheitGesetzt, { turm: index, einheit: inHand });
   const schaden = schiesseEinzeln(inHand, index, 'Einsatz');
   return { ok: true, kosten, ersetzt: alt, schaden };
 }
@@ -140,7 +151,6 @@ export function schiesseEinzeln(einheit, index, quelle) {
   if (!k || k.ende) return 0;
   const turm = k.tuerme[index] || { typ: 'wachturm', einheit };
   const wucht = Math.round(grundwucht(einheit) * turmFaktor({ ...turm, einheit }));
-  sendeSignal('einheitFeuert', { turm: index, einheit, wucht, quelle });
   trefferAufFeind(wucht, quelle);
   k.log.push({ art: 'schuss', quelle, turm: index, einheit: einheit.name, wucht });
   return wucht;
@@ -152,7 +162,7 @@ export function tauscheHandkarte(karte) {
   if (!k || k.ende) return { ok: false, grund: 'Der Kampf ist vorbei.' };
   const inHand = k.hand.find(c => c.uid === karte.uid);
   if (!inHand) return { ok: false, grund: 'Diese Karte liegt nicht auf der Hand.' };
-  const kosten = Math.max(0, KERN.kosten.tauschen - tauschRabatt());
+  const kosten = tauschKostenFuer(1);
   if (kostetZuViel(kosten)) return { ok: false, grund: 'Nicht genug Tatendrang.' };
 
   k.tatendrang -= kosten;
@@ -160,11 +170,9 @@ export function tauscheHandkarte(karte) {
   k.hand = k.hand.filter(c => c.uid !== karte.uid);
   k.ablage.push(inHand);
   const neu = ziehe();
-  sendeSignal('karteGetauscht', { alt: inHand, neu });
   return { ok: true, kosten, neu };
 }
 
-/** Was der Tausch gerade billiger ist - das Schlangenwappen zahlt den ersten. */
 /*
  * Mehrere Handkarten auf einmal tauschen. Jede kostet fuer sich, der Rabatt
  * der Schlange greift also nur auf die ersten.
@@ -196,47 +204,69 @@ export function tauscheHandkarten(karten) {
     if (g) neu.push(g);
   }
   k.ablage.push(...liste);          // erst JETZT, nach dem Nachziehen
-  sendeSignal('karteGetauscht', { alt: liste, neu });
   return { ok: true, kosten, alt: liste, neu };
 }
 
 /*
- * Was n Tausche zusammen kosten. Der Rabatt der Schlange gilt je Tausch und
- * nur solange er reicht - drei Karten bei zwei freien Tauschen kosten eins.
+ * Was ein Tausch kostet, entscheidet die Wappenreihe. Vorher gab es dafuer
+ * einen eigenen Haken (`tauschRabatt`), den genau ein Wappen bediente und
+ * den niemand verstaerken, kopieren oder versiegeln konnte.
+ *
+ * Jetzt ist es ein Ereignis wie jedes andere: `kartenGetauscht` geht mit dem
+ * vollen Preis hinein und kommt mit dem echten heraus. Es laeuft als PROBE -
+ * die Anzeige fragt bei jedem Klick auf eine Handkarte nach dem Preis, und
+ * das darf weder Pulver kosten noch im Protokoll stehen.
+ */
+/** @param {number} schonGetauscht @param {number} [anzahl] */
+function tauschpreis(schonGetauscht, anzahl = 1) {
+  const lage = loeseAus(EREIGNIS.kartenGetauscht,
+    { anzahl, schonGetauscht, kosten: KERN.kosten.tauschen }, null, true);
+  return Math.max(0, Math.round(lage.daten.kosten));
+}
+
+/*
+ * Was n Tausche zusammen kosten. Der Rabatt gilt je Tausch und nur solange
+ * er reicht - drei Karten bei zwei freien Tauschen kosten eins.
  */
 export function tauschKostenFuer(n) {
   const k = derKampf;
   if (!k) return n * KERN.kosten.tauschen;
   let summe = 0;
-  const gemerkt = k.tauschInRunde;
-  for (let i = 0; i < n; i++) {
-    k.tauschInRunde = gemerkt + i;
-    summe += Math.max(0, KERN.kosten.tauschen - tauschRabatt());
-  }
-  k.tauschInRunde = gemerkt;
+  for (let i = 0; i < n; i++) summe += tauschpreis(k.tauschInRunde + i, n);
   return summe;
 }
 
-export function tauschRabatt() {
-  const k = derKampf;
-  return k.wappen.reduce((r, w) => {
-    const fn = WAPPEN[w] && WAPPEN[w].tauschRabatt;
-    return Math.max(r, fn ? fn(k) : 0);
-  }, 0);
-}
+/** Wie viel der naechste einzelne Tausch kostet. */
+export function tauschKosten() { return tauschKostenFuer(1); }
 
-export function tauschKosten() { return Math.max(0, KERN.kosten.tauschen - tauschRabatt()); }
-
-/** Schaden am Gegner, an einer einzigen Stelle - damit der Sieg nur hier fällt. */
+/*
+ * Schaden am Gegner, an einer einzigen Stelle - damit der Sieg nur hier faellt
+ * und damit es genau EINEN Ort gibt, an dem Wappen einen Treffer noch
+ * anfassen koennen.
+ *
+ * Drei Ereignisse hintereinander, und die Reihenfolge ist die Geschichte des
+ * Treffers: er wird gefuehrt (`feindGetroffen`, hier laesst sich die Wucht
+ * noch aendern), er geht ueber das Ziel hinaus (`ueberschlag`, was die
+ * Brandschatzung einsammelt), er faellt (`feindBesiegt`).
+ */
 export function trefferAufFeind(wucht, quelle) {
   const k = derKampf;
-  if (!k || k.ende || wucht <= 0) return;
-  k.feind.hp = Math.max(0, k.feind.hp - wucht);
+  if (!k || k.ende || wucht <= 0) return 0;
+
+  const lage = loeseAus(EREIGNIS.feindGetroffen, { wucht, quelle });
+  const echt = Math.max(0, Math.round(lage.daten.wucht));
+  if (echt <= 0) return 0;
+
+  const ueber = echt - k.feind.hp;
+  k.feind.hp = Math.max(0, k.feind.hp - echt);
+  if (ueber > 0) loeseAus(EREIGNIS.ueberschlag, { ueber, quelle });
+
   if (k.feind.hp <= 0 && !k.ende) {
     k.ende = 'sieg';
-    sendeSignal('feindBesiegt', { quelle });
-    sendeSignal('kampfEndet', { ende: 'sieg' });
+    loeseAus(EREIGNIS.feindBesiegt, { quelle });
+    loeseAus(EREIGNIS.kampfEndet, { ende: 'sieg' });
   }
+  return echt;
 }
 
 /**
@@ -248,16 +278,19 @@ export function beendeRunde() {
   const k = derKampf;
   if (!k || k.ende) return { ende: k && k.ende };
 
-  const abrechnung = berechneWucht(k.tuerme, k.wappen);
-  sendeSignal('salve', { wucht: abrechnung.wucht });
+  // Diese eine Rechnung ist KEINE Probe: hier wird Pulver wirklich verbrannt
+  // und hier steht das Kampfprotokoll.
+  const abrechnung = berechneWucht(k.tuerme, k.wappen, false);
+  loeseAus(EREIGNIS.salveGefeuert, { wucht: abrechnung.wucht, salven: abrechnung.salven });
   trefferAufFeind(abrechnung.wucht, 'Salve');
-  k.log.push({ art: 'salve', runde: k.runde, wucht: abrechnung.wucht });
-  sendeSignal('rundeEndet', { runde: k.runde, wucht: abrechnung.wucht });
+  k.log.push({ art: 'salve', runde: k.runde, wucht: abrechnung.wucht,
+    salven: abrechnung.salven, kette: abrechnung.kette });
+  loeseAus(EREIGNIS.rundeEndet, { runde: k.runde, wucht: abrechnung.wucht });
 
   if (k.ende === 'sieg') return { ende: 'sieg', abrechnung };
   if (k.runde >= k.rundenMax) {
     k.ende = 'niederlage';
-    sendeSignal('kampfEndet', { ende: 'niederlage' });
+    loeseAus(EREIGNIS.kampfEndet, { ende: 'niederlage' });
     return { ende: 'niederlage', abrechnung };
   }
 
@@ -267,8 +300,7 @@ export function beendeRunde() {
   k.runde++;
   k.tatendrang = k.tatendrangMax;
   k.tauschInRunde = 0;
-  sendeSignal('rundeBeginnt', { runde: k.runde });
-  zieheAuf(KERN.handGroesse);
+  beginneRunde(k.runde);
   return { ende: null, abrechnung, runde: k.runde };
 }
 
@@ -280,12 +312,12 @@ export function beendeRunde() {
 export function vorschau(index, karte) {
   const k = derKampf;
   const probe = k.tuerme.map((t, i) => (i === index ? { ...t, einheit: karte } : { ...t }));
-  return berechneWucht(probe, k.wappen);
+  return berechneWucht(probe, k.wappen, true);
 }
 
 /** Der Kampf ist vorbei: die Besatzung räumt die Türme, die Gebäude bleiben. */
 export function raeumeKampf() {
   if (!derKampf) return;
   for (const t of derKampf.tuerme) t.einheit = null;
-  leereSignale();
+  raeumeBand();
 }
