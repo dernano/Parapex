@@ -131,6 +131,9 @@ export function neuesBand(reihe = [], feind = null) {
 
 export function raeumeBand() { dasBand = null; laufende = null; }
 
+/** Ein gesichertes Band zuruecklegen - siehe `sichereVorrat` in vorrat.js. */
+export function stelleBandHer(b) { dasBand = b; laufende = null; }
+
 /**
  * Etwas mit einer bestimmten Reihenfolge rechnen, ohne das laufende Band zu
  * stoeren. Die Pruefungen und die Vorschau rufen `berechneWucht` mit einer

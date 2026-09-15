@@ -781,6 +781,14 @@
       einsetzen: 1,             // Einheit auf einen leeren Turm
       ersetzen: 1,              // Einheit auf einen besetzten Turm
       tauschen: 1,              // eine Handkarte gegen eine neue
+      /*
+       * Ein Wappen im Kampf umhaengen. Ausserhalb des Kampfes kostet es nichts -
+       * da ist die Ordnung eine Planungsfrage. IM Kampf muss sie etwas kosten,
+       * sonst waere jede Bossregel, die Plaetze vertauscht oder versiegelt, in
+       * dem Augenblick zahnlos, in dem sie greift: der Spieler zoege einmal und
+       * haette sie rueckgaengig gemacht.
+       */
+      umhaengen: 1,
     },
     /*
      * Der Turmtyp ist mit dem vollen Blatt die eigentliche Fortschrittsachse.
@@ -1204,6 +1212,9 @@
 
   function raeumeBand() { dasBand = null; laufende = null; }
 
+  /** Ein gesichertes Band zuruecklegen - siehe `sichereVorrat` in vorrat.js. */
+  function stelleBandHer(b) { dasBand = b; laufende = null; }
+
   /**
    * Etwas mit einer bestimmten Reihenfolge rechnen, ohne das laufende Band zu
    * stoeren. Die Pruefungen und die Vorschau rufen `berechneWucht` mit einer
@@ -1615,6 +1626,15 @@
     }
     return derVorrat;
   }
+
+  /*
+   * Sichern und zuruecklegen. Das Spiel RECHNET zwischendurch Proben - was ein
+   * Wappen an diesem Gestell brächte, misst die Belohnung, indem sie ganze
+   * Kaempfe durchspielt. Die duerfen den echten Vorrat nicht anfassen.
+   */
+  function sichereVorrat() { return derVorrat ? { ...derVorrat } : null; }
+  /** @param {Record<string, number> | null} v */
+  function stelleVorratHer(v) { derVorrat = v ? { ...v } : null; }
 
   /** @param {string} art */
   function bestand(art) { return (derVorrat && derVorrat[art]) || 0; }
@@ -2290,7 +2310,7 @@
       },
     },
     {
-      id: 'natter', name: 'Wappen der Natter', zeichen: '🐍', tinktur: '#3a6a3a',
+      id: 'natter', name: 'Wappen der Natter', zeichen: '🦎', tinktur: '#3a6a3a',
       seltenheit: 'ungewoehnlich',
       text: 'Zu Rundenbeginn werden alle Veteranenmarken zu Pulver.',
       hinweis: 'Verwandelt langsame Währung in schnelle. Vorsicht: das Saatkorn geht leer aus.',
@@ -2318,7 +2338,7 @@
       },
     },
     {
-      id: 'rabe', name: 'Wappen des Raben', zeichen: '🐦‍⬛', tinktur: '#2a2a32',
+      id: 'rabe', name: 'Wappen des Raben', zeichen: '🐦', tinktur: '#2a2a32',
       seltenheit: 'ungewoehnlich',
       text: 'Führt die Wirkung des ersten Wappens ein zweites Mal aus.',
       hinweis: 'Wertlos auf Platz 1. Setze links, was du doppelt willst.',
@@ -2359,7 +2379,7 @@
       },
     },
     {
-      id: 'steinadler', name: 'Wappen des Steinadlers', zeichen: '🦅', tinktur: '#6a6252',
+      id: 'steinadler', name: 'Wappen des Steinadlers', zeichen: '🪽', tinktur: '#6a6252',
       seltenheit: 'ungewoehnlich',
       text: 'Die Wucht je Salve zählt dreifach, die Salvenzahl nur zur Hälfte.',
       hinweis: 'Dreht das Verhältnis um - und macht jede weitere Salve danach dreimal so wertvoll.',
@@ -2426,7 +2446,7 @@
       }),
     },
     {
-      id: 'basilisk', name: 'Wappen des Basilisken', zeichen: '🦎', tinktur: '#3a5a3a',
+      id: 'basilisk', name: 'Wappen des Basilisken', zeichen: '👁', tinktur: '#3a5a3a',
       seltenheit: 'selten',
       text: 'Lässt das Wappen links von ihm zweimal nachzünden.',
       hinweis: 'Der grosse Phönix. An den Sperren merkt man, wo die Kette endet.',
@@ -2502,7 +2522,7 @@
      * sind und keine Klugheit.
      */
     {
-      id: 'greif', name: 'Wappen des Greifen', zeichen: '🦁‍🦅', tinktur: '#9a6a1c',
+      id: 'greif', name: 'Wappen des Greifen', zeichen: '🦬', tinktur: '#9a6a1c',
       seltenheit: 'legendaer',
       text: 'Verdoppelt alles, was links von ihm steht.',
       hinweis: 'Gehört ganz nach rechts. Auf Platz 1 ist er ein leeres Feld.',
@@ -3025,7 +3045,7 @@
   setzeEinzelschuss((einheit, index, quelle) => schiesseEinzeln(einheit, index, quelle));
 
   /** @param {import('./typen.js').Kampfauftrag} [auftrag] */
-  function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null } = {}) {
+  function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null, mischen = true } = {}) {
     /*
      * `stellungen` sind die Turmobjekte, die die Anzeige ohnehin schon hat -
      * mit Feld, Modell und allem, was zum Zeichnen gehört. Der Kern hängt seine
@@ -3068,7 +3088,13 @@
       log: [],              // was in dieser Runde geschah, für Anzeige und Prüfung
     };
     derKampf = k;
-    mischeZug();
+    /*
+     * `mischen: false` ist nur fuer Proben da (siehe `bewerteWappen`). Wer
+     * messen will, was ein Wappen bringt, darf nicht in Wahrheit das Blatt
+     * messen - und fuenf gemischte Durchgaenge streuen so weit, dass ein
+     * schwaches Wappen staerker aussieht als ein starkes.
+     */
+    if (mischen) mischeZug();
     loeseAus(EREIGNIS.kampfBeginnt, { feind: gegner });
     beginneRunde(1);
     return k;
@@ -3080,6 +3106,14 @@
     const lage = loeseAus(EREIGNIS.rundeBeginnt, { runde, ziehen: KERN.handGroesse });
     zieheAuf(Math.max(1, Math.round(lage.daten.ziehen)));
   }
+
+  /*
+   * Den laufenden Kampf zuruecklegen. Nur fuer Proben: `bewerteWappen` spielt
+   * ganze Kaempfe durch, um zu messen, was ein angebotenes Wappen an DIESEM
+   * Gestell braechte. Danach muss der echte Kampf wieder dastehen, als waere
+   * nichts gewesen.
+   */
+  function stelleKampfHer(k) { derKampf = k; }
 
   function mischeZug() {
     const k = derKampf;
@@ -3414,6 +3448,16 @@
   setzeStufenquelle(() => (derLauf ? derLauf.formationsStufen : null));
 
   function neuerLauf({ stationen = LAUF.stationen, muster = LAUF.muster } = {}) {
+    /*
+     * Ein neuer Feldzug hat keinen laufenden Kampf. Das klingt selbstverstaendlich
+     * und war es nicht: `derKampf` zeigte noch auf die letzte Schlacht des
+     * vorigen Laufs, und weil deren `ende` nicht gesetzt sein musste, hielt das
+     * Spiel sich fuer mitten im Gefecht - ein Wappen umzuhaengen kostete dann
+     * Tatendrang, den es gar nicht gab.
+     */
+    stelleKampfHer(null);
+    raeumeBand();
+    neuerVorrat();
     derLauf = {
       station: 1,
       stationen,
@@ -3598,6 +3642,118 @@
    * Durchlauf - sie taugen nichts, solange nichts da ist, was sie verstaerken
    * koennten, und darum kommen sie erst spaet.
    */
+  /**
+   * Ein Wappen an einen anderen Platz ziehen; alles dazwischen rueckt auf.
+   *
+   * Die Reihenfolge ist Spielzustand und nicht Anzeigezustand, darum steht das
+   * hier und nicht in der Oberflaeche. Zwei Listen muessen es mitbekommen: der
+   * LAUF haelt die Ordnung ueber den ganzen Feldzug, das BAND die des gerade
+   * laufenden Kampfes. Wer nur eine von beiden umstellt, sieht eine neue
+   * Reihenfolge und spielt die alte.
+   *
+   * @param {number} von @param {number} nach
+   */
+  function ordneWappen(von, nach) {
+    if (!derLauf) return { ok: false, grund: 'Kein Feldzug.' };
+    const r = derLauf.wappen;
+    if (von < 0 || von >= r.length || nach < 0 || nach >= r.length) {
+      return { ok: false, grund: 'Diesen Platz gibt es nicht.' };
+    }
+    if (von === nach) return { ok: true, kosten: 0, reihe: r.slice() };
+
+    const k = derKampf;
+    const kosten = k && !k.ende ? KERN.kosten.umhaengen : 0;
+    if (kosten && kostetZuViel(kosten)) {
+      return { ok: false, grund: 'Umhängen kostet ' + kosten + ' Tatendrang.' };
+    }
+    if (k && kosten) k.tatendrang -= kosten;
+
+    const [w] = r.splice(von, 1);
+    r.splice(nach, 0, w);
+    verschiebePlatz(von, nach);
+    return { ok: true, kosten, reihe: r.slice() };
+  }
+
+  /* ============================================================
+   *  W A S   E I N   W A P P E N   H I E R   B R A E C H T E
+   * ============================================================
+   *
+   * Ein Wappen verspricht auf der Karte etwas ("verdoppelt, was links steht").
+   * Was es DEM SPIELER bringt, haengt an seinem Gestell, seinem Deck und seinen
+   * Tuermen - und das laesst sich nicht aus dem Text ablesen. Der Greif ist das
+   * staerkste Wappen im Spiel und auf einem leeren Gestell ein leeres Feld.
+   *
+   * Also wird nicht behauptet, sondern gemessen: ganze Kaempfe gegen einen
+   * Pruefstein, mit und ohne das Wappen, an jedem moeglichen Platz. Das kostet
+   * ein paar Millisekunden und beantwortet die einzige Frage, die der Spieler
+   * an dieser Stelle hat.
+   *
+   * Fuenf Durchgaenge je Stellung mit fuenf verschiedenen Blaettern - aber bei
+   * jedem Aufruf mit DENSELBEN fuenf. Ein gemischter Stapel streut so weit,
+   * dass ein schwaches Wappen staerker aussieht als ein starkes; gemessen waere
+   * dann das Blatt und nicht das Wappen.
+   */
+  const PROBE_LAEUFE = 5;
+  const PROBE_STEIN = 1e12;   // hoch genug, dass niemand faellt; niedrig genug fuer genaue Gleitkomma
+
+  /** Ein ganzer Kampf mit dieser Reihe. Gibt den angerichteten Schaden. */
+  function probeSchaden(reihe, versatz) {
+    const feind = { name: 'Prüfstein', hp: PROBE_STEIN, maxHp: PROBE_STEIN, regeln: [] };
+    // Dasselbe Deck, nur anders angeschnitten: fuenf verschiedene Blaetter,
+    // aber bei jedem Aufruf dieselben fuenf.
+    const d = derLauf.deck.map(e => ({ ...e }));
+    const deck = d.slice(versatz % d.length).concat(d.slice(0, versatz % d.length));
+    const k = neuerKampf({ feind, deck, wappen: reihe, turmTypen: derLauf.turmTypen, mischen: false });
+    for (let r = 0; r < KERN.runden && !k.ende; r++) {
+      for (let i = 0; i < KERN.tuerme && k.hand.length && k.tatendrang > 0; i++) {
+        if (!k.tuerme[i].einheit) setzeEinheit(i, k.hand[0]);
+      }
+      beendeRunde();
+    }
+    const schaden = PROBE_STEIN - k.feind.hp;
+    raeumeKampf();
+    return schaden;
+  }
+
+  /** Der Mittelwert ueber mehrere Durchgaenge - der Zugstapel ist gemischt. */
+  function probeMittel(reihe) {
+    let summe = 0;
+    for (let i = 0; i < PROBE_LAEUFE; i++) summe += probeSchaden(reihe, i * 11);
+    return summe / PROBE_LAEUFE;
+  }
+
+  /**
+   * Was dieses Wappen am jetzigen Gestell braechte - und auf welchem Platz am
+   * meisten. Alles darunter ist gesichert und wird zurueckgelegt: eine Probe
+   * darf weder den laufenden Kampf noch den Vorrat des Feldzugs anfassen.
+   *
+   * @param {string} id
+   */
+  function bewerteWappen(id) {
+    if (!derLauf || !WAPPEN[id]) return null;
+    const gemerkt = { kampf: derKampf, band: dasBand, vorrat: sichereVorrat() };
+    try {
+      const ohne = probeMittel(derLauf.wappen);
+      let bester = { platz: 0, wucht: -1 };
+      for (let p = 0; p <= derLauf.wappen.length && p < WAPPEN_PLAETZE; p++) {
+        const reihe = derLauf.wappen.slice();
+        reihe.splice(p, 0, id);
+        const w = probeMittel(reihe);
+        if (w > bester.wucht) bester = { platz: p, wucht: w };
+      }
+      return {
+        ohne: Math.round(ohne),
+        mit: Math.round(bester.wucht),
+        platz: bester.platz,
+        hebel: ohne > 0 ? bester.wucht / ohne : 0,
+      };
+    } finally {
+      stelleVorratHer(gemerkt.vorrat);
+      stelleBandHer(gemerkt.band);
+      stelleKampfHer(gemerkt.kampf);
+    }
+  }
+
   const WAPPEN_ANGEBOT = {
     gewoehnlich:   { gewicht: 60, ab: 1 },
     ungewoehnlich: { gewicht: 28, ab: 3 },
@@ -3886,16 +4042,17 @@
       START_DECK, TURMTYPEN, TURM_START, VORRAT_ARTEN, WAPPEN, WAPPEN_ANGEBOT,
       WAPPEN_LISTE, WAPPEN_PLAETZE, WAPPEN_REGISTER, ZUENDART, abgewiesene, abweisungen,
       angebotWappen, aufAllem, baueBelohnung, baueBlatt, baueFeind, baueTurmAus,
-      beendeRunde, beginneKampfAmKnoten, berechneWucht, bestand, bonusWucht, dasBand,
-      derKampf, derKnoten, derLauf, derVorrat, entferneKarte, entsiegle, erkenneFormationen,
-      fasseZusammen, feindStaerke, formationsSalven, frischerKampfvorrat, fuegeWappenHinzu,
-      grundwucht, kaufe, kopiere, lautesterPlatz, lege, loeseAus, meldeWappen,
-      mitReihe, neueEinheit, neuerKampf, neuerLauf, neuerVorrat, neuesBand, nimmAngebot,
-      oeffneHaendler, raeumeBand, raeumeKampf, reicht, reihe, salvenZahl, schleifeKarte,
-      setzeEinheit, setzeRunde, sichtbarerVorrat, siegelePlatz, tauschKosten, tauschKostenFuer,
-      tauscheHandkarte, tauscheHandkarten, turmFaktor, verbessereEinheit, verlasseKnoten,
-      verschiebePlatz, vertauschePlaetze, vorschau, waehleInBegegnung, wappenNach,
-      werteKampfAus, wirkwucht, zehre, ziehBegegnung, ziehe, zieheAuf, zuendeErneut,
+      beendeRunde, beginneKampfAmKnoten, berechneWucht, bestand, bewerteWappen,
+      bonusWucht, dasBand, derKampf, derKnoten, derLauf, derVorrat, entferneKarte,
+      entsiegle, erkenneFormationen, fasseZusammen, feindStaerke, formationsSalven,
+      frischerKampfvorrat, fuegeWappenHinzu, grundwucht, kaufe, kopiere, lautesterPlatz,
+      lege, loeseAus, meldeWappen, mitReihe, neueEinheit, neuerKampf, neuerLauf,
+      neuerVorrat, neuesBand, nimmAngebot, oeffneHaendler, ordneWappen, raeumeBand,
+      raeumeKampf, reicht, reihe, salvenZahl, schleifeKarte, setzeEinheit, setzeRunde,
+      sichtbarerVorrat, siegelePlatz, tauschKosten, tauschKostenFuer, tauscheHandkarte,
+      tauscheHandkarten, turmFaktor, verbessereEinheit, verlasseKnoten, verschiebePlatz,
+      vertauschePlaetze, vorschau, waehleInBegegnung, wappenNach, werteKampfAus,
+      wirkwucht, zehre, ziehBegegnung, ziehe, zieheAuf, zuendeErneut,
       kampf: () => derKampf,
       lauf: () => derLauf,
       ueberlauf: () => abgewiesene(),
@@ -10043,8 +10200,18 @@ const PK_CSS = `
  * Plaetze stehen als gestrichelte Schilde daneben: die Reihe erzaehlt auf
  * einen Blick, was man hat und was noch zu holen ist.
  */
-#pk .pk-wappen { display: flex; gap: 4px; }
-#pk .pk-wappen div { width: 30px; height: 36px; display: grid; place-items: center;
+/*
+ * Der Strich unter der Reihe laeuft von dunkel nach gold - von links nach
+ * rechts. Das ist kein Zierrat: die Reihenfolge IST die Regel, und ein
+ * Gestell, das keine Richtung zeigt, sieht aus wie eine Sammlung. Ein Pfeil
+ * je Luecke waere lauter und wuerde die Schilde auseinandertreiben; der
+ * Verlauf sagt dasselbe und kostet keinen Platz.
+ */
+#pk .pk-wappen { display: flex; gap: 4px; position: relative; padding-bottom: 5px; }
+#pk .pk-wappen::after { content: ''; position: absolute; left: 1px; right: 1px; bottom: 1px;
+  height: 2px; border-radius: 1px;
+  background: linear-gradient(90deg, rgba(217,164,53,0.10), rgba(217,164,53,0.85)); }
+#pk .pk-wappen div { width: 33px; height: 40px; display: grid; place-items: center;
   border: none; background: #241a11; font-size: 15px; position: relative;
   clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
   transition: transform .15s, filter .15s; cursor: default;
@@ -10062,6 +10229,35 @@ const PK_CSS = `
 #pk .pk-wappen div.leer::after { content: '?'; position: relative; color: #5a4c37;
   font-size: 15px; font-weight: 700; }
 #pk .pk-wappen div.zuendet { animation: pk-wappen-puls .5s cubic-bezier(.2,1.6,.4,1); }
+
+/*
+ * Die Platznummer. Sie sieht nach Kleinkram aus und ist die halbe Miete: ohne
+ * sie weiss der Spieler beim Ziehen nicht, WOHIN er zieht, und ein Hinweis der
+ * Art "gehoert ganz nach rechts" haette keinen Bezugspunkt.
+ */
+#pk .pk-wappen div i.pk-platz { position: absolute; bottom: 1px; left: 0; right: 0;
+  text-align: center; font-size: 9px; font-style: normal; font-weight: 700;
+  color: rgba(0,0,0,0.6); letter-spacing: 0; pointer-events: none; z-index: 1; }
+#pk .pk-wappen div.leer i.pk-platz { color: #4a3e2c; }
+
+/* Ziehen: das gezogene Schild haengt am Zeiger, der Zielplatz leuchtet auf. */
+#pk .pk-wappen div:not(.leer) { cursor: grab; touch-action: none; }
+#pk .pk-wappen div.zieht { cursor: grabbing; z-index: 30; transition: none;
+  filter: drop-shadow(0 8px 10px rgba(0,0,0,0.7)) brightness(1.2); }
+#pk .pk-wappen div.ziel { outline: none; }
+#pk .pk-wappen div.ziel::before { background: #ffd166; filter: none;
+  animation: pk-ziel-puls .6s ease-in-out infinite alternate; }
+@keyframes pk-ziel-puls { from { opacity: .55; } to { opacity: 1; } }
+
+/*
+ * Versiegelt: der Platz bleibt sichtbar, zuendet aber nicht. Ihn zu verbergen
+ * waere falsch - der Spieler soll SEHEN, welches Wappen ihm genommen wurde,
+ * sonst sucht er den Fehler in seiner Rechnung.
+ */
+#pk .pk-wappen div.siegel { filter: grayscale(1) brightness(.5); }
+#pk .pk-wappen div.siegel::after { content: '⛓'; position: absolute; inset: 0;
+  display: grid; place-items: center; font-size: 15px; color: #d8cdb4;
+  text-shadow: 0 1px 2px #000; }
 @keyframes pk-wappen-puls {
   0%   { transform: scale(1); filter: drop-shadow(0 2px 0 rgba(0,0,0,0.5)) brightness(1); }
   35%  { transform: scale(1.34) translateY(-4px);
@@ -10860,7 +11056,7 @@ function pkMalTuerme(rechnung) {
     // Die Marke zeigt, wieviel von der grossen Zahl aus der Schmiede kommt -
     // mit dem Turmfaktor multipliziert, weil der Turm den Schliff mitverstaerkt.
     const ausSchmiede = posten ? Math.round(posten.bonus * posten.turmFaktor) : 0;
-    const neuText = (posten ? Math.round(posten.wucht).toLocaleString('de-DE') : '0') +
+    const neuText = (posten ? pkZahl(Math.round(posten.wucht)) : '0') +
       (ausSchmiede > 0 ? '<span class="pk-bonus">+' + ausSchmiede + '</span>' : '');
     if (wEl.innerHTML !== neuText) {
       wEl.innerHTML = neuText;
@@ -11000,11 +11196,11 @@ function pkMalFormationen() {
   const summe = document.createElement('span');
   const wert = rechnung.wucht;
   summe.className = 'pk-summe' + (probe && wert > jetzt.wucht * 1.25 ? ' hoch' : '');
-  summe.innerHTML = (probe ? 'wäre ' : 'Salve ') + '<span>' + wert.toLocaleString('de-DE') + '</span>';
+  summe.innerHTML = (probe ? 'wäre ' : 'Salve ') + '<span>' + pkZahl(wert) + '</span>';
   if (probe) {
     const d = wert - jetzt.wucht;
     summe.innerHTML += ' <small style="color:' + (d >= 0 ? '#b7e08f' : '#e08a72') + '">' +
-      (d >= 0 ? '+' : '−') + Math.abs(d).toLocaleString('de-DE') + '</small>';
+      (d >= 0 ? '+' : '−') + pkZahl(Math.abs(d)) + '</small>';
   }
   leiste.appendChild(summe);
 
@@ -11099,7 +11295,7 @@ function pkMalKopf() {
   document.getElementById('pk-feind-balken').style.width = anteil + '%';
   document.getElementById('pk-feind-geist').style.width = anteil + '%';
   document.getElementById('pk-feind-zahl').textContent =
-    k.feind.hp.toLocaleString('de-DE') + ' / ' + k.feind.maxHp.toLocaleString('de-DE');
+    pkZahl(k.feind.hp) + ' / ' + pkZahl(k.feind.maxHp);
   balken.classList.toggle('tief', anteil < 28);
 
   const runde = document.getElementById('pk-runde');
@@ -11107,30 +11303,190 @@ function pkMalKopf() {
   runde.innerHTML = 'RUNDE <b>' + k.runde + '</b>/' + k.rundenMax + (sturm ? ' · STURM' : '');
   runde.classList.toggle('sturm', sturm);
 
-  const wappen = document.getElementById('pk-wappen');
-  while (wappen.children.length < WAPPEN_PLAETZE) {
+  pkGestell(k);
+}
+
+/* ============================================================
+ *  D A S   G E S T E L L
+ * ============================================================
+ *
+ * Fuenf Wappenplaetze, und die REIHENFOLGE ist die Regel: ein Ereignis laeuft
+ * strikt von links nach rechts durch sie hindurch, und jeder Platz sieht die
+ * Lage so, wie der Platz vor ihm sie hinterlassen hat. (s+10)x3 ist nicht
+ * sx3+10.
+ *
+ * Darum muss man die Schilde ZIEHEN koennen. Ein Gestell, dessen Ordnung
+ * feststeht, waere eine Sammlung; eines, das man umstecken kann, ist eine
+ * Maschine. Die Platznummer steht klein darunter, sonst raet man beim Ziehen.
+ */
+function pkGestell(k) {
+  const gestell = document.getElementById('pk-wappen');
+  while (gestell.children.length < WAPPEN_PLAETZE) {
     const d = document.createElement('div');
-    d.innerHTML = '<span></span>';
-    // Der Hinweis fragt beim Ueberfahren nach - der Platz kann inzwischen
-    // belegt worden sein.
-    pkHefteHinweis(d, () => {
-      const w = d.dataset.wappen ? WAPPEN[d.dataset.wappen] : null;
-      return w
-        ? { titel: w.name, text: w.text, fuss: 'Gilt den ganzen Lauf über.' }
-        : { titel: 'Freier Wappenplatz', text: 'Wappen kommen als Belohnung nach einem Kampf.' };
-    });
-    wappen.appendChild(d);
+    d.innerHTML = '<span></span><i class="pk-platz"></i>';
+    pkHefteHinweis(d, () => pkWappenHinweis(d));
+    pkSchildZiehbar(d, gestell);
+    gestell.appendChild(d);
   }
-  [...wappen.children].forEach((d, i) => {
+  [...gestell.children].forEach((d, i) => {
     const id = k.wappen[i] || '';
-    if (d.dataset.wappen === id) return;
     const w = id ? WAPPEN[id] : null;
+    d.dataset.platz = String(i);
+    d.querySelector('.pk-platz').textContent = String(i + 1);
+    const gesiegelt = Boolean(dasBand && dasBand.gesiegelt.includes(i));
+    if (d.dataset.wappen === id && d.classList.contains('siegel') === gesiegelt) return;
     d.dataset.wappen = id;
-    d.className = w ? '' : 'leer';
+    d.className = (w ? '' : 'leer') + (gesiegelt ? ' siegel' : '');
     d.style.background = w ? w.tinktur : '';
     d.querySelector('span').textContent = w ? w.zeichen : '';
   });
 }
+
+/*
+ * Was beim Ueberfahren eines Platzes steht. Drei Dinge, und in dieser
+ * Reihenfolge: was das Wappen TUT, womit es ZUSAMMENSPIELT, und was es in der
+ * letzten Salve tatsaechlich BEWIRKT hat. Das dritte ist das wichtigste - ein
+ * Wappen, das nichts getan hat, soll das selbst sagen, statt dass man es aus
+ * einer gleichbleibenden Zahl erschliessen muss.
+ */
+function pkWappenHinweis(d) {
+  const id = d.dataset.wappen;
+  const platz = Number(d.dataset.platz);
+  if (!id) {
+    return { titel: 'Freier Wappenplatz',
+      text: 'Wappen kommen als Belohnung nach einem Kampf.' };
+  }
+  const w = WAPPEN[id];
+  const s = SELTENHEITEN[w.seltenheit];
+  const teile = [w.text];
+  if (w.hinweis) teile.push('<i>Spielt zusammen mit: ' + w.hinweis + '</i>');
+
+  const getan = pkLetzteSalve
+    ? pkLetzteSalve.protokoll.filter(z => z.platz === platz && !z.abgewiesen && z.wirkungen.length)
+    : [];
+  if (pkLetzteSalve) {
+    teile.push(getan.length
+      ? '<b>Letzte Salve: ' + getan.map(z => pkWirkungText(z)).join(', ') + '</b>'
+      : '<b>Letzte Salve: nichts bewirkt.</b>');
+  }
+  const kosten = derKampf && !derKampf.ende ? KERN.kosten.umhaengen : 0;
+  return {
+    titel: w.name + ' · Platz ' + (platz + 1),
+    text: teile.join('<br>'),
+    fuss: (d.classList.contains('siegel') ? 'VERSIEGELT — zündet nicht. ' : '')
+      + s.name + ' · Ziehen zum Umhängen'
+      + (kosten ? ' (' + kosten + ' Tatendrang)' : ''),
+  };
+}
+
+/** Was eine Zuendung bewirkt hat, in wenigen Zeichen. */
+function pkWirkungText(z) {
+  const teile = [];
+  for (const wi of z.wirkungen) {
+    if (wi.art === 'salven') teile.push((wi.wert > 0 ? '+' : '') + pkZahl(wi.wert) + ' Salven');
+    else if (wi.art === 'salvenFaktor') teile.push('×' + wi.wert + ' Salven');
+    else if (wi.art === 'jeSalveFaktor') teile.push('×' + wi.wert + ' je Salve');
+    else if (wi.art === 'zusatz') teile.push((wi.wert > 0 ? '+' : '') + pkZahl(wi.wert) + ' Wucht');
+    else if (wi.art === 'faktor') teile.push('×' + (Math.round(wi.wert * 100) / 100));
+    else if (wi.art === 'vorrat') {
+      const a = VORRAT_ARTEN[wi.wert.art];
+      teile.push((wi.wert.menge > 0 ? '+' : '') + wi.wert.menge + ' ' + (a ? a.name : wi.wert.art));
+    }
+  }
+  return teile.join(' · ') || 'gezündet';
+}
+
+/*
+ * Ziehen und Fallenlassen von Hand, mit Zeigerereignissen statt der
+ * Ziehschnittstelle des Browsers: die kennt keine Beruehrung, laesst sich
+ * nicht gestalten und haengt auf halbem Weg an der Auswahl fest.
+ */
+let pkZug = null;
+function pkSchildZiehbar(d, gestell) {
+  d.addEventListener('pointerdown', (e) => {
+    if (!d.dataset.wappen || e.button) return;
+    e.preventDefault();
+    const kasten = d.getBoundingClientRect();
+    pkZug = { el: d, von: Number(d.dataset.platz), zeiger: e.pointerId,
+      dx: e.clientX - kasten.left - kasten.width / 2,
+      dy: e.clientY - kasten.top - kasten.height / 2, gezogen: false };
+    d.setPointerCapture(e.pointerId);
+  });
+  d.addEventListener('pointermove', (e) => {
+    if (!pkZug || pkZug.el !== d) return;
+    const kasten = d.getBoundingClientRect();
+    const x = e.clientX - kasten.left - kasten.width / 2 - pkZug.dx;
+    const y = e.clientY - kasten.top - kasten.height / 2 - pkZug.dy;
+    // Erst ab ein paar Pixeln ist es ein Zug und kein zitternder Klick.
+    if (!pkZug.gezogen && Math.abs(x) + Math.abs(y) < 5) return;
+    pkZug.gezogen = true;
+    d.classList.add('zieht');
+    d.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(1.14)';
+    const ziel = pkPlatzUnter(gestell, e.clientX);
+    [...gestell.children].forEach((c, i) => c.classList.toggle('ziel', i === ziel && i !== pkZug.von));
+  });
+  const los = (e) => {
+    if (!pkZug || pkZug.el !== d) return;
+    const gezogen = pkZug.gezogen;
+    const von = pkZug.von;
+    const nach = pkPlatzUnter(gestell, e.clientX);
+    d.classList.remove('zieht');
+    d.style.transform = '';
+    [...gestell.children].forEach(c => c.classList.remove('ziel'));
+    pkZug = null;
+    if (!gezogen || nach < 0 || nach === von) return;
+    const r = ordneWappen(von, nach);
+    if (!r.ok) { pkSage(r.grund); return; }
+    if (r.kosten) klang('setzen');
+    pkAktualisiere();
+    const neuEl = gestell.children[nach];
+    if (neuEl) pkZucke(neuEl, 'zuendet', 420);
+  };
+  d.addEventListener('pointerup', los);
+  d.addEventListener('pointercancel', los);
+}
+
+/** Welcher Platz liegt unter dieser Bildschirmspalte? */
+function pkPlatzUnter(gestell, x) {
+  const kinder = [...gestell.children];
+  for (let i = 0; i < kinder.length; i++) {
+    const kasten = kinder[i].getBoundingClientRect();
+    if (x < kasten.right) return i;
+  }
+  return kinder.length - 1;
+}
+
+/*
+ * Grosse Zahlen lesbar.
+ *
+ * Mit dem Wappen-Fliessband sind Salven von einer Milliarde kein Sonderfall
+ * mehr, sondern das Ziel: wer eine Maschine baut, soll sehen, dass sie laeuft.
+ * `1.234.567.890` sieht man aber nicht - man buchstabiert es. Ab einer Million
+ * wird darum abgekuerzt; darunter bleibt alles genau, weil dort jede einzelne
+ * Zahl noch eine Entscheidung ist und `999.999` sich mit Punkten noch lesen
+ * laesst.
+ */
+const PK_STUFEN = [
+  { ab: 1e15, zeichen: 'Brd' },
+  { ab: 1e12, zeichen: 'Bio' },
+  { ab: 1e9,  zeichen: 'Mrd' },
+  { ab: 1e6,  zeichen: 'Mio' },
+];
+function pkZahl(n) {
+  const z = Math.round(Number(n) || 0);
+  const b = Math.abs(z);
+  for (const s of PK_STUFEN) {
+    if (b < s.ab) continue;
+    const wert = z / s.ab;
+    // Drei bedeutende Stellen: 1,23 Mio - 12,3 Mio - 123 Mio.
+    const stellen = Math.abs(wert) >= 100 ? 0 : (Math.abs(wert) >= 10 ? 1 : 2);
+    return wert.toFixed(stellen).replace('.', ',') + '\u202f' + s.zeichen;
+  }
+  return z.toLocaleString('de-DE');
+}
+
+/** Dieselbe Zahl ungekuerzt - fuer den Titel ueber einem abgekuerzten Feld. */
+function pkZahlVoll(n) { return Math.round(Number(n) || 0).toLocaleString('de-DE'); }
 
 // ---------- Auswahl ----------
 function pkKarteGeklickt(karte) {
@@ -11740,7 +12096,7 @@ function pkRufSchaden(wucht) {
   el.style.cssText = 'font-size:' + Math.round(34 + gross * 46) + 'px;' +
     'color:' + (gross > 0.55 ? '#fff0c0' : '#ffd166') + ';' +
     'text-shadow: 0 3px 0 rgba(0,0,0,.65), 0 0 ' + Math.round(14 + gross * 40) + 'px rgba(255,170,60,' + (0.4 + gross * 0.5).toFixed(2) + ');';
-  el.innerHTML = wucht.toLocaleString('de-DE') + '<small>Wucht</small>';
+  el.innerHTML = pkZahl(wucht) + '<small>Wucht</small>';
   const buehne = document.getElementById('pk-buehne');
   if (!buehne) return;
   buehne.appendChild(el);
@@ -11854,6 +12210,31 @@ function pkZeichneBaender(dt) {
   }
 }
 
+/*
+ * Die Kette, wie sie gelaufen ist: ein Platz nach dem anderen, von links nach
+ * rechts, in der Reihenfolge des Zuendens.
+ *
+ * Vorher blinkte alles gleichzeitig. Damit sah man, DASS Wappen mitgerechnet
+ * haben, aber nicht, dass sie EINANDER gefuettert haben - und genau das ist
+ * die Regel, um die das ganze System gebaut ist. Wer den Drachen nach seinem
+ * Nachbarn aufleuchten sieht, hat den Zusammenhang gesehen und muss ihn nicht
+ * mehr lesen.
+ *
+ * Die Gesamtdauer bleibt zwischen 300 und 800 ms, egal wie lang die Kette
+ * ist: eine Maschine mit dreissig Zuendungen darf nicht dreissigmal so lange
+ * brauchen wie eine mit einer.
+ */
+function pkSpielKette(protokoll) {
+  const echte = (protokoll || []).filter(z => !z.abgewiesen && z.wirkungen.length);
+  if (!echte.length) return;
+  const gesamt = Math.min(800, 300 + echte.length * 60);
+  const takt = gesamt / echte.length;
+  echte.forEach((z, i) => setTimeout(() => {
+    const el = document.querySelector('#pk-wappen div[data-platz="' + z.platz + '"]');
+    if (el) pkZucke(el, 'zuendet', 420);
+  }, Math.round(i * takt)));
+}
+
 /** Ein Wappen zuendet: es pulst, und ein Funke laeuft zum betroffenen Turm. */
 function pkSpielWappen(id, turmIndex) {
   const el = document.querySelector('#pk-wappen div[data-wappen="' + id + '"]');
@@ -11903,7 +12284,7 @@ function pkSetze(index, karte) {
 
   const schaden = vorherHp - k.feind.hp;
   if (schaden > 0) {
-    zeigeZahl(turm.col + 1, turm.row + 0.4, '−' + schaden.toLocaleString('de-DE'), '#ffd166');
+    zeigeZahl(turm.col + 1, turm.row + 0.4, '−' + pkZahl(schaden), '#ffd166');
     setTimeout(() => { pkSpielTurmFeuert(index); pkSpielTreffer(schaden); }, 150);
   }
   // Der Eber laesst die abgeloeste Einheit ein letztes Mal feuern - das soll
@@ -12013,11 +12394,7 @@ function pkRundeBeenden() {
     salven, { beiTreffer: () => {
       pkSpielTreffer(getroffen, { gross: salven > 6 });
       pkRufSchaden(getroffen);
-      // Jedes Wappen, das an dieser Salve mitgerechnet hat, leuchtet auf. Der
-      // Spieler soll sehen, WARUM die Zahl so gross ist, nicht nur DASS sie es ist.
-      for (const schritt of r.abrechnung.schritte) {
-        if (schritt.art === 'wappen') pkSpielWappen(schritt.id);
-      }
+      pkSpielKette(r.abrechnung.protokoll);
       pkZeigeKette(r.abrechnung);
       pkAktualisiere();
     } });
@@ -12063,14 +12440,14 @@ function pkZeigeKette(abrechnung) {
   for (const s of abrechnung.schritte) {
     const z = document.createElement('div');
     z.className = 'pk-kette-zeile' + (s.art === 'formation' ? ' retrigger' : '');
-    const wert = s.art === 'grund' ? Math.round(s.wucht).toLocaleString('de-DE') : s.wert;
+    const wert = s.art === 'grund' ? pkZahl(Math.round(s.wucht)) : s.wert;
     z.innerHTML = '<span>' + s.name + '</span><b>' + wert + '</b>';
     kasten.appendChild(z);
     zeilen.push(z);
   }
   const ende = document.createElement('div');
   ende.className = 'pk-kette-zeile ende';
-  ende.innerHTML = '<span>Wucht</span><b>' + abrechnung.wucht.toLocaleString('de-DE') + '</b>';
+  ende.innerHTML = '<span>Wucht</span><b>' + pkZahl(abrechnung.wucht) + '</b>';
   kasten.appendChild(ende);
   zeilen.push(ende);
   document.getElementById('pk').appendChild(kasten);
@@ -12104,7 +12481,7 @@ function pkZeigeEnde(abrechnung) {
         (s.art === 'grund' ? Math.round(s.wucht) : s.wert) + '</b></div>').join('');
     pkTafel(
       '<h2>Der Sturm kommt durch</h2>' +
-      '<p class="pk-vor">' + k.feind.name + ' steht noch mit ' + k.feind.hp.toLocaleString('de-DE') +
+      '<p class="pk-vor">' + k.feind.name + ' steht noch mit ' + pkZahl(k.feind.hp) +
         ' Stärke. Fünf Runden waren zu wenig.</p>' +
       '<div class="pk-schritte">' + schritte + '</div>' +
       '<div class="pk-tafel-fuss"><button class="pk-knopf haupt" id="pk-weiter">Weiter</button></div>')
@@ -12172,7 +12549,7 @@ function pkStarteKampf() {
   pkSage(kn.nr === 1
     ? 'Fünf Runden. Setze Einheiten auf die Türme — benachbarte Gattungen und Ränge bilden Formationen.'
     : KNOTEN_ARTEN[kn.art].name + ' · fünf Runden, dann entscheidet die Summe.');
-  zeigeBanner(k.feind.name, k.feind.maxHp.toLocaleString('de-DE') + ' Stärke · fünf Runden');
+  zeigeBanner(k.feind.name, pkZahl(k.feind.maxHp) + ' Stärke · fünf Runden');
 }
 
 /** Zum Ausprobieren: ab Station 2 kommt je ein Wappen dazu. */
@@ -12267,7 +12644,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
   #pk .pk-kopf { flex-wrap: wrap; gap: 6px 10px; padding: 6px 10px; }
   #pk .pk-feind { flex: 1 1 100%; order: -1; }
   #pk .pk-lauf { font-size: 11px; gap: 8px; }
-  #pk .pk-wappen div { width: 26px; height: 26px; font-size: 12px; }
+  #pk .pk-wappen div { width: 26px; height: 32px; font-size: 13px; }
   #pk .pk-unten { padding: 5px 8px 8px; gap: 5px; }
   #pk .pk-turm { min-width: 112px; padding: 4px 6px; min-height: 76px; }
   #pk .pk-karte { width: 72px; height: 94px; }
@@ -12327,6 +12704,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
 #pk .pk-angebot-text { font-size: 11px; color: #c9b998; line-height: 1.35; flex: 1; }
 #pk .pk-angebot-preis { font-size: 13px; font-weight: 700; color: #e8c464; font-variant-numeric: tabular-nums; }
 #pk .pk-angebot-preis.zuviel { color: #c4483c; }
+/* Zusammenspiel und gemessener Wert - zwei Zeilen, die ein Wappenangebot von
+   einer Karte unterscheiden. */
+#pk .pk-angebot-mit { font-size: 10px; color: #9a8a6a; line-height: 1.3; font-style: italic; }
+#pk .pk-angebot-wert { font-size: 10.5px; font-weight: 700; color: #c9b998;
+  border-top: 1px solid #4a3a22; padding-top: 6px; width: 100%; text-align: center;
+  font-variant-numeric: tabular-nums; }
+#pk .pk-angebot-wert.stark { color: #b7e08f; }
+#pk .pk-angebot-wert.schwach { color: #8a7a62; font-weight: 400; }
 #pk .pk-siegel { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
   font-size: 22px; border: 2px solid #6b5535; background: #241a11; }
 
@@ -12399,15 +12784,48 @@ const PK_ANGEBOT_ART = { karte: 'Einheit', wappen: 'Wappen', ausbau: 'Ausbau',
   entfernen: 'Dienst', schliff: 'Dienst', sold: 'Sold' };
 
 function pkAngebotHtml(a, i, { preis = false, aus = false } = {}) {
-  return '<div class="pk-angebot' + (aus ? ' aus' : '') + '" data-i="' + i + '">' +
+  const w = a.art === 'wappen' ? WAPPEN[a.wappen] : null;
+  return '<div class="pk-angebot' + (aus ? ' aus' : '') + (w ? ' wappen' : '') + '" data-i="' + i + '">' +
     (a.art === 'karte'
       ? pkKartenHtml(a.einheit)
-      : '<div class="pk-siegel">' + (PK_ANGEBOT_ZEICHEN[a.art] || '?') + '</div>') +
-    '<div class="pk-angebot-art">' + (PK_ANGEBOT_ART[a.art] || a.art) + '</div>' +
+      : '<div class="pk-siegel"' + (w ? ' style="background:' + w.tinktur + ';border-color:' + w.tinktur + '"' : '') +
+        '>' + (w ? w.zeichen : (PK_ANGEBOT_ZEICHEN[a.art] || '?')) + '</div>') +
+    '<div class="pk-angebot-art">' +
+      (w ? SELTENHEITEN[w.seltenheit].name : (PK_ANGEBOT_ART[a.art] || a.art)) + '</div>' +
     '<div class="pk-angebot-name">' + a.name + '</div>' +
     '<div class="pk-angebot-text">' + (a.text || '') + '</div>' +
+    (w ? pkWappenWertHtml(a.wappen, w) : '') +
     (preis ? '<div class="pk-angebot-preis' + (aus ? ' zuviel' : '') + '">' + a.preis + ' Sold</div>' : '') +
     '</div>';
+}
+
+/*
+ * Was ein angebotenes Wappen AM EIGENEN GESTELL braechte - gemessen, nicht
+ * behauptet.
+ *
+ * Der Text auf der Karte sagt, was ein Wappen TUT. Er kann nicht sagen, was es
+ * dem Spieler NUETZT: der Greif ist das staerkste Wappen im Spiel und auf
+ * einem leeren Gestell ein leeres Feld. Frueher stand hier nur der Satz, und
+ * der Spieler nahm den Greifen auf Station 8, weil "legendaer" gut klingt,
+ * und merkte fuenf Kaempfe spaeter, dass sich nichts geaendert hatte.
+ *
+ * Jetzt spielt der Kern dreissig kurze Kaempfe durch (rund 30 ms) und sagt
+ * das Ergebnis: um wie viel, und auf welchem Platz.
+ */
+function pkWappenWertHtml(id, w) {
+  const b = bewerteWappen(id);
+  const zeilen = [];
+  if (w.hinweis) zeilen.push('<div class="pk-angebot-mit">↔ ' + w.hinweis + '</div>');
+  if (b) {
+    const stark = b.hebel >= 1.15;
+    zeilen.push('<div class="pk-angebot-wert' + (stark ? ' stark' : (b.hebel < 1.02 ? ' schwach' : '')) + '">' +
+      (b.hebel < 1.02
+        ? 'An deinem Gestell: noch keine Wirkung'
+        : 'An deinem Gestell: ×' + b.hebel.toFixed(2).replace('.', ',') +
+          ' · am besten auf Platz ' + (b.platz + 1)) +
+      '</div>');
+  }
+  return zeilen.join('');
 }
 
 // ---------- Der Kopf während des Laufs ----------
@@ -12691,9 +13109,9 @@ function pxZeichne() {
     html += '<h4>Kampf</h4>' +
       zeile('Runde', k.runde + '/' + k.rundenMax) +
       zeile('Tatendrang', k.tatendrang + '/' + k.tatendrangMax) +
-      zeile('Gegner', k.feind.hp.toLocaleString('de-DE') + ' / ' + k.feind.maxHp.toLocaleString('de-DE')) +
+      zeile('Gegner', pkZahl(k.feind.hp) + ' / ' + pkZahl(k.feind.maxHp)) +
       zeile('Zug · Hand · Ablage', k.zug.length + ' · ' + k.hand.length + ' · ' + k.ablage.length) +
-      zeile('Salve jetzt', ab.wucht.toLocaleString('de-DE')) +
+      zeile('Salve jetzt', pkZahl(ab.wucht)) +
       zeile('davon Grundwucht', ab.grund);
     html += '<h4>Wuchtkette</h4>';
     for (const s of ab.schritte) {

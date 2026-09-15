@@ -21,7 +21,7 @@ export let derKampf = null;
 setzeEinzelschuss((einheit, index, quelle) => schiesseEinzeln(einheit, index, quelle));
 
 /** @param {import('./typen.js').Kampfauftrag} [auftrag] */
-export function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null } = {}) {
+export function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, stellungen = null, mischen = true } = {}) {
   /*
    * `stellungen` sind die Turmobjekte, die die Anzeige ohnehin schon hat -
    * mit Feld, Modell und allem, was zum Zeichnen gehört. Der Kern hängt seine
@@ -64,7 +64,13 @@ export function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, s
     log: [],              // was in dieser Runde geschah, für Anzeige und Prüfung
   };
   derKampf = k;
-  mischeZug();
+  /*
+   * `mischen: false` ist nur fuer Proben da (siehe `bewerteWappen`). Wer
+   * messen will, was ein Wappen bringt, darf nicht in Wahrheit das Blatt
+   * messen - und fuenf gemischte Durchgaenge streuen so weit, dass ein
+   * schwaches Wappen staerker aussieht als ein starkes.
+   */
+  if (mischen) mischeZug();
   loeseAus(EREIGNIS.kampfBeginnt, { feind: gegner });
   beginneRunde(1);
   return k;
@@ -76,6 +82,14 @@ function beginneRunde(runde) {
   const lage = loeseAus(EREIGNIS.rundeBeginnt, { runde, ziehen: KERN.handGroesse });
   zieheAuf(Math.max(1, Math.round(lage.daten.ziehen)));
 }
+
+/*
+ * Den laufenden Kampf zuruecklegen. Nur fuer Proben: `bewerteWappen` spielt
+ * ganze Kaempfe durch, um zu messen, was ein angebotenes Wappen an DIESEM
+ * Gestell braechte. Danach muss der echte Kampf wieder dastehen, als waere
+ * nichts gewesen.
+ */
+export function stelleKampfHer(k) { derKampf = k; }
 
 export function mischeZug() {
   const k = derKampf;

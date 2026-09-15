@@ -435,7 +435,7 @@ const alle = [
     },
   },
   {
-    id: 'natter', name: 'Wappen der Natter', zeichen: '🐍', tinktur: '#3a6a3a',
+    id: 'natter', name: 'Wappen der Natter', zeichen: '🦎', tinktur: '#3a6a3a',
     seltenheit: 'ungewoehnlich',
     text: 'Zu Rundenbeginn werden alle Veteranenmarken zu Pulver.',
     hinweis: 'Verwandelt langsame Währung in schnelle. Vorsicht: das Saatkorn geht leer aus.',
@@ -463,7 +463,7 @@ const alle = [
     },
   },
   {
-    id: 'rabe', name: 'Wappen des Raben', zeichen: '🐦‍⬛', tinktur: '#2a2a32',
+    id: 'rabe', name: 'Wappen des Raben', zeichen: '🐦', tinktur: '#2a2a32',
     seltenheit: 'ungewoehnlich',
     text: 'Führt die Wirkung des ersten Wappens ein zweites Mal aus.',
     hinweis: 'Wertlos auf Platz 1. Setze links, was du doppelt willst.',
@@ -504,7 +504,7 @@ const alle = [
     },
   },
   {
-    id: 'steinadler', name: 'Wappen des Steinadlers', zeichen: '🦅', tinktur: '#6a6252',
+    id: 'steinadler', name: 'Wappen des Steinadlers', zeichen: '🪽', tinktur: '#6a6252',
     seltenheit: 'ungewoehnlich',
     text: 'Die Wucht je Salve zählt dreifach, die Salvenzahl nur zur Hälfte.',
     hinweis: 'Dreht das Verhältnis um - und macht jede weitere Salve danach dreimal so wertvoll.',
@@ -571,7 +571,7 @@ const alle = [
     }),
   },
   {
-    id: 'basilisk', name: 'Wappen des Basilisken', zeichen: '🦎', tinktur: '#3a5a3a',
+    id: 'basilisk', name: 'Wappen des Basilisken', zeichen: '👁', tinktur: '#3a5a3a',
     seltenheit: 'selten',
     text: 'Lässt das Wappen links von ihm zweimal nachzünden.',
     hinweis: 'Der grosse Phönix. An den Sperren merkt man, wo die Kette endet.',
@@ -647,7 +647,7 @@ const alle = [
    * sind und keine Klugheit.
    */
   {
-    id: 'greif', name: 'Wappen des Greifen', zeichen: '🦁‍🦅', tinktur: '#9a6a1c',
+    id: 'greif', name: 'Wappen des Greifen', zeichen: '🦬', tinktur: '#9a6a1c',
     seltenheit: 'legendaer',
     text: 'Verdoppelt alles, was links von ihm steht.',
     hinweis: 'Gehört ganz nach rechts. Auf Platz 1 ist er ein leeres Feld.',

@@ -27,6 +27,14 @@ export const KERN = {
     einsetzen: 1,             // Einheit auf einen leeren Turm
     ersetzen: 1,              // Einheit auf einen besetzten Turm
     tauschen: 1,              // eine Handkarte gegen eine neue
+    /*
+     * Ein Wappen im Kampf umhaengen. Ausserhalb des Kampfes kostet es nichts -
+     * da ist die Ordnung eine Planungsfrage. IM Kampf muss sie etwas kosten,
+     * sonst waere jede Bossregel, die Plaetze vertauscht oder versiegelt, in
+     * dem Augenblick zahnlos, in dem sie greift: der Spieler zoege einmal und
+     * haette sie rueckgaengig gemacht.
+     */
+    umhaengen: 1,
   },
   /*
    * Der Turmtyp ist mit dem vollen Blatt die eigentliche Fortschrittsachse.

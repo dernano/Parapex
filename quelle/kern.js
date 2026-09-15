@@ -41,7 +41,7 @@ export {
 export {
   LAUF, KNOTEN_ARTEN, WAPPEN_ANGEBOT, derLauf, neuerLauf, derKnoten, beginneKampfAmKnoten,
   werteKampfAus, baueBelohnung, nimmAngebot, fuegeWappenHinzu, baueTurmAus,
-  entferneKarte, schleifeKarte, verlasseKnoten, angebotWappen,
+  entferneKarte, schleifeKarte, verlasseKnoten, angebotWappen, ordneWappen, bewerteWappen,
 } from './kern/lauf.js';
 export { oeffneHaendler, kaufe } from './kern/haendler.js';
 export { BEGEGNUNGEN, ziehBegegnung, waehleInBegegnung } from './kern/begegnungen.js';

@@ -75,6 +75,7 @@
  * @property {string[]} [wappen]
  * @property {string[]} [turmTypen]
  * @property {Turm[]|null} [stellungen]
+ * @property {boolean} [mischen] nur fuer Proben: den Zugstapel NICHT mischen
  */
 
 export {};

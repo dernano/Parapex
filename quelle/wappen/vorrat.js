@@ -33,6 +33,15 @@ export function frischerKampfvorrat() {
   return derVorrat;
 }
 
+/*
+ * Sichern und zuruecklegen. Das Spiel RECHNET zwischendurch Proben - was ein
+ * Wappen an diesem Gestell brächte, misst die Belohnung, indem sie ganze
+ * Kaempfe durchspielt. Die duerfen den echten Vorrat nicht anfassen.
+ */
+export function sichereVorrat() { return derVorrat ? { ...derVorrat } : null; }
+/** @param {Record<string, number> | null} v */
+export function stelleVorratHer(v) { derVorrat = v ? { ...v } : null; }
+
 /** @param {string} art */
 export function bestand(art) { return (derVorrat && derVorrat[art]) || 0; }
 

@@ -489,5 +489,94 @@ function zuendetIrgendwo(id) {
   return false;
 }
 
+
+/* ---------- Das Gestell ---------- */
+pruefe('Jedes Wappen trägt ein eigenes Zeichen', () => {
+  const nach = {};
+  for (const id of P.WAPPEN_LISTE) {
+    const z = P.WAPPEN[id].zeichen;
+    /*
+     * Zusammengesetzte Zeichen (Löwe + Adler für den Greifen) sehen im Editor
+     * aus wie EIN Bild und zerfallen auf den meisten Schriftarten in zwei -
+     * im Gestell stand der Greif dann doppelt so breit wie alle anderen.
+     */
+    if (z.includes('‍')) return id + ' trägt eine zusammengesetzte Zeichenfolge';
+    if (nach[z]) return id + ' und ' + nach[z] + ' tragen dasselbe Zeichen ' + z;
+    nach[z] = id;
+  }
+  return true;
+});
+
+pruefe('Umhängen ändert Lauf und laufenden Kampf zugleich', () => {
+  P.neuerLauf();
+  P.derLauf.wappen.push('amboss', 'drache', 'stier');
+  const k = P.beginneKampfAmKnoten();
+  if (k.wappen.join() !== 'amboss,drache,stier') return 'Kampf startete mit ' + k.wappen.join();
+  const r = P.ordneWappen(0, 2);
+  if (!r.ok) return r.grund;
+  if (P.derLauf.wappen.join() !== 'drache,stier,amboss') return 'Lauf: ' + P.derLauf.wappen.join();
+  if (k.wappen.join() !== 'drache,stier,amboss') return 'Kampf: ' + k.wappen.join();
+  return gleich(P.dasBand.reihe.join(), 'drache,stier,amboss', 'Band');
+});
+
+pruefe('Umhängen kostet im Kampf Tatendrang, davor nichts', () => {
+  P.neuerLauf();
+  P.derLauf.wappen.push('amboss', 'drache');
+  const frei = P.ordneWappen(0, 1);
+  if (frei.kosten !== 0) return 'ausserhalb des Kampfes kostete es ' + frei.kosten;
+  const k = P.beginneKampfAmKnoten();
+  const vorher = k.tatendrang;
+  const r = P.ordneWappen(0, 1);
+  if (!r.ok) return r.grund;
+  return gleich(k.tatendrang, vorher - P.KERN.kosten.umhaengen, 'Tatendrang');
+});
+
+pruefe('Ohne Tatendrang lässt sich nichts umhängen', () => {
+  P.neuerLauf();
+  P.derLauf.wappen.push('amboss', 'drache');
+  const k = P.beginneKampfAmKnoten();
+  k.tatendrang = 0;
+  const r = P.ordneWappen(0, 1);
+  if (r.ok) return 'es ging trotzdem';
+  return P.derLauf.wappen.join() === 'amboss,drache' ? true : 'die Reihe wurde trotzdem verändert';
+});
+
+/*
+ * Die Bewertung spielt ganze Kaempfe durch. Sie darf danach NICHTS veraendert
+ * haben - sonst misst der Spieler sein Angebot und verliert dabei sein Pulver.
+ */
+pruefe('Ein Wappen bewerten lässt Kampf und Vorrat unberührt', () => {
+  P.neuerLauf();
+  P.derLauf.wappen.push('schmiedehammer');
+  const k = P.beginneKampfAmKnoten();
+  P.neuerVorrat();
+  P.lege('pulver', 7);
+  P.setzeEinheit(0, k.hand[0]);
+  const hpVorher = k.feind.hp;
+  const pulverVorher = P.bestand('pulver');
+  const b = P.bewerteWappen('pulverhorn');
+  if (!b) return 'keine Bewertung';
+  if (P.derKampf !== k) return 'der laufende Kampf wurde ausgetauscht';
+  if (k.feind.hp !== hpVorher) return 'der Gegner hat Schaden genommen';
+  if (P.dasBand.reihe.join() !== 'schmiedehammer') return 'das Band steht auf ' + P.dasBand.reihe.join();
+  return gleich(P.bestand('pulver'), pulverVorher, 'Pulver');
+});
+
+pruefe('Die Bewertung misst das Wappen, nicht das Blatt', () => {
+  P.neuerLauf();
+  const a = P.bewerteWappen('amboss');
+  const b = P.bewerteWappen('amboss');
+  if (!a || !b) return 'keine Bewertung';
+  if (a.ohne !== b.ohne) return 'derselbe Grundwert kam als ' + a.ohne + ' und ' + b.ohne;
+  return gleich(a.mit, b.mit, 'gemessener Wert');
+});
+
+pruefe('Ein Wappen ohne Partner meldet keinen Hebel', () => {
+  P.neuerLauf();   // leeres Gestell
+  const b = P.bewerteWappen('greif');
+  if (!b) return 'keine Bewertung';
+  return b.hebel < 1.02 ? true : 'der Greif meldete ×' + b.hebel.toFixed(2) + ' auf leerem Gestell';
+});
+
 console.log(`\n${gut} von ${gut + schlecht} Kernprüfungen bestanden.\n`);
 process.exit(schlecht ? 1 : 0);
