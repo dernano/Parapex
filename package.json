@@ -8,12 +8,14 @@
     "bauen": "node scripts/baue.mjs",
     "typen": "tsc -p tsconfig.json",
     "kern": "node scripts/pruefe-kern.mjs",
-    "test": "node scripts/baue.mjs && tsc -p tsconfig.json && node scripts/pruefe-kern.mjs && node scripts/pruefe.mjs",
+    "test": "node scripts/baue.mjs && tsc -p tsconfig.json && node scripts/pruefe-kern.mjs && node scripts/pruefe-feldzug.mjs && node scripts/pruefe.mjs",
     "start": "node scripts/serve.js",
     "bot": "node scripts/bot.mjs",
     "kurve": "node scripts/kurve.mjs",
     "lauftest": "node scripts/lauftest.mjs",
-    "tot": "node scripts/erreichbar.mjs"
+    "tot": "node scripts/erreichbar.mjs",
+    "feldzug": "node scripts/pruefe-feldzug.mjs",
+    "matrix": "node scripts/matrix.mjs"
   },
   "engines": {
     "node": ">=18"

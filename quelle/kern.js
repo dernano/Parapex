@@ -45,3 +45,19 @@ export {
 } from './kern/lauf.js';
 export { oeffneHaendler, kaufe } from './kern/haendler.js';
 export { BEGEGNUNGEN, ziehBegegnung, waehleInBegegnung } from './kern/begegnungen.js';
+
+/* ---------- Der Feldzug: die Welt kommt zur Burg ---------- */
+export { BOSSREGELN, BOSSREGEL_LISTE, ROTER_KOENIG_AB, baueRegeln } from './feldzug/bossregeln.js';
+export {
+  ANTEN, VORHUTEN, DIVISIONEN, HEERFUEHRER, JE_BEDROHUNG, BEDROHUNG_MAX, dieAnte,
+} from './feldzug/gegner.js';
+export {
+  KAEMPFE_MIN, KAEMPFE_MAX, ABSCHNITTE, SPERRE, dieBelagerung, neueBelagerung,
+  raeumeBelagerung, darfDurchlassen, kaempfeNochHoechstens, kaempfeNochMindestens,
+  offeneWahlen, waehle, meldeAusgang, baueHeerfuehrer, belagerungslage,
+  sichereBelagerung, ladeBelagerung,
+} from './feldzug/belagerung.js';
+export {
+  DIENSTE, LAGER_FOLGE, LAGER_PREISE, dasLager, oeffneLager, raeumeLager,
+  dienstOffen, kasse, lagerAngebote, nimmLagerangebot,
+} from './feldzug/heerlager.js';

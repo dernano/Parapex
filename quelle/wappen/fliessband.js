@@ -117,6 +117,20 @@ export function neuesBand(reihe = [], feind = null) {
   dasBand = {
     reihe: reihe.slice(0, PLAETZE),
     feind,
+    /*
+     * Die Regeln des Gegners laufen auf DEMSELBEN Band wie die Wappen des
+     * Spielers - nur hinter ihnen. Das ist die ganze Idee hinter den
+     * Heerfuehrern: ein Boss, der mehr Trefferpunkte hat, ist kein Gegner,
+     * sondern eine laengere Wartezeit. Ein Boss, der den zweiten und vierten
+     * Wappenplatz vertauscht, greift die MASCHINE an, die der Spieler gebaut
+     * hat - und dafuer muss er dort stehen, wo sie laeuft.
+     *
+     * Hinter den Wappen und nicht davor: der Spieler rechnet zuerst, der
+     * Gegner antwortet. Ein Siegel des Spielers (`lage.abgebrochen`) haelt
+     * die Regeln des Gegners nicht auf - sonst waere ein einziges Wappen die
+     * Antwort auf jeden Heerfuehrer.
+     */
+    regeln: (feind && feind.regeln) || [],
     runde: 1,
     /** @type {number[]} Plaetze, die eine Bossregel verschlossen hat */
     gesiegelt: [],
@@ -320,6 +334,10 @@ function fuehreAus(ereignis, daten, eltern, probe) {
       if (lage.abgebrochen) break;
       zuendePlatz(lage, platz, ZUENDART.urspruenglich);
     }
+    // Und danach der Gegner.
+    for (let i = 0; i < dasBand.regeln.length; i++) {
+      zuendePlatz(lage, -1 - i, ZUENDART.urspruenglich);
+    }
   } finally { laufende = vorher; }
   return lage;
 }
@@ -365,9 +383,9 @@ export function kopiere(lage, platz) {
  */
 function zuendePlatz(lage, platz, art, durch = null) {
   if (!dasBand) return null;
-  const id = dasBand.reihe[platz];
-  const def = id && WAPPEN_REGISTER[id];
+  const def = platzInhalt(platz);
   if (!def) return null;
+  const id = def.id;
   const wirkung = (def.hoert || {})[lage.ereignis];
   if (!wirkung) return null;
 
@@ -377,6 +395,7 @@ function zuendePlatz(lage, platz, art, durch = null) {
   const zuendung = {
     nr: ++dasBand.nr,
     platz, id, name: def.name, ereignis: lage.ereignis, art,
+    gegner: platz < 0,
     tiefe: lage.tiefe,
     durch: durch ? durch.nr : null,
     /** @type {any[]} was dieses Wappen an der Lage geaendert hat */
@@ -408,13 +427,28 @@ function zuendePlatz(lage, platz, art, durch = null) {
 }
 
 /**
+ * Was auf einem Platz steht. Nicht-negative Plaetze sind die Wappen des
+ * Spielers, negative die Regeln des Gegners - so laeuft beides durch dieselbe
+ * Tuer und steht im selben Protokoll.
+ * @param {number} platz
+ */
+function platzInhalt(platz) {
+  if (platz >= 0) {
+    const id = dasBand.reihe[platz];
+    return (id && WAPPEN_REGISTER[id]) || null;
+  }
+  return dasBand.regeln[-platz - 1] || null;
+}
+
+/**
  * Warum ein Platz gerade NICHT zuenden darf - oder null, wenn er darf.
  * Jeder Grund ist eine eigene Zeile, weil jeder einen eigenen Fall im Spiel
  * hat und im Protokoll auch so stehen soll.
  * @param {any} lage @param {number} platz @param {string} id @param {string} art
  */
 function warumNicht(lage, platz, id, art) {
-  if (dasBand.gesiegelt.includes(platz)) return 'siegel';
+  // Ein Siegel trifft nur Wappen. Die Regeln des Gegners versiegelt niemand.
+  if (platz >= 0 && dasBand.gesiegelt.includes(platz)) return 'siegel';
   if (lage.tiefe > GRENZEN.tiefe) return 'tiefe';
   if ((lage.zaehler[platz] || 0) >= GRENZEN.jePlatz) return 'jePlatz';
   if (lage.gezuendet.length >= GRENZEN.jeEreignis) return 'jeEreignis';
@@ -435,6 +469,7 @@ function halteFest(lage, platz, id, art, grund) {
   const eintrag = {
     nr: ++dasBand.nr,
     platz, id, name: (WAPPEN_REGISTER[id] || {}).name || id,
+    gegner: platz < 0,
     ereignis: lage.ereignis, art, tiefe: lage.tiefe,
     durch: lage.ich ? lage.ich.nr : null,
     wirkungen: [],

@@ -1198,6 +1198,20 @@
     dasBand = {
       reihe: reihe.slice(0, PLAETZE),
       feind,
+      /*
+       * Die Regeln des Gegners laufen auf DEMSELBEN Band wie die Wappen des
+       * Spielers - nur hinter ihnen. Das ist die ganze Idee hinter den
+       * Heerfuehrern: ein Boss, der mehr Trefferpunkte hat, ist kein Gegner,
+       * sondern eine laengere Wartezeit. Ein Boss, der den zweiten und vierten
+       * Wappenplatz vertauscht, greift die MASCHINE an, die der Spieler gebaut
+       * hat - und dafuer muss er dort stehen, wo sie laeuft.
+       *
+       * Hinter den Wappen und nicht davor: der Spieler rechnet zuerst, der
+       * Gegner antwortet. Ein Siegel des Spielers (`lage.abgebrochen`) haelt
+       * die Regeln des Gegners nicht auf - sonst waere ein einziges Wappen die
+       * Antwort auf jeden Heerfuehrer.
+       */
+      regeln: (feind && feind.regeln) || [],
       runde: 1,
       /** @type {number[]} Plaetze, die eine Bossregel verschlossen hat */
       gesiegelt: [],
@@ -1401,6 +1415,10 @@
         if (lage.abgebrochen) break;
         zuendePlatz(lage, platz, ZUENDART.urspruenglich);
       }
+      // Und danach der Gegner.
+      for (let i = 0; i < dasBand.regeln.length; i++) {
+        zuendePlatz(lage, -1 - i, ZUENDART.urspruenglich);
+      }
     } finally { laufende = vorher; }
     return lage;
   }
@@ -1446,9 +1464,9 @@
    */
   function zuendePlatz(lage, platz, art, durch = null) {
     if (!dasBand) return null;
-    const id = dasBand.reihe[platz];
-    const def = id && WAPPEN_REGISTER[id];
+    const def = platzInhalt(platz);
     if (!def) return null;
+    const id = def.id;
     const wirkung = (def.hoert || {})[lage.ereignis];
     if (!wirkung) return null;
 
@@ -1458,6 +1476,7 @@
     const zuendung = {
       nr: ++dasBand.nr,
       platz, id, name: def.name, ereignis: lage.ereignis, art,
+      gegner: platz < 0,
       tiefe: lage.tiefe,
       durch: durch ? durch.nr : null,
       /** @type {any[]} was dieses Wappen an der Lage geaendert hat */
@@ -1489,13 +1508,28 @@
   }
 
   /**
+   * Was auf einem Platz steht. Nicht-negative Plaetze sind die Wappen des
+   * Spielers, negative die Regeln des Gegners - so laeuft beides durch dieselbe
+   * Tuer und steht im selben Protokoll.
+   * @param {number} platz
+   */
+  function platzInhalt(platz) {
+    if (platz >= 0) {
+      const id = dasBand.reihe[platz];
+      return (id && WAPPEN_REGISTER[id]) || null;
+    }
+    return dasBand.regeln[-platz - 1] || null;
+  }
+
+  /**
    * Warum ein Platz gerade NICHT zuenden darf - oder null, wenn er darf.
    * Jeder Grund ist eine eigene Zeile, weil jeder einen eigenen Fall im Spiel
    * hat und im Protokoll auch so stehen soll.
    * @param {any} lage @param {number} platz @param {string} id @param {string} art
    */
   function warumNicht(lage, platz, id, art) {
-    if (dasBand.gesiegelt.includes(platz)) return 'siegel';
+    // Ein Siegel trifft nur Wappen. Die Regeln des Gegners versiegelt niemand.
+    if (platz >= 0 && dasBand.gesiegelt.includes(platz)) return 'siegel';
     if (lage.tiefe > GRENZEN.tiefe) return 'tiefe';
     if ((lage.zaehler[platz] || 0) >= GRENZEN.jePlatz) return 'jePlatz';
     if (lage.gezuendet.length >= GRENZEN.jeEreignis) return 'jeEreignis';
@@ -1516,6 +1550,7 @@
     const eintrag = {
       nr: ++dasBand.nr,
       platz, id, name: (WAPPEN_REGISTER[id] || {}).name || id,
+      gegner: platz < 0,
       ereignis: lage.ereignis, art, tiefe: lage.tiefe,
       durch: lage.ich ? lage.ich.nr : null,
       wirkungen: [],
@@ -4030,28 +4065,797 @@
     return { ok: true, folge: w.wirkung() };
   }
 
+  // ===== quelle/feldzug/bossregeln.js =====
+  /*
+   * Die Regeln der Heerfuehrer.
+   *
+   * Ein Boss, der mehr Trefferpunkte hat, ist kein Gegner - er ist eine laengere
+   * Wartezeit. Man spielt gegen ihn genau so wie gegen den Kampf davor, nur
+   * oefter. Das ist die Stelle, an der ein Deckbauer aufhoert, interessant zu
+   * sein: wenn das, was der Spieler gebaut hat, nie in Frage gestellt wird.
+   *
+   * Diese Regeln zielen deshalb nicht auf seine Zahlen, sondern auf seine
+   * MASCHINE. Der Usurpator vertauscht zwei Wappenplaetze - wer seine Reihe auf
+   * "links gibt, rechts verdoppelt" gebaut hat, steht plötzlich falsch herum da.
+   * Der Inquisitor versiegelt genau das Wappen, um das der Spieler alles gebaut
+   * hat. Der Rote Koenig laesst Salven ins Leere laufen, sobald es zu viele
+   * werden.
+   *
+   * Gegen jede dieser Regeln gibt es eine ANTWORT, und sie liegt in derselben
+   * Waehrung: umhaengen kostet einen Tatendrang. Die Frage ist nie "kann ich
+   * das ueberleben", sondern "was ist es mir wert".
+   *
+   * Technisch sind sie Wappen ohne Gestell: dieselbe Bauform, dasselbe
+   * Fliessband, dasselbe Protokoll - nur laufen sie hinter den fuenf Plaetzen
+   * des Spielers. Er rechnet zuerst, der Gegner antwortet.
+   */
+
+
+  const BOSSREGELN = {
+
+    usurpator: {
+      id: 'usurpator', name: 'Der Usurpator', zeichen: '♜', tinktur: '#6a2a3a',
+      text: 'Vertauscht zu jeder Runde den zweiten und den vierten Wappenplatz.',
+      antwort: 'Häng um — oder bau eine Reihe, der die Mitte egal ist.',
+      hoert: {
+        [EREIGNIS.rundeBeginnt]: (lage) => {
+          if (reihe().length < 4) return;
+          if (!vertauschePlaetze(1, 3)) return;
+          notiere(lage, 'tausch', [1, 3], 'Platz 2 und 4 vertauscht');
+        },
+      },
+    },
+
+    inquisitor: {
+      id: 'inquisitor', name: 'Der Inquisitor', zeichen: '⛓', tinktur: '#3a3a4a',
+      text: 'Versiegelt zu jeder Runde das Wappen, das bisher am häufigsten zündete.',
+      antwort: 'Zieh es aus der Reihe, oder verteile die Last auf mehrere Plätze.',
+      hoert: {
+        [EREIGNIS.rundeBeginnt]: (lage) => {
+          /*
+           * Erst loesen, dann neu versiegeln. Sonst haette er nach fuenf Runden
+           * das ganze Gestell zu - und das waere kein Gegner mehr, sondern eine
+           * Ansage, dass der Spieler diesen Kampf nicht gewinnen soll.
+           */
+          entsiegle();
+          const platz = lautesterPlatz();
+          if (platz < 0) return;
+          siegelePlatz(platz);
+          notiere(lage, 'siegel', platz, 'Platz ' + (platz + 1) + ' versiegelt');
+        },
+      },
+    },
+
+    belagerungsmeister: {
+      id: 'belagerungsmeister', name: 'Der Belagerungsmeister', zeichen: '☄', tinktur: '#6a4a2a',
+      text: 'Beschiesst die stärkste Stellung — ihre Wucht zählt nicht.',
+      antwort: 'Verteile die Wucht. Fünf mittlere Stellungen verlieren weniger als eine grosse.',
+      hoert: {
+        [EREIGNIS.salveGeplant]: (lage) => {
+          const posten = lage.daten.posten || [];
+          if (!posten.length) return;
+          const stark = posten.reduce((/** @type {any} */ m, /** @type {any} */ p) =>
+            (p.wucht > m.wucht ? p : m), posten[0]);
+          if (!stark.wucht) return;
+          wirke(lage, 'zusatz', -stark.wucht, 'Stellung ' + (stark.turm + 1) + ' beschossen');
+        },
+      },
+    },
+
+    weisseKoenigin: {
+      id: 'weisseKoenigin', name: 'Die Weiße Königin', zeichen: '♕', tinktur: '#5a5a72',
+      text: 'Verhüllt jede Runde eine andere Stellung — ihre Gattung zählt für keine Formation.',
+      antwort: 'Bau auf Ränge statt auf Gattungen, oder besetze die verhüllte Stellung gar nicht.',
+      hoert: {
+        [EREIGNIS.blattGelesen]: (lage) => {
+          /*
+           * Eine ANDERE je Runde, und berechenbar welche: der Spieler soll
+           * umbauen koennen, nicht raten muessen. Zufall an dieser Stelle waere
+           * keine Schwierigkeit, sondern eine Steuer.
+           */
+          const verhuellt = (lage.runde - 1) % KERN.tuerme;
+          if (lage.daten.turm !== verhuellt) return;
+          lage.daten.gattung = 'verhuellt';
+          notiere(lage, 'verhuellt', lage.daten.turm, 'Stellung ' + (lage.daten.turm + 1) + ' verhüllt');
+        },
+      },
+    },
+
+    roterKoenig: {
+      id: 'roterKoenig', name: 'Der Rote König', zeichen: '♔', tinktur: '#7a2a2a',
+      text: 'Über zwölf Salven zählt jede weitere nur halb.',
+      antwort: 'Nicht mehr Salven — schwerere. Alles, was die Wucht je Salve hebt, trifft ihn voll.',
+      hoert: {
+        [EREIGNIS.salveGeplant]: (lage) => {
+          const ueber = lage.daten.salven - ROTER_KOENIG_AB;
+          if (ueber <= 0) return;
+          wirke(lage, 'salven', -ueber / 2, ueber.toFixed(0) + ' Salven verpuffen');
+        },
+      },
+    },
+  };
+
+  const ROTER_KOENIG_AB = 12;
+
+  const BOSSREGEL_LISTE = Object.keys(BOSSREGELN);
+
+  /** @param {string[]} ids */
+  function baueRegeln(ids) {
+    return (ids || []).map(id => BOSSREGELN[id]).filter(Boolean);
+  }
+
+  // ===== quelle/feldzug/gegner.js =====
+  /*
+   * Wer da kommt.
+   *
+   * Die alte Karte war ein Baum aus elf Knoten, den man von links nach rechts
+   * ablief. Sie hat nie erzaehlt, WARUM man laeuft - und sie hat der Burg
+   * widersprochen, die man die ganze Zeit ansieht: eine Burg laeuft nicht, sie
+   * STEHT. Wer sie verteidigt, geht nirgendwohin; die Welt kommt zu ihm.
+   *
+   * Eine ANTE ist darum ein Heer, das anrueckt. Es hat einen Namen, einen
+   * Anfuehrer, und es kommt in drei Wellen:
+   *
+   *   VORHUT       ein Spaehertrupp. Abfangen - oder ihn ziehen lassen und
+   *                die gewonnene Zeit in Vorbereitung stecken.
+   *   DIVISIONEN   drei Abteilungen. Jede, die man schlaegt, nimmt dem
+   *                Heerfuehrer ihr Merkmal. Jede, die durchkommt, gibt es ihm.
+   *   HEERFUEHRER  am Ende steht er da - und zwar genau so, wie man ihn
+   *                hat werden lassen.
+   *
+   * Das ist der ganze Trick: der Boss wird nicht gewuerfelt, er wird GEBAUT,
+   * und zwar von den Entscheidungen des Spielers. Wer alles durchlaesst, hat
+   * fuenf Kaempfe gespart und steht vor einem Heerfuehrer mit vier Regeln.
+   *
+   * Alles hier sind Daten. Wer eine Ante dazuerfindet, fasst diese Datei an.
+   */
+
+
+  /* ---------- Vorhuten ---------- */
+  const VORHUTEN = {
+    spaehertrupp: {
+      id: 'spaehertrupp', name: 'Späher am Waldrand', zeichen: '👁', typ: 'spaeher', figuren: 4,
+      staerke: 0.7,
+      text: 'Vier Reiter am Waldrand. Sie zählen deine Türme und reiten zurück.',
+      abfangen: 'Sie kommen nicht durch — das Heer weiss nicht, was es erwartet.',
+      ziehenLassen: 'Zwei Tage Zeit. Zeit ist Vorbereitung.',
+    },
+  };
+
+  /* ---------- Divisionen ---------- */
+  /*
+   * Jede Division traegt EIN Merkmal, und dieses Merkmal ist eine Bossregel.
+   * Der Zusammenhang ist damit vollstaendig sichtbar, bevor man sich
+   * entscheidet: was man durchlaesst, steht am Ende auf dem Heerfuehrer.
+   */
+  const DIVISIONEN = {
+    brandstifter: {
+      id: 'brandstifter', name: 'Die Brandstifter', zeichen: '🔥', typ: 'spaeher', figuren: 7,
+      staerke: 1.0, merkmal: 'belagerungsmeister',
+      text: 'Sie zünden die Dörfer an, um deine stärkste Stellung auszumachen.',
+      gibt: 'Der Heerführer beschiesst deine stärkste Stellung.',
+      nimmt: 'Geschlagen — der Heerführer beschiesst nichts.',
+    },
+    schildwall: {
+      id: 'schildwall', name: 'Der Schildwall', zeichen: '⛨', typ: 'ritter', figuren: 6,
+      staerke: 1.1, merkmal: 'roterKoenig',
+      text: 'Eine geschlossene Wand aus Schilden. Viele kleine Schüsse prallen ab.',
+      gibt: 'Über zwölf Salven zählt beim Heerführer jede weitere nur halb.',
+      nimmt: 'Geschlagen — beim Heerführer zählt jede Salve voll.',
+    },
+    hofkaplan: {
+      id: 'hofkaplan', name: 'Der Hofkaplan', zeichen: '⛓', typ: 'armbrust', figuren: 5,
+      staerke: 1.2, merkmal: 'inquisitor',
+      text: 'Er führt Buch über deine Wappen. Er weiss schon, welches dir am meisten gilt.',
+      gibt: 'Der Heerführer versiegelt jede Runde dein lautestes Wappen.',
+      nimmt: 'Geschlagen — deine Wappen bleiben offen.',
+    },
+  };
+
+  /* ---------- Heerfuehrer ---------- */
+  const HEERFUEHRER = {
+    markgrafOthar: {
+      id: 'markgrafOthar', name: 'Markgraf Othar', zeichen: '♜', typ: 'ritter', figuren: 5,
+      staerke: 2.0,
+      grundregel: 'usurpator',
+      text: 'Er hat sich die Mark genommen, indem er die Ordnung verdrehte. Er wird es wieder tun.',
+    },
+  };
+
+  /* ---------- Anten ---------- */
+  const ANTEN = [
+    {
+      nr: 1, id: 'roteBanner', name: 'Das Rote Banner',
+      text: 'Ein Heer aus dem Süden, unter rotem Banner. Es ist drei Tagesmärsche entfernt.',
+      grund: FEIND_STAERKE[0],
+      vorhut: 'spaehertrupp',
+      divisionen: ['brandstifter', 'schildwall', 'hofkaplan'],
+      heerfuehrer: 'markgrafOthar',
+      regeln: [],                 // Regeln, die in JEDEM Kampf dieser Ante gelten
+    },
+  ];
+
+  /*
+   * Was die Bedrohung dem Heerfuehrer an Staerke zulegt. Sie aendert vor allem
+   * seine ZUSAMMENSETZUNG - jede durchgelassene Division gibt ihm eine Regel -,
+   * aber ganz ohne Zahl waere sie zu billig: wer alles durchlaesst, spart vier
+   * Kaempfe und soll das auch spueren.
+   */
+  const JE_BEDROHUNG = 0.14;
+  const BEDROHUNG_MAX = 5;
+
+  /** @param {number} nr */
+  function dieAnte(nr) {
+    return ANTEN[Math.max(0, Math.min(ANTEN.length - 1, nr - 1))];
+  }
+
+  // ===== quelle/feldzug/belagerung.js =====
+  /*
+   * Die Belagerung: der Ablauf einer Ante.
+   *
+   * Hier steht, WAS gerade zur Wahl steht und was eine Wahl kostet. Kein
+   * Dokument, kein Zeichnen - die Oberflaeche fragt `offeneWahlen()` und malt,
+   * was zurueckkommt.
+   *
+   * DAS KAMPFBUDGET ist die harte Regel, an der alles haengt. Eine Ante hat
+   * mindestens zwei und hoechstens fuenf Kaempfe. Nicht ungefaehr: GENAU. Der
+   * Aufbau sorgt von selbst fuer die Obergrenze (Vorhut 1 + drei Divisionen +
+   * Heerfuehrer = 5), die Untergrenze muss erzwungen werden - wer alles
+   * durchlaesst, kaeme sonst mit einem einzigen Kampf durch die Ante, und die
+   * ganze Entscheidung waere keine.
+   *
+   * ZWEI WAEHRUNGEN, und sie sind dieselbe Muenze von zwei Seiten:
+   *
+   *   BEDROHUNG      steigt, wenn man etwas durchlaesst. Sie macht den
+   *                  Heerfuehrer nicht nur groesser, sondern ANDERS - jede
+   *                  durchgelassene Division gibt ihm ihre Regel.
+   *   VORBEREITUNG   steigt genauso. Sie ist das, was man im Heerlager ausgibt.
+   *
+   * Man kauft also Vorbereitung mit Bedrohung, und beides ist sichtbar, bevor
+   * man sich entscheidet. Das ist der Unterschied zwischen einer Entscheidung
+   * und einem Wuerfel.
+   */
+
+
+  /* Das Budget. Beide Zahlen sind hart und werden geprueft, nicht gehofft. */
+  const KAEMPFE_MIN = 2;
+  const KAEMPFE_MAX = 5;
+
+  const ABSCHNITTE = {
+    vorhut:      { id: 'vorhut',      name: 'Vorhut' },
+    divisionen:  { id: 'divisionen',  name: 'Divisionen' },
+    lager:       { id: 'lager',       name: 'Heerlager' },
+    heerfuehrer: { id: 'heerfuehrer', name: 'Heerführer' },
+    vorbei:      { id: 'vorbei',      name: 'Vorbei' },
+  };
+
+  let dieBelagerung = null;
+
+  /** @param {number} [anteNr] */
+  function neueBelagerung(anteNr = 1) {
+    const ante = dieAnte(anteNr);
+    dieBelagerung = {
+      ante: ante.id,
+      nr: ante.nr,
+      abschnitt: ABSCHNITTE.vorhut.id,
+      /*
+       * Eine Bedrohung von eins zu Beginn, nicht null: ein Heer, das anrueckt,
+       * ist schon eine Bedrohung. Und mit vier Gelegenheiten, sie zu erhoehen,
+       * reicht die Spanne dann genau bis fuenf.
+       */
+      bedrohung: 1,
+      vorbereitung: 0,
+      vorhut: { id: ante.vorhut, zustand: 'offen' },
+      divisionen: ante.divisionen.map(id => ({ id, zustand: 'offen' })),
+      kaempfe: 0,
+      /** @type {any} der Gegner, der gerade auf dem Feld steht */
+      imKampf: null,
+      /** @type {string|null} */
+      ende: null,
+      /** @type {string[]} was geschah, in Reihenfolge - fuer die Karte und das Speichern */
+      verlauf: [],
+    };
+    return dieBelagerung;
+  }
+
+  function raeumeBelagerung() { dieBelagerung = null; }
+
+  /* ---------- Was noch kommen kann ---------- */
+
+  /** Wie viele Kaempfe diese Ante noch MINDESTENS bringt. */
+  function kaempfeNochMindestens() {
+    const b = dieBelagerung;
+    if (!b) return 0;
+    return b.abschnitt === ABSCHNITTE.vorbei.id ? 0 : 1;   // der Heerfuehrer immer
+  }
+
+  /** Wie viele Kaempfe diese Ante noch HOECHSTENS bringt. */
+  function kaempfeNochHoechstens() {
+    const b = dieBelagerung;
+    if (!b || b.abschnitt === ABSCHNITTE.vorbei.id) return 0;
+    const vorhut = b.vorhut.zustand === 'offen' ? 1 : 0;
+    const offen = b.divisionen.filter(d => d.zustand === 'offen').length;
+    return vorhut + offen + 1;
+  }
+
+  /*
+   * Darf hier noch etwas durchgelassen werden?
+   *
+   * Nur, wenn danach noch genug Gelegenheiten bleiben, um auf die Untergrenze
+   * zu kommen. Das ist der Sackgassenschutz, und er wird GERECHNET: was bliebe,
+   * wenn der Spieler ab hier alles durchliesse? Genau eine Schlacht, die des
+   * Heerfuehrers. Wer also bei null Kaempfen vor der letzten Division steht,
+   * muss sie stellen.
+   */
+  function darfDurchlassen() {
+    const b = dieBelagerung;
+    if (!b) return false;
+    const offen = (b.vorhut.zustand === 'offen' ? 1 : 0)
+      + b.divisionen.filter(d => d.zustand === 'offen').length;
+    // Eine Gelegenheit weniger - und am Ende steht immer der Heerfuehrer.
+    const hoechstensNoch = Math.max(0, offen - 1) + 1;
+    return b.kaempfe + hoechstensNoch >= KAEMPFE_MIN;
+  }
+
+  /**
+   * Was jetzt zur Wahl steht. Jede Wahl traegt ihren Preis mit - die Oberflaeche
+   * soll nichts ausrechnen muessen, was hier schon bekannt ist.
+   */
+  function offeneWahlen() {
+    const b = dieBelagerung;
+    if (!b || b.ende) return [];
+    const ante = dieAnte(b.nr);
+
+    if (b.abschnitt === ABSCHNITTE.vorhut.id) {
+      const v = VORHUTEN[b.vorhut.id];
+      const durchlassenGeht = darfDurchlassen();
+      return [
+        { art: 'abfangen', ziel: 'vorhut', name: v.name, zeichen: v.zeichen,
+          text: v.text, wirkung: v.abfangen, kampf: true,
+          bedrohung: -1, vorbereitung: 0 },
+        { art: 'durchlassen', ziel: 'vorhut', name: 'Ziehen lassen', zeichen: '⌛',
+          text: v.ziehenLassen, wirkung: 'Zwei Vorbereitung, aber das Heer weiss, was es erwartet.',
+          kampf: false, bedrohung: +1, vorbereitung: +2,
+          gesperrt: durchlassenGeht ? null : SPERRE },
+      ];
+    }
+
+    if (b.abschnitt === ABSCHNITTE.divisionen.id) {
+      const durchlassenGeht = darfDurchlassen();
+      const wahlen = [];
+      b.divisionen.forEach((d, i) => {
+        if (d.zustand !== 'offen') return;
+        const def = DIVISIONEN[d.id];
+        wahlen.push({ art: 'abfangen', ziel: 'division', nr: i, name: def.name, zeichen: def.zeichen,
+          text: def.text, wirkung: def.nimmt,
+          kampf: true, bedrohung: 0, vorbereitung: 0 });
+        wahlen.push({ art: 'durchlassen', ziel: 'division', nr: i, name: def.name + ' durchlassen',
+          zeichen: '⌛', text: def.text, wirkung: def.gibt,
+          kampf: false, bedrohung: +1, vorbereitung: +1,
+          gesperrt: durchlassenGeht ? null : SPERRE });
+      });
+      return wahlen;
+    }
+
+    if (b.abschnitt === ABSCHNITTE.lager.id) {
+      return [{ art: 'aufbrechen', ziel: 'lager', name: 'Aufbrechen', zeichen: '⚑',
+        text: 'Das Lager abbrechen und weiterziehen.', wirkung: '', kampf: false,
+        bedrohung: 0, vorbereitung: 0 }];
+    }
+
+    if (b.abschnitt === ABSCHNITTE.heerfuehrer.id) {
+      const h = HEERFUEHRER[ante.heerfuehrer];
+      return [{ art: 'stellen', ziel: 'heerfuehrer', name: h.name, zeichen: h.zeichen,
+        text: h.text, wirkung: 'Die letzte Schlacht dieser Ante.', kampf: true,
+        bedrohung: 0, vorbereitung: 0 }];
+    }
+    return [];
+  }
+
+  const SPERRE = 'Weniger als zwei Schlachten lässt dieses Heer dir nicht.';
+
+  /* ---------- Eine Wahl treffen ---------- */
+
+  /**
+   * @param {any} wahl eine der Rueckgaben von `offeneWahlen`
+   * @returns {{ok: boolean, grund?: string, kampf?: any, weiter?: boolean}}
+   */
+  function waehle(wahl) {
+    const b = dieBelagerung;
+    if (!b || b.ende) return { ok: false, grund: 'Keine Belagerung.' };
+    if (!wahl) return { ok: false, grund: 'Keine Wahl.' };
+    if (wahl.gesperrt) return { ok: false, grund: wahl.gesperrt };
+
+    if (wahl.art === 'aufbrechen') {
+      b.abschnitt = naechsterAbschnitt(b);
+      return { ok: true, weiter: true };
+    }
+
+    if (wahl.art === 'durchlassen') {
+      if (!darfDurchlassen()) return { ok: false, grund: SPERRE };
+      setzeZustand(b, wahl, 'durch');
+      b.bedrohung = Math.min(BEDROHUNG_MAX, b.bedrohung + wahl.bedrohung);
+      b.vorbereitung += wahl.vorbereitung;
+      b.verlauf.push(wahl.ziel + ':durch');
+      b.abschnitt = naechsterAbschnitt(b);
+      return { ok: true, weiter: true };
+    }
+
+    if (wahl.art === 'abfangen' || wahl.art === 'stellen') {
+      const gegner = baueGegner(wahl);
+      b.imKampf = { ziel: wahl.ziel, nr: wahl.nr === undefined ? -1 : wahl.nr, gegner };
+      return { ok: true, kampf: gegner };
+    }
+    return { ok: false, grund: 'Diese Wahl gibt es nicht.' };
+  }
+
+  /** @param {any} b @param {any} wahl @param {string} zustand */
+  function setzeZustand(b, wahl, zustand) {
+    if (wahl.ziel === 'vorhut') b.vorhut.zustand = zustand;
+    else if (wahl.ziel === 'division' && b.divisionen[wahl.nr]) b.divisionen[wahl.nr].zustand = zustand;
+  }
+
+  /**
+   * Wie der Kampf ausging. Ein Sieg raeumt den Gegner weg und schickt ins
+   * Lager; eine Niederlage beendet die Ante.
+   * @param {boolean} sieg
+   */
+  function meldeAusgang(sieg) {
+    const b = dieBelagerung;
+    if (!b || !b.imKampf) return { ok: false, grund: 'Es stand niemand auf dem Feld.' };
+    const wer = b.imKampf;
+    b.kaempfe++;
+    b.imKampf = null;
+
+    if (!sieg) {
+      b.ende = 'niederlage';
+      b.abschnitt = ABSCHNITTE.vorbei.id;
+      return { ok: true, ende: 'niederlage' };
+    }
+
+    if (wer.ziel === 'vorhut') {
+      b.vorhut.zustand = 'geschlagen';
+      b.bedrohung = Math.max(0, b.bedrohung - 1);
+      b.verlauf.push('vorhut:geschlagen');
+    } else if (wer.ziel === 'division') {
+      b.divisionen[wer.nr].zustand = 'geschlagen';
+      b.verlauf.push('division' + wer.nr + ':geschlagen');
+    } else {
+      b.ende = 'sieg';
+      b.abschnitt = ABSCHNITTE.vorbei.id;
+      b.verlauf.push('heerfuehrer:geschlagen');
+      return { ok: true, ende: 'sieg' };
+    }
+
+    // Nach jeder gewonnenen Schlacht steht das Heerlager.
+    b.abschnitt = ABSCHNITTE.lager.id;
+    return { ok: true, ende: null, lager: true };
+  }
+
+  /** @param {any} b */
+  function naechsterAbschnitt(b) {
+    if (b.vorhut.zustand === 'offen') return ABSCHNITTE.vorhut.id;
+    if (b.divisionen.some(d => d.zustand === 'offen')) return ABSCHNITTE.divisionen.id;
+    return ABSCHNITTE.heerfuehrer.id;
+  }
+
+  /* ---------- Die Gegner ---------- */
+
+  /** @param {any} wahl */
+  function baueGegner(wahl) {
+    const b = dieBelagerung;
+    const ante = dieAnte(b.nr);
+    if (wahl.ziel === 'vorhut') {
+      const v = VORHUTEN[b.vorhut.id];
+      return gegnerAus(v, Math.round(ante.grund * v.staerke), [], ante);
+    }
+    if (wahl.ziel === 'division') {
+      const d = DIVISIONEN[b.divisionen[wahl.nr].id];
+      /*
+       * Eine Division traegt ihr eigenes Merkmal schon im Feld. Wer sie
+       * abfaengt, lernt die Regel also kennen, BEVOR sie am Heerfuehrer haengt -
+       * und das ist der eigentliche Lohn des Abfangens.
+       */
+      return gegnerAus(d, Math.round(ante.grund * d.staerke), [d.merkmal], ante);
+    }
+    return baueHeerfuehrer();
+  }
+
+  /** Der Heerfuehrer, so wie der Spieler ihn hat werden lassen. */
+  function baueHeerfuehrer() {
+    const b = dieBelagerung;
+    if (!b) return null;
+    const ante = dieAnte(b.nr);
+    const h = HEERFUEHRER[ante.heerfuehrer];
+    const durch = b.divisionen.filter(d => d.zustand === 'durch').map(d => DIVISIONEN[d.id].merkmal);
+    const regeln = [h.grundregel, ...durch, ...(ante.regeln || [])];
+    const hp = Math.round(ante.grund * h.staerke * (1 + JE_BEDROHUNG * b.bedrohung));
+    return gegnerAus(h, hp, regeln, ante);
+  }
+
+  /** @param {any} vorlage @param {number} hp @param {string[]} regelIds @param {any} ante */
+  function gegnerAus(vorlage, hp, regelIds, ante) {
+    return {
+      id: vorlage.id, name: vorlage.name, figuren: vorlage.figuren, typ: vorlage.typ,
+      hp, maxHp: hp,
+      regeln: baueRegeln(regelIds),
+      regelIds: regelIds.slice(),
+      ante: ante.id,
+    };
+  }
+
+  /* ---------- Auskunft fuer die Anzeige ---------- */
+
+  /** Der ganze Zustand in einer lesbaren Form - fuer Karte, Tafel und Pruefung. */
+  function belagerungslage() {
+    const b = dieBelagerung;
+    if (!b) return null;
+    const ante = dieAnte(b.nr);
+    const h = HEERFUEHRER[ante.heerfuehrer];
+    const durch = b.divisionen.filter(d => d.zustand === 'durch');
+    return {
+      ante: { id: ante.id, nr: ante.nr, name: ante.name, text: ante.text },
+      abschnitt: b.abschnitt,
+      bedrohung: b.bedrohung,
+      bedrohungMax: BEDROHUNG_MAX,
+      vorbereitung: b.vorbereitung,
+      kaempfe: b.kaempfe,
+      nochHoechstens: kaempfeNochHoechstens(),
+      vorhut: { ...b.vorhut, ...VORHUTEN[b.vorhut.id] },
+      divisionen: b.divisionen.map(d => ({ ...d, ...DIVISIONEN[d.id] })),
+      heerfuehrer: {
+        ...h,
+        regeln: [h.grundregel, ...durch.map(d => DIVISIONEN[d.id].merkmal), ...(ante.regeln || [])],
+        hp: Math.round(ante.grund * h.staerke * (1 + JE_BEDROHUNG * b.bedrohung)),
+      },
+      ende: b.ende,
+    };
+  }
+
+  /* ---------- Speichern ---------- */
+  /*
+   * Eine Ante muss sich GENAU so wiederherstellen lassen, wie sie stand -
+   * einschliesslich dessen, was schon durchgelassen wurde. Alles hier ist
+   * reines JSON: keine Funktionen, keine Verweise, nichts, was beim Einlesen
+   * aufgebaut werden muesste.
+   */
+  function sichereBelagerung() {
+    return dieBelagerung ? JSON.parse(JSON.stringify({ ...dieBelagerung, imKampf: null })) : null;
+  }
+
+  /** @param {any} daten */
+  function ladeBelagerung(daten) {
+    if (!daten || !daten.ante) return null;
+    dieBelagerung = { ...daten, imKampf: null };
+    return dieBelagerung;
+  }
+
+  // ===== quelle/feldzug/heerlager.js =====
+  /*
+   * Das Heerlager.
+   *
+   * Zwischen zwei Schlachten steht das Lager. Vier Dienste gibt es - aber nie
+   * alle vier auf einmal: bei jedem Halt sind zwei da, und welche zwei, steht
+   * fest, sobald der Spieler den Kampf gewinnt. Das ist der Unterschied zwischen
+   * einem Laden und einer Entscheidung. Waeren immer alle da, hiesse jeder Halt
+   * "nimm das Beste"; so heisst er "mit dem hier musst du auskommen".
+   *
+   *   HAENDLER    Karten, Ausmusterung, Schliff - gegen Sold.
+   *   HEROLD      alles, was Wappen betrifft - gegen Vorbereitung.
+   *   SCHMIEDE    die Tuerme - die langsame Achse.
+   *   KRIEGSRAT   die Formationen - Stufen, die den ganzen Feldzug halten.
+   *
+   * Bezahlt wird mit VORBEREITUNG, und die bekommt man nur, indem man etwas
+   * durchlaesst. Wer jede Division stellt, kommt mit einem sauberen Heerfuehrer
+   * an - und mit leeren Haenden.
+   */
+
+
+  const DIENSTE = {
+    haendler: {
+      id: 'haendler', name: 'Der Händler', zeichen: '⚖',
+      text: 'Er folgt jedem Heer und verkauft an beide Seiten.',
+      waehrung: 'sold',
+    },
+    herold: {
+      id: 'herold', name: 'Der Herold', zeichen: '⚜',
+      text: 'Er kennt jedes Wappen des Reiches und weiss, wo es hängen sollte.',
+      waehrung: 'vorbereitung',
+    },
+    schmiede: {
+      id: 'schmiede', name: 'Die Feldschmiede', zeichen: '🔨',
+      text: 'Zwei Tage Arbeit an einem Turm. Mehr gibt die Zeit nicht her.',
+      waehrung: 'vorbereitung',
+    },
+    kriegsrat: {
+      id: 'kriegsrat', name: 'Der Kriegsrat', zeichen: '⚑',
+      text: 'Alte Offiziere, die eine Aufstellung schon dreimal gesehen haben.',
+      waehrung: 'vorbereitung',
+    },
+  };
+
+  /*
+   * Welche zwei Dienste an welchem Halt stehen. Eine feste Kette und kein
+   * Zufall: der Spieler soll zwei Schlachten im Voraus wissen, wofuer er spart.
+   */
+  const LAGER_FOLGE = [
+    ['haendler', 'herold'],
+    ['schmiede', 'kriegsrat'],
+    ['herold', 'kriegsrat'],
+    ['haendler', 'schmiede'],
+  ];
+
+  /* Was ein Dienst kostet, in Vorbereitung. */
+  const LAGER_PREISE = {
+    wappenTauschen: 2,
+    wappenHolen: 3,
+    turmAusbauen: 2,
+    formationHeben: 3,
+  };
+
+  let dasLager = null;
+
+  /** @param {number} nr der wievielte Halt dieser Ante */
+  function oeffneLager(nr) {
+    const paar = LAGER_FOLGE[(nr - 1) % LAGER_FOLGE.length];
+    dasLager = { nr, dienste: paar.slice(), genutzt: [] };
+    return dasLager;
+  }
+
+  function raeumeLager() { dasLager = null; }
+
+  /** Ist dieser Dienst hier und noch frei? */
+  function dienstOffen(id) {
+    return Boolean(dasLager && dasLager.dienste.includes(id) && !dasLager.genutzt.includes(id));
+  }
+
+  /** Was in der Kasse ist - beide Waehrungen an einer Stelle. */
+  function kasse() {
+    return {
+      sold: derLauf ? derLauf.sold : 0,
+      vorbereitung: dieBelagerung ? dieBelagerung.vorbereitung : 0,
+    };
+  }
+
+  /**
+   * Was ein Dienst gerade anbietet. Jeder Posten traegt seinen Preis und, wenn
+   * er zu teuer ist, den Grund - die Oberflaeche rechnet nichts nach.
+   * @param {string} id
+   */
+  function lagerAngebote(id) {
+    if (!derLauf || !dienstOffen(id)) return [];
+    const k = kasse();
+    const posten = [];
+
+    if (id === 'herold') {
+      /*
+       * Der Herold bietet ein Wappen an - und, wenn das Gestell voll ist, den
+       * Tausch. Ein volles Gestell war vorher eine Sackgasse: jedes weitere
+       * Wappen im Angebot war ein toter Posten.
+       */
+      const a = angebotWappen();
+      if (a && derLauf.wappen.length < WAPPEN_PLAETZE) {
+        posten.push({ art: 'wappenHolen', wappen: a.wappen, name: a.name, zeichen: a.zeichen,
+          tinktur: a.tinktur, text: a.text, hinweis: a.hinweis, seltenheit: a.seltenheit,
+          preis: LAGER_PREISE.wappenHolen });
+      }
+      for (const w of derLauf.wappen) {
+        posten.push({ art: 'wappenTauschen', wappen: w, name: WAPPEN[w].name + ' ablegen',
+          zeichen: WAPPEN[w].zeichen, tinktur: WAPPEN[w].tinktur,
+          text: 'Macht den Platz frei. Das Wappen ist danach weg.',
+          preis: LAGER_PREISE.wappenTauschen });
+      }
+    }
+
+    if (id === 'schmiede') {
+      const offen = derLauf.turmTypen
+        .map((t, i) => ({ t, i })).filter(x => x.t === 'wachturm');
+      for (const { i } of offen) {
+        for (const typ of Object.keys(TURMTYPEN)) {
+          if (typ === 'wachturm') continue;
+          const tt = TURMTYPEN[typ];
+          posten.push({ art: 'turmAusbauen', turm: i, typ, name: 'Stellung ' + (i + 1) + ': ' + tt.name,
+            zeichen: tt.zeichen || '⛫', text: tt.text || '',
+            preis: LAGER_PREISE.turmAusbauen });
+        }
+      }
+    }
+
+    if (id === 'kriegsrat') {
+      for (const f of FORMATIONEN) {
+        const stufe = (derLauf.formationsStufen[f.id] || 1);
+        posten.push({ art: 'formationHeben', formation: f.id,
+          name: f.name + ' · Stufe ' + stufe + ' → ' + (stufe + 1),
+          zeichen: '⚑', text: f.text + ' Gibt +' + (f.jeStufe || 0) + ' Salven.',
+          preis: LAGER_PREISE.formationHeben });
+      }
+    }
+
+    if (id === 'haendler') {
+      // Der Haendler hat seine eigene Bude; hier steht nur die Tuer dorthin.
+      posten.push({ art: 'haendlerOeffnen', name: 'Die Bude ansehen', zeichen: '⚖',
+        text: 'Karten, Ausmusterung und Schliff - gegen Sold.', preis: 0 });
+    }
+
+    return posten.map(p => ({
+      ...p,
+      waehrung: DIENSTE[id].waehrung,
+      zuTeuer: p.preis > (DIENSTE[id].waehrung === 'sold' ? k.sold : k.vorbereitung),
+    }));
+  }
+
+  /**
+   * Einen Posten nehmen. Ein Dienst gilt einmal je Halt - danach ist er
+   * abgeraeumt, auch wenn noch Vorbereitung uebrig waere.
+   * @param {string} id @param {any} posten
+   */
+  function nimmLagerangebot(id, posten) {
+    if (!derLauf) return { ok: false, grund: 'Kein Feldzug.' };
+    if (!dienstOffen(id)) return { ok: false, grund: 'Dieser Dienst ist hier nicht zu haben.' };
+    if (!posten) return { ok: false, grund: 'Kein Posten.' };
+    if (posten.zuTeuer) {
+      return { ok: false, grund: posten.waehrung === 'sold'
+        ? 'Dafür fehlt der Sold.' : 'Dafür fehlt die Vorbereitung.' };
+    }
+
+    if (posten.art === 'haendlerOeffnen') return { ok: true, haendler: true };
+
+    const b = dieBelagerung;
+    if (posten.preis > 0) {
+      if (!b || b.vorbereitung < posten.preis) return { ok: false, grund: 'Dafür fehlt die Vorbereitung.' };
+      b.vorbereitung -= posten.preis;
+    }
+
+    let erg = { ok: true };
+    if (posten.art === 'wappenHolen') {
+      if (derLauf.wappen.length >= WAPPEN_PLAETZE) erg = { ok: false, grund: 'Alle fünf Plätze sind belegt.' };
+      else derLauf.wappen.push(posten.wappen);
+    } else if (posten.art === 'wappenTauschen') {
+      const i = derLauf.wappen.indexOf(posten.wappen);
+      if (i < 0) erg = { ok: false, grund: 'Dieses Wappen hängt nicht.' };
+      else derLauf.wappen.splice(i, 1);
+    } else if (posten.art === 'turmAusbauen') {
+      erg = baueTurmAus(posten.turm, posten.typ);
+    } else if (posten.art === 'formationHeben') {
+      derLauf.formationsStufen[posten.formation] = (derLauf.formationsStufen[posten.formation] || 1) + 1;
+    } else {
+      erg = { ok: false, grund: 'Diesen Posten gibt es nicht.' };
+    }
+
+    // Ging es schief, kommt die Vorbereitung zurueck - halb bezahlt gibt es nicht.
+    if (!erg.ok && posten.preis > 0 && b) b.vorbereitung += posten.preis;
+    if (erg.ok) dasLager.genutzt.push(id);
+    return erg;
+  }
+
   /*
    * Der Kern von aussen: dieselbe Flaeche, die `quelle/kern.js` hergibt. Sie wird
    * beim Bauen aus dem Dach abgeleitet und kann deshalb nicht davon abweichen.
    */
   if (typeof window !== 'undefined') {
     window.PARAPEX = {
-      BEGEGNUNGEN, EINHEITEN_POOL, EREIGNIS, EREIGNIS_LISTE, FAMILIEN_ZEICHEN,
+      ABSCHNITTE, ANTEN, BEDROHUNG_MAX, BEGEGNUNGEN, BOSSREGELN, BOSSREGEL_LISTE,
+      DIENSTE, DIVISIONEN, EINHEITEN_POOL, EREIGNIS, EREIGNIS_LISTE, FAMILIEN_ZEICHEN,
       FEIND_STAERKE, FORMATIONEN, FORMATIONS_FAMILIEN, GATTUNGEN, GATTUNG_LISTE,
-      GRENZEN, KERN, KNOTEN_ARTEN, KOENIGSRAENGE, LAUF, PLAETZE, RANG_NAMEN, SELTENHEITEN,
-      START_DECK, TURMTYPEN, TURM_START, VORRAT_ARTEN, WAPPEN, WAPPEN_ANGEBOT,
-      WAPPEN_LISTE, WAPPEN_PLAETZE, WAPPEN_REGISTER, ZUENDART, abgewiesene, abweisungen,
-      angebotWappen, aufAllem, baueBelohnung, baueBlatt, baueFeind, baueTurmAus,
-      beendeRunde, beginneKampfAmKnoten, berechneWucht, bestand, bewerteWappen,
-      bonusWucht, dasBand, derKampf, derKnoten, derLauf, derVorrat, entferneKarte,
-      entsiegle, erkenneFormationen, fasseZusammen, feindStaerke, formationsSalven,
-      frischerKampfvorrat, fuegeWappenHinzu, grundwucht, kaufe, kopiere, lautesterPlatz,
-      lege, loeseAus, meldeWappen, mitReihe, neueEinheit, neuerKampf, neuerLauf,
-      neuerVorrat, neuesBand, nimmAngebot, oeffneHaendler, ordneWappen, raeumeBand,
-      raeumeKampf, reicht, reihe, salvenZahl, schleifeKarte, setzeEinheit, setzeRunde,
+      GRENZEN, HEERFUEHRER, JE_BEDROHUNG, KAEMPFE_MAX, KAEMPFE_MIN, KERN, KNOTEN_ARTEN,
+      KOENIGSRAENGE, LAGER_FOLGE, LAGER_PREISE, LAUF, PLAETZE, RANG_NAMEN, ROTER_KOENIG_AB,
+      SELTENHEITEN, SPERRE, START_DECK, TURMTYPEN, TURM_START, VORHUTEN, VORRAT_ARTEN,
+      WAPPEN, WAPPEN_ANGEBOT, WAPPEN_LISTE, WAPPEN_PLAETZE, WAPPEN_REGISTER, ZUENDART,
+      abgewiesene, abweisungen, angebotWappen, aufAllem, baueBelohnung, baueBlatt,
+      baueFeind, baueHeerfuehrer, baueRegeln, baueTurmAus, beendeRunde, beginneKampfAmKnoten,
+      belagerungslage, berechneWucht, bestand, bewerteWappen, bonusWucht, darfDurchlassen,
+      dasBand, dasLager, derKampf, derKnoten, derLauf, derVorrat, dieAnte, dieBelagerung,
+      dienstOffen, entferneKarte, entsiegle, erkenneFormationen, fasseZusammen,
+      feindStaerke, formationsSalven, frischerKampfvorrat, fuegeWappenHinzu, grundwucht,
+      kaempfeNochHoechstens, kaempfeNochMindestens, kasse, kaufe, kopiere, ladeBelagerung,
+      lagerAngebote, lautesterPlatz, lege, loeseAus, meldeAusgang, meldeWappen,
+      mitReihe, neueBelagerung, neueEinheit, neuerKampf, neuerLauf, neuerVorrat,
+      neuesBand, nimmAngebot, nimmLagerangebot, oeffneHaendler, oeffneLager, offeneWahlen,
+      ordneWappen, raeumeBand, raeumeBelagerung, raeumeKampf, raeumeLager, reicht,
+      reihe, salvenZahl, schleifeKarte, setzeEinheit, setzeRunde, sichereBelagerung,
       sichtbarerVorrat, siegelePlatz, tauschKosten, tauschKostenFuer, tauscheHandkarte,
       tauscheHandkarten, turmFaktor, verbessereEinheit, verlasseKnoten, verschiebePlatz,
-      vertauschePlaetze, vorschau, waehleInBegegnung, wappenNach, werteKampfAus,
+      vertauschePlaetze, vorschau, waehle, waehleInBegegnung, wappenNach, werteKampfAus,
       wirkwucht, zehre, ziehBegegnung, ziehe, zieheAuf, zuendeErneut,
       kampf: () => derKampf,
       lauf: () => derLauf,
