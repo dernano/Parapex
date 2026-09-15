@@ -3020,15 +3020,16 @@
     const jeSalve = Math.max(0, lage.daten.jeSalve + lage.daten.zusatz);
     for (const p of posten) p.schuesse = salven;
 
-    schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
-      salven, wucht: jeSalve * salven });
-
     /*
      * Was die Wappen getan haben, kommt als Schritte in dieselbe Liste - die
      * Tafel zeigt also nicht mehr nur `Wappen x2`, sondern welches Wappen auf
      * welchem Platz was getan hat. Genau das war vorher nicht zu sehen.
+     *
+     * Sie stehen VOR der Salvenzeile, weil sie die Salvenzahl erst gemacht
+     * haben. Andersherum las sich die Tafel wie eine Luege: erst `48 Salven`,
+     * dann die drei Wappen, die diese 48 zusammengetragen haben.
      */
-    let gesamt = jeSalve * salven;
+    let gesamt = jeSalve;
     for (const z of lage.protokoll) {
       if (z.abgewiesen || !z.wirkungen.length) continue;
       for (const w of z.wirkungen) {
@@ -3036,9 +3037,12 @@
       }
       schritte.push({
         art: 'wappen', id: z.id, name: z.name, platz: z.platz, zuendart: z.art,
-        wert: beschreibeWirkungen(z.wirkungen), wucht: gesamt,
+        gegner: z.gegner, wert: beschreibeWirkungen(z.wirkungen), wucht: gesamt * salven,
       });
     }
+    gesamt *= salven;
+    schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
+      salven, wucht: gesamt });
 
     return {
       posten, formationen, schritte, salven,
@@ -3059,7 +3063,10 @@
       else if (w.art === 'salvenFaktor') teile.push('×' + rund(w.wert) + ' Salven');
       else if (w.art === 'zusatz') teile.push((w.wert > 0 ? '+' : '') + rund(w.wert));
       else if (w.art === 'faktor') teile.push('×' + rund(w.wert));
-      else if (w.art === 'vorrat') teile.push((w.wert.menge > 0 ? '+' : '') + w.wert.menge + ' ' + w.wert.art);
+      else if (w.art === 'vorrat') {
+        const a = VORRAT_ARTEN[w.wert.art];
+        teile.push((w.wert.menge > 0 ? '+' : '') + w.wert.menge + ' ' + (a ? a.name : w.wert.art));
+      }
     }
     return teile.join(' · ');
   }
@@ -11013,6 +11020,18 @@ const PK_CSS = `
  * je Luecke waere lauter und wuerde die Schilde auseinandertreiben; der
  * Verlauf sagt dasselbe und kostet keinen Platz.
  */
+/*
+ * Die Vorratsleiste steht LINKS vom Gestell, weil sie dorthin gehoert: was
+ * hier steht, haben die Wappen gemacht, und das Gestell steht daneben.
+ */
+#pk .pk-vorrat { display: flex; gap: 5px; align-items: center; }
+#pk .pk-vorrat div { display: flex; align-items: center; gap: 3px; padding: 2px 6px;
+  border: 1px solid #4a3a22; border-radius: 3px; background: #241a11;
+  font-size: 11px; color: #d8cbab; font-variant-numeric: tabular-nums; cursor: default; }
+#pk .pk-vorrat div span { font-size: 12px; }
+#pk .pk-vorrat div b { color: #f3d283; }
+#pk .pk-vorrat div.zuendet { animation: pk-wappen-puls .4s cubic-bezier(.2,1.6,.4,1); }
+
 #pk .pk-wappen { display: flex; gap: 4px; position: relative; padding-bottom: 5px; }
 #pk .pk-wappen::after { content: ''; position: absolute; left: 1px; right: 1px; bottom: 1px;
   height: 2px; border-radius: 1px;
@@ -11481,8 +11500,14 @@ const PK_CSS = `
  * wen es trifft. Oben ist freier Himmel, und der Gegnerbalken, auf den sie
  * sich bezieht, steht direkt darueber.
  */
+/*
+ * Die Kette am Rand faengt keine Klicks - sie liegt ueber dem Feld und wuerde
+ * sonst das Setzen behindern. Die ZEILEN dagegen schon: wer auf eine klickt,
+ * bekommt das ganze Protokoll.
+ */
 #pk .pk-kette { position: absolute; right: 16px; top: 62px; width: 232px; z-index: 35;
   display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+#pk .pk-kette-zeile { pointer-events: auto; cursor: pointer; }
 #pk .pk-kette-zeile { display: flex; justify-content: space-between; align-items: baseline;
   font-size: 11.5px; padding: 3px 9px; border-radius: 3px; background: rgba(18,13,8,0.9);
   border-left: 3px solid #6b5535; opacity: 0; transform: translateX(22px);
@@ -11548,6 +11573,7 @@ function pkBaueOberflaeche() {
       </div>
       <div class="pk-runde" id="pk-runde">RUNDE <b>1</b></div>
       <div class="pk-lauf" id="pk-lauf"></div>
+      <div class="pk-vorrat" id="pk-vorrat"></div>
       <div class="pk-wappen" id="pk-wappen"></div>
     </div>
     <div class="pk-mitte"><div class="pk-buehne" id="pk-buehne"></div></div>
@@ -12110,6 +12136,53 @@ function pkMalKopf() {
   runde.classList.toggle('sturm', sturm);
 
   pkGestell(k);
+  pkVorratsleiste();
+}
+
+/*
+ * Der Vorrat: Pulver, Veteranenmarken, Verwüstung, Befehle.
+ *
+ * Diese Dinge gibt es nur, WEIL ein Wappen sie schafft. Ohne Hammer kein
+ * Pulver; ohne Pulver ist das Pulverhorn ein leeres Feld. Genau deshalb muss
+ * die Leiste leer bleiben, solange niemand etwas davon macht - ein Zähler,
+ * der immer auf null steht, lehrt den Spieler, ihn zu übersehen.
+ *
+ * Und genau deshalb muss sie sichtbar sein, sobald es etwas gibt: eine
+ * Währung, die man nicht zählen kann, ist keine.
+ */
+function pkVorratsleiste() {
+  const el = document.getElementById('pk-vorrat');
+  if (!el) return;
+  const posten = sichtbarerVorrat();
+  const schluessel = posten.map(p => p.id + p.menge).join(',');
+  if (el.dataset.stand === schluessel) return;
+  el.dataset.stand = schluessel;
+  el.innerHTML = '';
+  for (const p of posten) {
+    const d = document.createElement('div');
+    d.innerHTML = '<span>' + p.zeichen + '</span><b>' + pkZahl(p.menge) + '</b>';
+    pkHefteHinweis(d, () => ({
+      titel: p.name,
+      text: pkVorratNutzer(p.id),
+      fuss: p.bleibt === 'lauf' ? 'Bleibt über den ganzen Feldzug.' : 'Nur für diesen Kampf.',
+    }));
+    // Zuckt, wenn sich die Zahl bewegt hat - sonst übersieht man sie.
+    el.appendChild(d);
+    pkZucke(d, 'zuendet', 360);
+  }
+}
+
+/** Welche der gehängten Wappen diesen Vorrat überhaupt anfassen. */
+function pkVorratNutzer(art) {
+  const k = derKampf;
+  if (!k) return 'Wird von Wappen geschaffen und verbraucht.';
+  const namen = k.wappen
+    .filter(id => WAPPEN[id] && (WAPPEN[id].text + WAPPEN[id].hinweis).toLowerCase()
+      .includes(VORRAT_ARTEN[art].name.toLowerCase().slice(0, 6)))
+    .map(id => WAPPEN[id].name.replace('Wappen ', ''));
+  return namen.length
+    ? 'In deinem Gestell: ' + namen.join(', ') + '.'
+    : 'Kein Wappen in deinem Gestell liest das gerade.';
 }
 
 /* ============================================================
@@ -13241,6 +13314,9 @@ function pkZeigeKette(abrechnung) {
   const kasten = document.createElement('div');
   kasten.id = 'pk-kette';
   kasten.className = 'pk-kette';
+  kasten.title = 'Anklicken für das ganze Protokoll';
+  kasten.addEventListener('click', () => pkZeigeProtokoll());
+  // Die Zeilen fangen den Klick; der Kasten selbst laesst ihn durch.
 
   const zeilen = [];
   for (const s of abrechnung.schritte) {
@@ -13575,6 +13651,24 @@ html, body { max-width: 100%; overflow-x: hidden; }
 #pk .pk-angebote.pk-lagewahlen .pk-angebot-name { font-size: 12.5px; }
 #pk .pk-weg.pk-bedrohung i.hier { background: #c4483c; }
 #pk .pk-vorbereitung b { color: #f3d283; }
+
+/* ---------- Das Kampfprotokoll ---------- */
+#pk .pk-protokoll { text-align: left; margin: 8px 0 12px; max-height: 44vh; overflow-y: auto;
+  border: 1px solid #3f3120; border-radius: 5px; background: rgba(12,9,6,0.5); }
+#pk .pk-prot-zeile { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 5px 9px; font-size: 11.5px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+#pk .pk-prot-zeile:last-child { border-bottom: none; }
+#pk .pk-prot-wer { color: #d8cbab; }
+#pk .pk-prot-wer small { color: #8a7c63; font-size: 9.5px; letter-spacing: 0.06em;
+  text-transform: uppercase; }
+#pk .pk-prot-zeile b { color: #b7e08f; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#pk .pk-prot-zeile.aus { opacity: 0.55; }
+#pk .pk-prot-zeile.aus b { color: #c48a72; font-style: italic; }
+/* Die Regeln des Gegners laufen auf demselben Band - sie stehen hier mit,
+   und sie stehen rot. Wer nicht sieht, was der Heerführer getan hat, sucht
+   den Fehler bei sich. */
+#pk .pk-prot-zeile.gegner { background: rgba(120,40,30,0.18); }
+#pk .pk-prot-zeile.gegner b { color: #e08a72; }
 
 /* ---------- Das Heerlager ---------- */
 #pk .pk-dienste { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 4px 0 14px; }
@@ -13950,6 +14044,81 @@ function pkWeiter() {
 }
 
 /* ============================================================
+ *  D A S   K A M P F P R O T O K O L L
+ * ============================================================
+ *
+ * Wer wissen will, warum eine Salve 4,2 Millionen war, soll es LESEN können
+ * und nicht raten müssen.
+ *
+ * Die Kette am Rand zeigt das Ergebnis - hier steht der Weg dorthin: jede
+ * Zündung mit ihrem Platz, ihrer Art und dem, was sie bewirkt hat. Und, was
+ * mindestens ebenso wichtig ist: jede ABGEWIESENE Zündung mit ihrem Grund.
+ * Ein Wappen, das nicht gezündet hat, ist die häufigste Ursache für eine Zahl,
+ * die man nicht versteht; wer es nicht sieht, sucht stundenlang.
+ */
+const PK_ABWEISUNG = {
+  siegel:     'versiegelt',
+  tiefe:      'zu tief verkettet',
+  jePlatz:    'in diesem Ereignis schon zu oft gezündet',
+  jeEreignis: 'das Ereignis war voll',
+  kreis:      'Kreis — es hat dieses Ereignis selbst ausgelöst',
+  ketten:     'zu viele Folgeereignisse',
+};
+const PK_ZUENDART = {
+  urspruenglich: '',
+  nachzuendung:  'nachgezündet',
+  kopie:         'kopiert',
+  erzeugt:       'erzeugt',
+};
+
+function pkZeigeProtokoll(zurueck = null) {
+  const ab = pkLetzteSalve;
+  if (!ab || !ab.protokoll) { pkSage('Noch keine Salve gefallen.'); return; }
+
+  const zeilen = ab.protokoll.map(z => {
+    const wer = (z.platz >= 0 ? 'Platz ' + (z.platz + 1) : 'Gegner') + ' · ' + z.name;
+    // `?? ` und nicht `|| `: eine urspruengliche Zuendung traegt absichtlich
+    // die leere Marke - mit `||` stuende an jeder Zeile URSPRUENGLICH.
+    const art = PK_ZUENDART[z.art] ?? z.art;
+    const marken = [art, z.tiefe ? 'Tiefe ' + z.tiefe : ''].filter(Boolean).join(' · ');
+    const was = z.abgewiesen
+      ? '<i>' + (PK_ABWEISUNG[z.abgewiesen] || z.abgewiesen) + '</i>'
+      : (pkWirkungText(z) || '—');
+    return '<div class="pk-prot-zeile' + (z.abgewiesen ? ' aus' : '') +
+        (z.gegner ? ' gegner' : '') + '">' +
+      '<span class="pk-prot-wer">' + wer +
+        (marken ? ' <small>' + marken + '</small>' : '') + '</span>' +
+      '<b>' + was + '</b>' +
+    '</div>';
+  }).join('');
+
+  const rechnung = ab.schritte.map(s =>
+    '<div class="pk-schritt"><span>' + s.name + '</span><b>' +
+      (s.art === 'grund' ? pkZahl(Math.round(s.wucht)) : s.wert) + '</b></div>').join('');
+
+  const k = ab.kette || { zuendungen: 0, abgewiesen: 0, tiefste: 0 };
+  const t = pkTafel(
+    '<h2>Kampfprotokoll</h2>' +
+    '<div class="pk-abrechnung">' +
+      '<span>Zündungen <b>' + k.zuendungen + '</b></span>' +
+      '<span>abgewiesen <b>' + k.abgewiesen + '</b></span>' +
+      '<span>tiefste Kette <b>' + k.tiefste + '</b></span>' +
+      '<span>Salven <b>' + ab.salven + '</b></span>' +
+    '</div>' +
+    '<p class="pk-vor">Von links nach rechts, in der Reihenfolge des Zündens. ' +
+      'Was abgewiesen wurde, steht mit dem Grund dabei.</p>' +
+    '<div class="pk-protokoll">' + (zeilen || '<i>Kein Wappen hat gezündet.</i>') + '</div>' +
+    '<div class="pk-schritte">' + rechnung + '</div>' +
+    '<div class="pk-tafel-fuss">' +
+      '<button class="pk-knopf haupt" id="pk-zurueck">Schliessen</button>' +
+    '</div>', { breit: true });
+  t.querySelector('#pk-zurueck').addEventListener('click', () => {
+    pkRaeumeTafel();
+    if (zurueck) zurueck();
+  });
+}
+
+/* ============================================================
  *  D I E   B E L A G E R U N G S K A R T E
  * ============================================================
  *
@@ -14198,6 +14367,7 @@ function pxZeichne() {
     '<button data-tu="wappen">Wappen dazu</button>' +
     '<button data-tu="ausbau">Turm ausbauen</button>' +
     '<button data-tu="sieg">Gegner umwerfen</button>' +
+    '<button data-tu="protokoll">Kampfprotokoll</button>' +
     '<button data-tu="weiter">Station überspringen</button>' +
     '<button data-tu="neu">Neuer Lauf</button>' +
     '</div>' +
@@ -14216,6 +14386,7 @@ function pxTu(was) {
   else if (was === 'wappen' && l) { const a = angebotWappen(); if (a) fuegeWappenHinzu(a.wappen); }
   else if (was === 'ausbau' && l) { const a = angebotAusbau(); if (a) baueTurmAus(a.turm, a.typ); }
   else if (was === 'sieg' && k) { trefferAufFeind(k.feind.hp, 'Werkzeug'); pkRundeBeenden(); }
+  else if (was === 'protokoll') { pxSchalte(); pkZeigeProtokoll(); return; }
   else if (was === 'weiter') pkWeiter();
   else if (was === 'neu') { neuerLauf(); pkBetreteAbschnitt(); }
   pkRender();

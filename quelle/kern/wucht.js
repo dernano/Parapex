@@ -1,7 +1,7 @@
 import { bonusWucht, wirkwucht } from './einheiten.js';
 import { turmFaktor } from './tuerme.js';
 import { erkenneFormationen, salvenZahl } from './formationen.js';
-import { EREIGNIS } from '../wappen/ereignisse.js';
+import { EREIGNIS, VORRAT_ARTEN } from '../wappen/ereignisse.js';
 import { loeseAus, mitReihe, fasseZusammen } from '../wappen/fliessband.js';
 
 // ---------- Wucht ----------
@@ -93,15 +93,16 @@ function rechneSalve(tuerme, probe) {
   const jeSalve = Math.max(0, lage.daten.jeSalve + lage.daten.zusatz);
   for (const p of posten) p.schuesse = salven;
 
-  schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
-    salven, wucht: jeSalve * salven });
-
   /*
    * Was die Wappen getan haben, kommt als Schritte in dieselbe Liste - die
    * Tafel zeigt also nicht mehr nur `Wappen x2`, sondern welches Wappen auf
    * welchem Platz was getan hat. Genau das war vorher nicht zu sehen.
+   *
+   * Sie stehen VOR der Salvenzeile, weil sie die Salvenzahl erst gemacht
+   * haben. Andersherum las sich die Tafel wie eine Luege: erst `48 Salven`,
+   * dann die drei Wappen, die diese 48 zusammengetragen haben.
    */
-  let gesamt = jeSalve * salven;
+  let gesamt = jeSalve;
   for (const z of lage.protokoll) {
     if (z.abgewiesen || !z.wirkungen.length) continue;
     for (const w of z.wirkungen) {
@@ -109,9 +110,12 @@ function rechneSalve(tuerme, probe) {
     }
     schritte.push({
       art: 'wappen', id: z.id, name: z.name, platz: z.platz, zuendart: z.art,
-      wert: beschreibeWirkungen(z.wirkungen), wucht: gesamt,
+      gegner: z.gegner, wert: beschreibeWirkungen(z.wirkungen), wucht: gesamt * salven,
     });
   }
+  gesamt *= salven;
+  schritte.push({ art: 'salven', name: salven + ' Salven', wert: '×' + salven,
+    salven, wucht: gesamt });
 
   return {
     posten, formationen, schritte, salven,
@@ -132,7 +136,10 @@ function beschreibeWirkungen(wirkungen) {
     else if (w.art === 'salvenFaktor') teile.push('×' + rund(w.wert) + ' Salven');
     else if (w.art === 'zusatz') teile.push((w.wert > 0 ? '+' : '') + rund(w.wert));
     else if (w.art === 'faktor') teile.push('×' + rund(w.wert));
-    else if (w.art === 'vorrat') teile.push((w.wert.menge > 0 ? '+' : '') + w.wert.menge + ' ' + w.wert.art);
+    else if (w.art === 'vorrat') {
+      const a = VORRAT_ARTEN[w.wert.art];
+      teile.push((w.wert.menge > 0 ? '+' : '') + w.wert.menge + ' ' + (a ? a.name : w.wert.art));
+    }
   }
   return teile.join(' · ');
 }
