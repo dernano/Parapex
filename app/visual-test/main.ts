@@ -4,13 +4,20 @@ import { resolve } from '@/crests/CrestPipeline';
 import {
   buildTableau, cardsFromTowers, recogniseFormations, volleyCount,
 } from '@/simulation/FormationEngine';
-import { currentForce } from '@/simulation/CombatEngine';
+import { currentForce, performAction } from '@/simulation/CombatEngine';
 import { STAGE_HEIGHT, STAGE_WIDTH } from '@/rendering/artRules';
 import { ArtRegister } from '@/rendering/artHooks';
 import { BattlefieldRenderer } from '@/rendering/PixiRenderer';
 import {
   buildBattlefieldScene, garrisonAnchors, type FloatingLabel, type FlyingProjectile,
 } from '@/rendering/SceneGraph';
+import {
+  NO_DRAG, dragAt, dropGhost, dropTargets, type DragState,
+} from '@/rendering/hud/dropTargets';
+import { previewCaption, previewFormations } from '@/rendering/formations/formationPresentation';
+import type { HandSort } from '@/rendering/hud/layout';
+import { deployCost } from '@/simulation/CombatEngine';
+import { rejectionMessage } from '@/content/combat/rejections';
 import { shakenCamera } from '@/rendering/effects/cameraResponse';
 import { compress, emptyField, step, type ParticleField } from '@/rendering/effects/particles';
 import { presentFormation } from '@/rendering/formations/formationPresentation';
@@ -24,10 +31,11 @@ import {
 import { SalvoDirector } from '@/rendering/presentation/SalvoDirector';
 import { originFor } from '@/rendering/WorldTransform';
 import {
-  CREST_PRESETS, DEFAULT_BENCH, benchHand, buildState, targetPoint,
+  CREST_PRESETS, DEFAULT_BENCH, buildState, targetPoint,
   type Bench, type CrestPreset, type TargetSide,
 } from './bench';
-import { renderHud } from './hudView';
+import { benchHand as freshHand } from './bench';
+import { hudSignature, renderHud } from './hudView';
 
 /**
  * THE VISUAL WORKBENCH.
@@ -65,6 +73,15 @@ let formationSince = 0;
 let ticker = 'Bereit.';
 /** The harness drives time itself; the animation frame must not also do it. */
 let manual = false;
+
+/* The hand, the sort and the card in the air. */
+let hand = freshHand();
+let sort: HandSort = 'drawn';
+let hovered: number | null = null;
+let drag: DragState = NO_DRAG;
+let dragCard: number | null = null;
+let preview = '';
+let hudDrawn = '';
 
 /* ============================================================
  *  The panel
@@ -125,6 +142,11 @@ function rebuild(): void {
   ambient = emptyField('ambient');
   formationSince = performance.now() / 1000;
   ticker = 'Bereit.';
+  hand = freshHand();
+  drag = NO_DRAG;
+  dragCard = null;
+  hovered = null;
+  preview = '';
   art.clear();
   meter.reset();
 }
@@ -171,6 +193,12 @@ function buildPanel(): void {
   group<number>('powder', [0, 5, 10, 50].map(value => ({
     label: String(value), value,
   })), () => bench.powder, powder => set({ powder }));
+
+  group<HandSort>('sortOrder', [
+    { label: 'gezogen', value: 'drawn' },
+    { label: 'Rang', value: 'rank' },
+    { label: 'Gattung', value: 'branch' },
+  ], () => sort, next => { sort = next; });
 
   checks('effects', [
     ['smoke', 'Rauch'], ['dust', 'Staub'], ['flash', 'Mündungsfeuer'],
@@ -239,6 +267,89 @@ function fire(): void {
  *  The frame
  * ============================================================ */
 
+/* ============================================================
+ *  Card to tower
+ * ============================================================
+ *
+ * The interaction the player performs more than any other. Three things make
+ * it feel solid rather than fiddly, and all three are decisions: the target is
+ * the PLATFORM the soldier will stand on, the target is bigger than it looks,
+ * and the answer — what this completes, what it displaces, what it costs —
+ * arrives while the card is still in the air.
+ */
+
+/** Canvas pixels from a pointer event, at the renderer's own scale. */
+function canvasPoint(event: PointerEvent): { x: number; y: number } {
+  const box = canvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - box.left) * (STAGE_WIDTH / box.width),
+    y: (event.clientY - box.top) * (STAGE_HEIGHT / box.height),
+  };
+}
+
+function updateDrag(event: PointerEvent): void {
+  const card = dragCard;
+  if (card === null) return;
+  const unit = hand[card];
+  if (!unit) return;
+
+  const targets = dropTargets(state.towers, camera);
+  const at = canvasPoint(event);
+  /*
+   * The cost depends on the tower, and the tower depends on the pointer, so
+   * the hit test runs first with a placeholder price and again with the real
+   * one. Deploying onto an occupied emplacement REPLACES — one action, not
+   * two — and `deployCost` is the only thing that knows what that costs.
+   */
+  const over = dragAt({ card, at, targets, cost: 0, momentum: state.momentum }).target;
+  const cost = over ? deployCost(state, over.tower) : 1;
+  drag = dragAt({ card, at, targets, cost, momentum: state.momentum });
+
+  preview = drag.target
+    ? previewCaption(previewFormations(state.towers,
+      { unit, towerIndex: drag.target.tower }))
+    : '';
+}
+
+hudHost.addEventListener('pointerdown', event => {
+  const card = (event.target as HTMLElement)?.closest?.('.card') as HTMLElement | null;
+  if (!card?.dataset.card) return;
+  dragCard = Number(card.dataset.card);
+  hovered = dragCard;
+  hudHost.setPointerCapture(event.pointerId);
+  updateDrag(event);
+});
+
+hudHost.addEventListener('pointermove', event => {
+  if (dragCard === null) return;
+  updateDrag(event);
+});
+
+hudHost.addEventListener('pointerup', event => {
+  const card = dragCard;
+  if (card === null) return;
+  const unit = hand[card];
+  updateDrag(event);
+  if (unit && drag.phase === 'over' && drag.target) {
+    const result = performAction(
+      { ...state, hand: [...state.hand, unit] },
+      { type: 'DEPLOY_UNIT', cardUid: unit.uid, towerIndex: drag.target.tower });
+    if (result.ok) {
+      state = result.state;
+      hand = hand.filter((_, i) => i !== card);
+      ticker = `${unit.displayName} auf Stellung ${drag.target.tower + 1}`
+        + `${preview ? ` · ${preview}` : ''}`;
+    } else {
+      ticker = rejectionMessage(result);
+    }
+  }
+  dragCard = null;
+  hovered = null;
+  drag = NO_DRAG;
+  preview = '';
+  try { hudHost.releasePointerCapture(event.pointerId); } catch { /* schon weg */ }
+});
+
 function drawFrame(dt: number): void {
   const settings = withReducedMotion(bench.settings);
 
@@ -263,14 +374,29 @@ function drawFrame(dt: number): void {
     ? shakenCamera(camera, director.cameraImpulses, director.elapsed, settings)
     : camera;
 
+  const held = dragCard === null ? null : hand[dragCard] ?? null;
+  const ghost = held ? dropGhost(drag, held, state.towers) : null;
+
   const scene = buildBattlefieldScene(state, shaken, projectiles, particles, {
-    settings, formations: formationNodes, floating,
+    settings, formations: formationNodes, floating, ghost,
   });
   renderer.render(scene, settings);
 
-  renderHud(hudHost, {
-    combat: state, hand: benchHand(), sort: 'drawn', hovered: null, ticker,
-  }, { width: STAGE_WIDTH, height: STAGE_HEIGHT });
+  const line = preview ? `${ticker}   ${preview}` : ticker;
+  const hud = {
+    combat: state, hand, sort, hovered,
+    dragging: dragCard, ticker: line,
+  };
+  const signature = hudSignature(hud, { width: STAGE_WIDTH, height: STAGE_HEIGHT });
+  /*
+   * Only when something changed. Rebuilding this DOM every frame killed the
+   * sort animation — the element being animated was replaced sixty times a
+   * second — and dropped the pointer target out from under a drag.
+   */
+  if (signature !== hudDrawn) {
+    hudDrawn = signature;
+    renderHud(hudHost, hud, { width: STAGE_WIDTH, height: STAGE_HEIGHT });
+  }
 
   meter.frame({
     ms: dt * 1000,
@@ -388,6 +514,8 @@ declare global {
       fire(): void;
       settle(seconds: number): void;
       measure(frames: number): Record<string, unknown>;
+      towerPoint(index: number): { x: number; y: number };
+      cardPoint(index: number): { x: number; y: number } | null;
       report(): Record<string, unknown>;
     };
   }
@@ -491,6 +619,30 @@ window.WERKBANK = {
     return { ...run.report(), line: perfLine(run.report()) };
   },
 
+  /**
+   * Where a tower's platform is, in PAGE pixels.
+   *
+   * The harness needs this to drive a real drag: synthetic pointer events have
+   * to land where a person would aim, or the test proves only that the code
+   * accepts coordinates it made up itself.
+   */
+  towerPoint(index: number): { x: number; y: number } {
+    const target = dropTargets(state.towers, camera)[index];
+    const box = canvas.getBoundingClientRect();
+    if (!target) return { x: box.left, y: box.top };
+    return {
+      x: box.left + target.screen.x * (box.width / STAGE_WIDTH),
+      y: box.top + target.screen.y * (box.height / STAGE_HEIGHT),
+    };
+  },
+
+  cardPoint(index: number): { x: number; y: number } | null {
+    const card = hudHost.querySelector(`.card[data-card="${index}"]`);
+    if (!card) return null;
+    const box = card.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  },
+
   report(): Record<string, unknown> {
     return {
       bench,
@@ -498,6 +650,10 @@ window.WERKBANK = {
       missing: art.report().map(m => m.path),
       perf: meter.report(),
       plan: director ? { tier: director.plan.tier.id, drawn: director.plan.drawn } : null,
+      hand: hand.map(u => u.id),
+      garrison: state.towers.map(t => t.unit?.id ?? null),
+      momentum: state.momentum,
+      ticker,
     };
   },
 };

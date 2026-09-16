@@ -74,9 +74,6 @@ export interface PlaceholderSprite {
   readonly sockets?: Readonly<Record<string, { readonly x: number; readonly y: number }>>;
 }
 
-/** Round a design pixel through the scale probe. Whole pixels only, always. */
-const scaleBy = (value: number, scale: number): number => Math.max(1, Math.round(value * scale));
-
 const ramp = (family: keyof typeof PALETTE, step: number): string =>
   PALETTE[family][Math.min(step, PALETTE[family].length - 1)]!;
 
@@ -185,7 +182,7 @@ export function unitFigure(
        * art and is not meant to be. It is the proof that the socket is on the
        * weapon, and it will be deleted the day a real barrel replaces it.
        */
-      weaponStub(branch, height, scale),
+      weaponStub(branch, scale),
       // Helmet, body, boots: three value clusters, strong silhouette, no
       // detail that would vanish at gameplay distance.
       { kind: 'rect', x: Math.round(width * 0.2), y: 0,
@@ -232,7 +229,7 @@ export const PARAPET_RISE = 9;
  * `UNIT_VISUALS` becomes visibly right or visibly wrong instead of being a
  * number nobody can check.
  */
-function weaponStub(branch: string, height: number, scale: number): Shape {
+function weaponStub(branch: string, scale: number): Shape {
   const visual = UNIT_VISUALS[branch as BranchId];
   if (!visual) return { kind: 'rect', x: 0, y: 0, w: 1, h: 1, fill: ramp('iron', 1) };
   const muzzle = visual.sockets.muzzle;

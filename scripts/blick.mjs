@@ -103,6 +103,21 @@ const SAETZE = {
     frage: `Einheiten auf ${prozent} %: lesbar, ohne die Burg zu erdrücken?`,
   })),
 
+  /*
+   * Die eine Aufnahme, die eine HANDLUNG zeigt: eine Karte in der Luft über
+   * einer Stellung. Sie wird mit echten Zeigerereignissen erzeugt, an den
+   * Stellen, an die ein Mensch zielen würde — sonst bewiese sie nur, dass der
+   * Code Koordinaten annimmt, die er sich selbst ausgedacht hat.
+   */
+  handlung: [
+    { name: 'karte-ueber-turm',
+      bench: { formation: false, volleys: 1, crests: 'none' },
+      feuern: false, zeit: 0.3,
+      zug: { karte: 1, turm: 3 },
+      frage: 'Steht der Schemen auf der Plattform, und sagt die Laufzeile,'
+        + ' was der Zug wert wäre?' },
+  ],
+
   diagnose: [
     { name: 'diagnose-sockel',
       bench: {
@@ -229,6 +244,23 @@ async function main() {
         if (z.feuern) window.WERKBANK.fire();
         window.WERKBANK.settle(z.zeit);
       }, zustand);
+
+      if (zustand.zug) {
+        const von = await seite.evaluate(i => window.WERKBANK.cardPoint(i), zustand.zug.karte);
+        const nach = await seite.evaluate(i => window.WERKBANK.towerPoint(i), zustand.zug.turm);
+        if (!von) { fehler.push(`${zustand.name}: keine Karte ${zustand.zug.karte}`); }
+        else {
+          await seite.mouse.move(von.x, von.y);
+          await seite.mouse.down();
+          // In Schritten, wie eine Hand: ein Sprung träfe die Aufnahme, aber
+          // nicht die Zwischenzustände, die der Spieler tatsächlich sieht.
+          for (let i = 1; i <= 8; i++) {
+            await seite.mouse.move(von.x + (nach.x - von.x) * i / 8,
+              von.y + (nach.y - von.y) * i / 8);
+          }
+          await seite.evaluate(() => window.WERKBANK.settle(0.05));
+        }
+      }
 
       const rahmen = await seite.$('#shell');
       const datei = join(ZIEL, `${zustand.name}.png`);

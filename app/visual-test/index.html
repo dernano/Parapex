@@ -22,7 +22,11 @@
 
     /* The HUD sits OVER the canvas, at the same logical size. That is the
        point: the battlefield is not a panel among panels. */
+    /* The HUD does not eat clicks meant for the world — except on a card,
+       which is the one thing here the pointer is for. */
     #hud { position: absolute; inset: 0; pointer-events: none; }
+    #hud .card { pointer-events: auto; cursor: grab; touch-action: none; }
+    #hud .card:active { cursor: grabbing; }
     #hud .region { position: absolute; box-sizing: border-box; }
     #hud .frame { border: 1px solid var(--line); background: rgba(10,8,6,.72); }
 
@@ -117,6 +121,11 @@
       <button class="big" id="fire">FEUER</button>
       <button class="big" id="reset">Zurücksetzen</button>
     </div>
+
+    <h2>Hand sortieren</h2>
+    <div class="row" id="sortOrder"></div>
+    <p class="note">Karte auf einen Turm ziehen. Die Vorschau steht in der
+      Laufzeile, noch bevor sie liegt.</p>
 
     <h2>Formation</h2>
     <div class="row" id="formation"></div>

@@ -29,8 +29,33 @@ export interface HudState {
   readonly hand: readonly Unit[];
   readonly sort: HandSort;
   readonly hovered: number | null;
+  /** The card currently in the air, by hand index. It leaves the fan. */
+  readonly dragging: number | null;
   /** German, one line: what just happened. */
   readonly ticker: string;
+}
+
+/**
+ * Everything the HUD's appearance depends on, as one string.
+ *
+ * The workbench used to rebuild this DOM every frame, and two things broke
+ * quietly: the CSS transition that animates a sort never got to run, because
+ * the element it was animating was replaced sixty times a second, and a
+ * pointer-down on a card landed on an element that no longer existed by the
+ * time the pointer moved. Rebuilding only when something actually changed
+ * fixes both, and costs nothing.
+ */
+export function hudSignature(state: HudState, viewport: { width: number; height: number }): string {
+  return [
+    viewport.width, viewport.height,
+    state.combat.round, state.combat.momentum, Math.round(state.combat.enemy.hp),
+    state.combat.towers.map(t => t.unit?.uid ?? '-').join(','),
+    state.combat.crests.row.slots.join(','),
+    Object.values(state.combat.crests.resources).join(','),
+    Object.values(state.combat.crests.tally).join(','),
+    state.hand.map(u => u.uid).join(','),
+    state.sort, state.hovered, state.dragging, state.ticker,
+  ].join('|');
 }
 
 const el = (tag: string, className?: string): HTMLElement => {
@@ -136,7 +161,8 @@ function handView(layout: HudLayout, state: HudState): HTMLElement {
   for (const slot of handLayout(state.hand.length, layout.hand, order, state.hovered)) {
     const unit = state.hand[slot.card];
     if (!unit) continue;
-    const card = el('div', 'card');
+    const card = el('div', `card${state.dragging === slot.card ? ' ghosted' : ''}`);
+    card.dataset.card = String(slot.card);
     card.style.left = `${slot.x}px`;
     card.style.top = `${slot.y}px`;
     card.style.width = `${slot.width}px`;
