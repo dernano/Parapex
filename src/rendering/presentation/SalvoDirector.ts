@@ -22,6 +22,9 @@ import {
 import {
   flashAt, flashEndsAt, flashWindow, type FlashWindow,
 } from '../effects/screenFlash';
+import { presentIgnitions, type TriggerPresentation } from '../crests/triggerProfiles';
+import { motifFrameAt, motifsEndAt, type MotifFrame } from '../crests/motifShapes';
+import type { Ignition } from '@/crests/types';
 import { firingDuration, visualFor, type UnitVisualDefinition } from '../units/UnitVisual';
 import { poseAt, projectileAt, socketWorld, type Pose } from '../units/firing';
 import { towerGroundAnchor } from '../SceneGraph';
@@ -82,6 +85,15 @@ export interface DirectorOptions {
   /** What the earth already looks like. Scars outlive the salvo that made them. */
   readonly scars?: ScarField;
   /**
+   * What the crest row did for this volley.
+   *
+   * The rack belongs to the salvo, so the director owns its presentation too.
+   * That is not tidiness: the motifs used to run on the wall clock while the
+   * guns ran on this one, and the two drifted apart the moment a frame took
+   * longer than it should.
+   */
+  readonly crestProtocol?: readonly Ignition[];
+  /**
    * Which emplacement speaks first, and in what order after that. Defaults to
    * left-to-right along the wall. The workbench sets it so the family being
    * examined actually fires the single volley one is watching — without it,
@@ -95,6 +107,8 @@ export class SalvoDirector {
   readonly plan: SalvoPlan;
   readonly shots: readonly DrawnShot[];
   readonly damage: DamagePresentation;
+  /** What the rack does, and when. One motif per ignition, in protocol order. */
+  readonly crestMotifs: readonly TriggerPresentation[];
 
   private readonly options: DirectorOptions;
   private readonly guns: ActiveGun[] = [];
@@ -133,6 +147,7 @@ export class SalvoDirector {
     this.damage = planDamageNumbers(this.plan, this.shots, options.damage);
     this.field = emptyField(options.seed ?? 'salvo');
     this.aim = Rng.fromSeed(`${options.seed ?? 'salvo'}:aim`);
+    this.crestMotifs = presentIgnitions(options.crestProtocol ?? []);
     this.window = flashWindow(this.plan,
       this.shots.length ? this.shots[this.shots.length - 1]!.at : 0);
     // Scars carried over from earlier salvos: the field does not start clean
@@ -182,6 +197,20 @@ export class SalvoDirector {
     return flashAt(this.window, this.time, this.options.settings);
   }
 
+  /**
+   * Every motif on the rack right now, on the SAME clock as the guns.
+   *
+   * Under reduced motion there are none at all: the rack still reports what
+   * happened in its tallies and its chain readout, it simply does not move.
+   */
+  crestFrames(): readonly { readonly ignition: TriggerPresentation;
+    readonly frame: MotifFrame }[] {
+    if (this.options.settings.reducedMotion) return [];
+    return this.crestMotifs
+      .map(ignition => ({ ignition, frame: motifFrameAt(ignition, this.time) }))
+      .filter(entry => entry.frame.opacity > 0);
+  }
+
   /** The poses, so the renderer can bend the bows it is drawing. */
   poses(): ReadonlyMap<number, Pose> {
     const out = new Map<number, Pose>();
@@ -207,7 +236,8 @@ export class SalvoDirector {
     return this.started >= this.shots.length
       && !this.guns.length && !this.flights.length
       && !this.field.particles.length && !this.labels.length
-      && this.time >= flashEndsAt(this.window);
+      && this.time >= flashEndsAt(this.window)
+      && this.time >= motifsEndAt(this.crestMotifs);
   }
 
   /* ---------- The one method that moves time ---------- */

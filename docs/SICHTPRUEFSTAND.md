@@ -68,6 +68,11 @@ jedem dritten Schuss und dem letzten. Bei reduzierter Bewegung exakt null.
 **Die Geschlossene Front steht auf der Mauer.** Standarten über jeder Stellung,
 zu einer Linie verbunden, Beschriftung daneben — kein Fenster.
 
+**Die Reihe und die Geschütze teilen eine Uhr.** Die acht Motive sind reine
+Funktionen der Zeit, vom selben Regisseur getrieben wie Rauch, Geschosse und
+Kamera — nicht von CSS. Sie können nicht gegeneinander driften, weil keines von
+beiden die Zeit besitzt, und eine Aufnahme davon braucht keinen Kunstgriff mehr.
+
 **Die Wappenreihe liest sich als Reihenfolge.** Fünf Fächer, in eine Richtung
 verbunden, und acht Motive, deren Zuordnung aus dem ABGELEITET wird, was ein
 Wappen getan hat. Der Renderer kennt keinen der fünfzig Namen; ein Test liest
@@ -187,11 +192,12 @@ Bild-Zeit-Budget ist ohnehin die eigentliche Schranke.
 1,4 ms · Sperrfeuer 3,8 ms · Bombardement 2,2 ms · Vernichtung 2,5 ms · eine
 Million 2,6 ms (p95), bei bis zu 941 Sprites. Alles im Budget.
 
-**Ein Ausreißer, ehrlich benannt:** in etwa jedem zweiten Lauf kostet EIN Bild
-einer Stufe-E-Salve rund 50 ms. Es ist immer dasselbe Bild — das, in dem der
-Regisseur hundertfünfzig Geschosse und dreihundert Partikel auf einmal anlegt —
-und es sieht nach Speicherbereinigung aus. Ein Sprite-Vorrat statt Neuanlage
-wäre die Lösung, falls es je stört.
+**Der Ausreißer ist weg.** In etwa jedem zweiten Lauf kostete ein Bild einer
+Stufe-E-Salve rund 50 ms. Seit die Wappenmotive nicht mehr über CSS laufen —
+Dutzende animierter Elemente mit `will-change`, jede Salve neu angelegt — ist
+das schlimmste gemessene Bild über drei Läufe 5,9 bis 7,8 ms. Ein Sprite-Vorrat
+ist damit eine Lösung ohne Problem und bleibt liegen, bis wieder etwas schlecht
+misst.
 
 ## 6. Die Tests
 
@@ -244,21 +250,19 @@ Stroboskop, und es ist durch Konstruktion sicher statt durch eine Einstellung.
 
 Ehrlich, und nach Gewicht sortiert.
 
-1. **Die Wappenmotive laufen über CSS, das Übrige über den Regisseur.** Im
-   Prüfstand ist das durch einen Suchlauf reproduzierbar gemacht. Für das
-   fertige Spiel sollten sie auf dieselbe Zeitachse — sonst driftet die Reihe
-   gegen das Schlachtfeld, sobald ein Bild einmal länger dauert.
-2. **Zwölf von dreizehn Formationen haben keine Präsentation.** Der Auftrag
+1. **Zwölf von dreizehn Formationen haben keine Präsentation.** Der Auftrag
    wollte ausdrücklich EINE richtig; die Liste der übrigen wird abgeleitet und
    nennt sich selbst.
-3. **Der Dauerdonner ist Ton, und Ton gibt es im neuen Baum noch nicht.** Der
+2. **Der Dauerdonner ist Ton, und Ton gibt es im neuen Baum noch nicht.** Der
    letzte Eintrag der Eskalationstabelle ohne Umsetzung.
-4. **Die Oberfläche wohnt in `app/visual-test/`**, nicht in `src/ui/`. Die
+3. **Die Oberfläche wohnt in `app/visual-test/`**, nicht in `src/ui/`. Die
    Anordnung selbst ist Daten und geprüft; nur das Erzeugen der DOM-Knoten muss
    in Phase 7 umziehen.
-5. **Der Schemen beim Ziehen hat keine eigene Fassung** — er ist die Figur bei
+4. **Der Schemen beim Ziehen hat keine eigene Fassung** — er ist die Figur bei
    halber Deckkraft. Für echte Kunst wäre eine Umrisszeichnung besser.
-6. **Ein Sprite-Vorrat** würde den einen 50-ms-Ausreißer beseitigen.
+5. **Es gibt kein spielbares Kampfbild im neuen Baum.** Der Prüfstand zeigt die
+   Präsentation, `app/index.html` ist noch die Phase-4-Vorführung. Das ist
+   Phase 7 und der nächste große Schritt.
 
 ## 9. Was ich nicht gemacht habe
 

@@ -40,7 +40,7 @@ import {
 } from './bench';
 import { benchHand as freshHand } from './bench';
 import { hudSignature, renderHud } from './hudView';
-import { MOTIF_CSS, playMotifs, seekMotifs } from './crestMotifs';
+import { MOTIF_CSS, applyMotifs, buildMotifs } from './crestMotifs';
 
 /**
  * THE VISUAL WORKBENCH.
@@ -100,6 +100,8 @@ let drag: DragState = NO_DRAG;
 let dragCard: number | null = null;
 let preview = '';
 let hudDrawn = '';
+/** The motif elements of the running salvo. The director says where they are. */
+let motifs: ReturnType<typeof buildMotifs> = [];
 
 /* ============================================================
  *  The panel
@@ -156,6 +158,7 @@ const setSettings = (patch: Partial<PresentationSettings>): void => {
 
 function rebuild(): void {
   motifHost.replaceChildren();
+  motifs = [];
   state = buildState(bench);
   director = null;
   ambient = emptyField('ambient');
@@ -279,34 +282,48 @@ function fire(): void {
     volleys: bench.volleys,
     damage: Math.round(settlement.perVolley * bench.volleys),
     seed: `salvo-${bench.volleys}-${bench.family}`,
+    crestProtocol: crestProtocol(settlement),
   });
   ticker = `${director.plan.caption} · Stufe ${director.plan.tier.id}`
     + ` · ${director.shots.length} gezeichnete Schüsse`;
 
-  showCrestMotifs();
+  motifs = buildMotifs(motifHost, rackLayout(), director.crestMotifs, {
+    // The supplies sit under the rack, in the ticker. A TRANSFER with no slot
+    // to point at points there.
+    shelf: { x: hudLayout({ width: STAGE_WIDTH, height: STAGE_HEIGHT }).ticker.x + 20,
+      y: hudLayout({ width: STAGE_WIDTH, height: STAGE_HEIGHT }).ticker.y + 20 },
+  });
+}
+
+/** Where the five slots sit, in the same coordinates the HUD draws them. */
+function rackLayout() {
+  const layout = hudLayout({ width: STAGE_WIDTH, height: STAGE_HEIGHT });
+  return crestRackLayout(state.crests.row, GAME_REGISTRY, state.crests, {
+    ...DEFAULT_RACK_GEOMETRY,
+    slotWidth: Math.floor((layout.rack.width - 4 * 14) / 5),
+    slotHeight: layout.rack.height,
+    gap: 14,
+    originX: layout.rack.x,
+    originY: layout.rack.y,
+  });
 }
 
 /**
- * The rack, firing.
+ * What the crest row does for this volley.
  *
- * A DRY RUN of the same event the rules send: the protocol that comes back is
- * exactly what the row would do, and asking it costs the player nothing — no
- * powder spent, nothing written to the combat log. Which matters, because the
- * interface asks this question every time anybody looks at the rack.
+ * A DRY RUN of the same events the rules send, in the order they send them:
+ * the protocol that comes back is exactly what the row would do, and asking
+ * costs the player nothing — no powder spent, nothing written to the combat
+ * log. Which matters, because the interface asks this question every time
+ * anybody looks at the rack.
+ *
+ * It replays the WHOLE sequence a volley produces rather than the one event
+ * that happens to be convenient. The first version asked only `volleyPlanned`
+ * and the rack stayed almost dark: four of the five crests in the
+ * demonstration chain listen to `tableauRead` and were never asked. A crest
+ * that ignites and shows nothing is indistinguishable from a broken one.
  */
-function showCrestMotifs(): void {
-  const settlement = currentForce(state, { registry: GAME_REGISTRY });
-
-  /*
-   * THE WHOLE ROUND'S EVENTS, in the order the rules report them.
-   *
-   * The first version asked only `volleyPlanned`, and the rack stayed almost
-   * dark: four of the five crests in the demonstration chain listen to
-   * `tableauRead` and never heard the question. A crest that ignites and shows
-   * nothing is indistinguishable from a crest that is broken — so the
-   * workbench replays the sequence a real volley produces instead of the one
-   * event it happened to be convenient to ask.
-   */
+function crestProtocol(settlement: ReturnType<typeof currentForce>): readonly Ignition[] {
   const protocol: Ignition[] = [];
   let session = state.crests;
   const send = (event: CrestEventName, data: Record<string, unknown>): void => {
@@ -326,23 +343,7 @@ function showCrestMotifs(): void {
     factor: 1, bonus: 0, towers: state.towers,
   });
   send('volleyFired', { force: settlement.force, towers: state.towers });
-
-  const layout = hudLayout({ width: STAGE_WIDTH, height: STAGE_HEIGHT });
-  const rack = crestRackLayout(state.crests.row, GAME_REGISTRY, state.crests, {
-    ...DEFAULT_RACK_GEOMETRY,
-    slotWidth: Math.floor((layout.rack.width - 4 * 14) / 5),
-    slotHeight: layout.rack.height,
-    gap: 14,
-    originX: layout.rack.x,
-    originY: layout.rack.y,
-  });
-
-  playMotifs(motifHost, rack, presentIgnitions(protocol), {
-    // The supplies sit under the rack, in the ticker. A TRANSFER with no slot
-    // to point at points there.
-    shelf: { x: layout.ticker.x + 20, y: layout.ticker.y + 20 },
-    reducedMotion: bench.settings.reducedMotion,
-  });
+  return protocol;
 }
 
 /* ============================================================
@@ -468,6 +469,9 @@ function drawFrame(dt: number): void {
   });
   renderer.render(scene, settings);
   renderer.setFlash(director ? director.flash : 0);
+  // One clock. The rack and the guns cannot drift apart, because neither of
+  // them owns the time.
+  applyMotifs(motifs, director ? director.crestFrames() : []);
 
   const line = preview ? `${ticker}   ${preview}` : ticker;
   const hud = {
@@ -659,9 +663,8 @@ window.WERKBANK = {
       ambient = compress(step(ambient, dt));
     }
     formationSince = performance.now() / 1000 - seconds;
-    // The rack seeks to the same moment. Otherwise it would be the one thing
-    // in the picture running on the wall clock.
-    seekMotifs(motifHost, seconds);
+    // No seek needed: the rack is a function of the director's clock, which
+    // the loop above has already advanced.
     drawFrame(dt);
     writeReadout();
   },
@@ -709,6 +712,7 @@ window.WERKBANK = {
         scars: earth.scars,
       }), settings);
       renderer.setFlash(director ? director.flash : 0);
+      applyMotifs(motifs, director ? director.crestFrames() : []);
       run.frame({
         ms: performance.now() - before,
         sprites: renderer.spriteCount(),
