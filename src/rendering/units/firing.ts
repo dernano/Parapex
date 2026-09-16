@@ -1,5 +1,8 @@
-import { recoilOffset, toScreen, type Camera, type ScreenPoint, type WorldPoint }
-  from '../WorldTransform';
+import {
+  recoilOffset, toScreen, worldOffsetForScreenX,
+  type Camera, type ScreenPoint, type WorldPoint,
+} from '../WorldTransform';
+import type { Socket } from './UnitVisual';
 import { firingDuration, type FiringPhase, type UnitVisualDefinition } from './UnitVisual';
 
 /**
@@ -176,5 +179,46 @@ export function projectileAt(
     height: (from.height ?? 0) * (1 - progress)
       + Math.sin(progress * Math.PI) * definition.projectileArc,
     done: progress >= 1,
+  };
+}
+
+/**
+ * A socket as a point in the WORLD, not on the screen.
+ *
+ * Smoke, flash and the shot itself all live in world coordinates — they have
+ * to, or they would not sort against the towers and the enemy correctly. So a
+ * socket measured on the sprite has to come back the other way: its height
+ * above the figure's feet is straightforward, and its horizontal offset goes
+ * through `worldOffsetForScreenX` rather than being divided by something that
+ * happens to look right on tower three.
+ *
+ * `sprite` is the placeholder's or the real frame's box, so this keeps working
+ * when authored art replaces the placeholders at a different size.
+ */
+export function socketWorld(
+  anchor: WorldPoint,
+  socket: Socket,
+  sprite: { readonly width: number; readonly height: number },
+  pose?: Pose,
+  /**
+   * THE SOCKET SCALES WITH THE SPRITE.
+   *
+   * Sockets are authored in unscaled sprite pixels while the sprite's own box
+   * grows with the size probe, so mixing the two puts the muzzle in the wrong
+   * place at any scale but 100 %. The debug overlay already multiplied and
+   * this did not, which meant the cross-hair and the flash disagreed by
+   * several pixels the moment anybody tried a different unit size — precisely
+   * while they were trying to judge unit size.
+   */
+  scale = 1,
+): WorldPoint {
+  // The sprite hangs from its bottom centre; the socket is measured from its
+  // top left.
+  const offset = worldOffsetForScreenX(
+    socket.x * scale - sprite.width / 2 + (pose?.recoil.x ?? 0));
+  return {
+    col: anchor.col + offset.col,
+    row: anchor.row + offset.row,
+    height: (anchor.height ?? 0) + (sprite.height - socket.y * scale) - (pose?.recoil.y ?? 0),
   };
 }

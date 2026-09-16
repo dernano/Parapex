@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="data:," />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parapex · Sichtprüfstand</title>
+  <style>
+    :root {
+      --ink: #a8977c; --bright: #e3d2a4; --dim: #6a5f4c;
+      --panel: #14100d; --line: #2a231c; --warn: #e3b552; --bad: #a8261f;
+      --good: #4f7a3a;
+    }
+    html, body { margin: 0; height: 100%; background: #0b0908; color: var(--ink);
+      font: 12px/1.5 "Trebuchet MS", system-ui, sans-serif; }
+    body { display: grid; grid-template-columns: 1fr 320px; height: 100vh; }
+
+    #stage { display: grid; place-items: center; overflow: auto; padding: 12px;
+      position: relative; }
+    #shell { position: relative; }
+    canvas { image-rendering: pixelated; display: block; }
+
+    /* The HUD sits OVER the canvas, at the same logical size. That is the
+       point: the battlefield is not a panel among panels. */
+    #hud { position: absolute; inset: 0; pointer-events: none; }
+    #hud .region { position: absolute; box-sizing: border-box; }
+    #hud .frame { border: 1px solid var(--line); background: rgba(10,8,6,.72); }
+
+    .mark { position: absolute; box-sizing: border-box; border: 1px solid var(--dim); }
+    .mark.held { background: var(--warn); border-color: var(--bright); }
+    .mark.spending { background: #6a5520; border-color: var(--warn); }
+    .mark.spent { background: transparent; }
+
+    .card { position: absolute; box-sizing: border-box; border: 1px solid var(--line);
+      background: #191309; color: var(--bright); border-radius: 2px;
+      transition: transform .18s ease, left .18s ease, top .12s ease;
+      display: grid; grid-template-rows: auto 1fr auto; padding: 4px;
+      font-size: 11px; overflow: hidden; }
+    .card .rank { font-size: 18px; font-weight: bold; line-height: 1; }
+    .card .branch { color: var(--dim); font-size: 10px; }
+    .card.ghosted { opacity: .35; }
+
+    .slot { position: absolute; box-sizing: border-box; border: 1px solid var(--line);
+      background: #16110c; display: grid; place-items: center; border-radius: 2px; }
+    .slot .glyph { font-size: 17px; line-height: 1; }
+    .slot .tally { font-size: 9px; color: var(--dim); }
+    .slot.empty { border-style: dashed; }
+    .slot.sealed { border-color: var(--bad); }
+    .flow { position: absolute; color: var(--dim); font-size: 11px; }
+
+    #panel { border-left: 1px solid var(--line); background: var(--panel);
+      overflow-y: auto; padding: 10px 12px 40px; }
+    h1 { font-size: 13px; letter-spacing: .1em; margin: 0 0 2px; color: var(--bright); }
+    h2 { font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--dim); margin: 14px 0 5px; border-bottom: 1px solid var(--line);
+      padding-bottom: 3px; }
+    .row { display: flex; flex-wrap: wrap; gap: 4px; }
+    button { font: inherit; background: #1d1711; color: var(--ink);
+      border: 1px solid var(--line); padding: 3px 8px; cursor: pointer;
+      border-radius: 2px; }
+    button:hover { border-color: var(--dim); color: var(--bright); }
+    button[aria-pressed="true"] { background: #3a2e18; color: var(--bright);
+      border-color: var(--warn); }
+    button.big { padding: 7px 12px; letter-spacing: .08em; }
+    label.check { display: flex; align-items: center; gap: 5px; width: 47%;
+      cursor: pointer; font-size: 11px; }
+    #readout { white-space: pre-wrap; font-family: "Courier New", monospace;
+      font-size: 10.5px; color: var(--dim); }
+    #readout b { color: var(--bright); font-weight: normal; }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .good { color: var(--good); }
+    .note { color: var(--dim); font-size: 10px; margin: 3px 0 0; }
+  </style>
+</head>
+<body>
+  <!--
+    THE SICHTPRÜFSTAND (visual workbench).
+
+    It drives the REAL renderer, the real scene graph, the real unit visual
+    definitions, the real firing functions, the real particle system, the real
+    salvo director. There is no second implementation anywhere in this page —
+    if something looks wrong here, it looks wrong in the game, and if something
+    is fixed here it is fixed in the game.
+
+    Its purpose is to make one distinction possible: is this an ART problem, a
+    PRESENTATION problem, an ENGINE problem or a UX problem? Every control and
+    every overlay exists to narrow that question down.
+  -->
+  <div id="stage">
+    <div id="shell">
+      <canvas id="world"></canvas>
+      <div id="hud"></div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <h1>SICHTPRÜFSTAND</h1>
+    <p class="note">Echter Renderer, echte Simulation, Platzhaltergrafik.</p>
+
+    <h2>Gattung</h2>
+    <div class="row" id="family"></div>
+
+    <h2>Rangstufe</h2>
+    <div class="row" id="tier"></div>
+
+    <h2>Einheitengröße</h2>
+    <div class="row" id="scale"></div>
+    <p class="note" id="scaleNote"></p>
+
+    <h2>Ziel</h2>
+    <div class="row" id="target"></div>
+
+    <h2>Salven</h2>
+    <div class="row" id="volleys"></div>
+    <div class="row" style="margin-top:6px">
+      <button class="big" id="fire">FEUER</button>
+      <button class="big" id="reset">Zurücksetzen</button>
+    </div>
+
+    <h2>Formation</h2>
+    <div class="row" id="formation"></div>
+
+    <h2>Wappenreihe</h2>
+    <div class="row" id="crests"></div>
+
+    <h2>Pulver</h2>
+    <div class="row" id="powder"></div>
+
+    <h2>Effekte</h2>
+    <div class="row" id="effects"></div>
+
+    <h2>Diagnose</h2>
+    <div class="row" id="debug"></div>
+
+    <h2>Messung</h2>
+    <div id="readout"></div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

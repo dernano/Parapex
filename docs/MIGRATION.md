@@ -178,6 +178,36 @@ Dependency order, not feature order. Each phase leaves the game playable.
 
 All four were verified to fail when deliberately violated.
 
+## 12. Phase 5V: what a workbench finds that a test suite does not
+
+`/visual-test` drives the real renderer with the real scene graph, the real
+firing functions and the real director. Building it, and then LOOKING at what
+it drew, found six faults that 630 passing tests did not — every one of them a
+case where the test asserted the wrong thing rather than nothing.
+
+| What the screenshot showed | What was actually wrong | What the test had said |
+|---|---|---|
+| No soldiers at all on the towers | The parapet was a full-height block in front of them | "the parapet overlaps the unit" — it did, completely |
+| A parapet 6 px higher than its own box | A block extrudes upward from `cy`; declared size ≠ drawn size | the test read the declared size |
+| A flash floating beside the gunner | The socket was right; the placeholder drew no weapon | nothing checked that a socket lands on anything |
+| "Kanone" firing a longbow | The schedule started at the first manned tower, not the selected one | nothing named the tower |
+| Smoke arriving at the enemy ahead of its own cannonball | `force` scaled particle VELOCITY as well as count | "a barrage makes more particles" — it did |
+| A tier E salvo over in a fifth of a second | Simultaneity divided a fixed shot budget into groups | every test measured the plan, none measured the run |
+
+Two of those had a further consequence worth naming. The size probe was built
+to answer "100, 115, 125 or 135 per cent"; what it actually found was that the
+placeholder had been drawing soldiers a fifth shorter than the bible specifies,
+laid out from the bottom of a taller frame — and that `UNIT_VISUALS`, whose
+sockets were authored for a figure that fills its box, had been compensating
+for it invisibly ever since. The answer to the question turned out to be "the
+spec was already right". And `artRules.ts` had claimed since Phase 4 that a
+test read the bible and failed on drift. No such test existed. It does now.
+
+The lesson is not that tests are unreliable. It is that a test can only check
+the thing somebody thought to state, and looking at a picture states things
+nobody thought of. Both, always — and every fault above is now pinned by an
+assertion that goes red when it is reintroduced.
+
 ## 11. Phase 5 is finished as a system and unfinished as a look
 
 Everything the brief asks for mechanically is in place and proven:
@@ -235,6 +265,13 @@ a suite that proved nothing.
 | Row padded back to five slots | 10 |
 | Row walked right to left (with crests) | 12 |
 | Units anchored at the tower's foot | **caught by looking at the render, then pinned** |
+| Parapet drawn at full tower height | **nothing — the test only asked whether they overlapped** |
+| Castle layer written down instead of derived | 5 |
+| Smoke merged in one pass instead of packed to the ceiling | 1 |
+| Damage shares rounded independently | 2 |
+| A crest id used inside the renderer | 1 |
+| Simultaneity dividing the shots instead of multiplying the moments | 3 |
+| The bible's height band edited away from the code | 1 |
 
 The weighted-fallback case is the instructive one. The first version of that
 test chose weights where the countdown reached zero inside the loop, so the

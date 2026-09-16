@@ -125,10 +125,42 @@ describe('the effect toggles reach all the way down', () => {
     expect(field.particles.some(p => p.kind === 'flash')).toBe(true);
   });
 
-  it('pushes harder at a barrage than at a single shot', () => {
-    const one = emit(emptyField('f'), MUZZLE_EMITTERS.gunner, { at: AT, force: 1 });
-    const many = emit(emptyField('f'), MUZZLE_EMITTERS.gunner, { at: AT, force: 3 });
+  /**
+   * Force and abundance are SEPARATE, and the separation is load-bearing.
+   *
+   * Folded together, a tier E salvo reached a force around twenty-five and the
+   * muzzle smoke left the wall at three and a half tiles a second — arriving
+   * at the enemy ahead of its own cannonball. A screenshot showed a clean
+   * castle and a smoke bank sitting on the target.
+   */
+  it('makes MORE smoke at a barrage', () => {
+    const one = emit(emptyField('f'), MUZZLE_EMITTERS.gunner, { at: AT, abundance: 1 });
+    const many = emit(emptyField('f'), MUZZLE_EMITTERS.gunner, { at: AT, abundance: 3 });
     expect(many.particles.length).toBeGreaterThan(one.particles.length);
+  });
+
+  it('makes BIGGER smoke at a heavier shot, without making it faster', () => {
+    const soft = emit(emptyField('f'), MUZZLE_EMITTERS.gunner, { at: AT, force: 1 });
+    const hard = emit(emptyField('f'), MUZZLE_EMITTERS.gunner, { at: AT, force: 3 });
+    expect(hard.particles.length).toBe(soft.particles.length);
+    const size = (f: typeof soft): number =>
+      f.particles.reduce((s, p) => s + p.size, 0);
+    expect(size(hard)).toBeGreaterThan(size(soft));
+  });
+
+  it('never lets smoke outrun the shot, however absurd the salvo', () => {
+    // A tier E shot carries a force around six; twenty-five is what the
+    // unclamped version produced.
+    for (const force of [1, 6, 25, 400]) {
+      const field = emit(emptyField('f'), MUZZLE_EMITTERS.gunner, {
+        at: AT, direction: DIRECTION, force,
+      });
+      for (const p of field.particles) {
+        const speed = Math.hypot(p.velocity.col, p.velocity.row);
+        // The slowest projectile in the game travels seven tiles a second.
+        expect(speed, `force ${force}, ${p.kind}`).toBeLessThan(3);
+      }
+    }
   });
 
   it('is deterministic: the same emitter twice is the same smoke twice', () => {

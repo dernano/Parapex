@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_PRESENTATION_SECONDS, SALVO_TIERS, formatBig, planSalvo, scheduleShots,
-  tierFor,
+  MAX_PRESENTATION_SECONDS, SALVO_TIERS, formatBig, planSalvo, scheduleLength,
+  scheduleShots, tierFor,
 } from '@/rendering/effects/salvoPresentation';
 
 /**
@@ -51,7 +51,7 @@ describe('volleys become spectacle, not waiting', () => {
 
   it('a million volleys does not mean a million animations', () => {
     const plan = planSalvo(1_000_000);
-    expect(plan.drawn).toBeLessThan(50);
+    expect(plan.drawn).toBeLessThan(60);
     expect(plan.caption).toContain('Vernichtung');
   });
 
@@ -138,13 +138,62 @@ describe('the castle fires as a whole', () => {
 
     const together = scheduleShots(planSalvo(120), [0, 1, 2, 3, 4]);
     const moments = new Set(together.map(s => s.at));
-    // Three towers per instant, so far fewer moments than shots.
-    expect(moments.size).toBeLessThan(together.length);
-    expect(Math.ceil(together.length / 3)).toBe(moments.size);
+    // Three towers per instant, so three times as many shots as moments.
+    expect(together.length).toBe(moments.size * 3);
+    // And three DIFFERENT towers in each instant, not one gun firing thrice.
+    const first = together.filter(s => s.at === together[0]!.at);
+    expect(new Set(first.map(s => s.tower)).size).toBe(3);
   });
 
   it('an empty castle schedules nothing rather than crashing', () => {
     expect(scheduleShots(planSalvo(10), [])).toEqual([]);
+  });
+
+  /**
+   * SIMULTANEITY MULTIPLIES THE MOMENTS, IT DOES NOT DIVIDE THE SHOTS.
+   *
+   * The first version split a fixed shot budget into groups, so a
+   * thousand-volley salvo fired all of its drawn shots inside a fifth of a
+   * second and then left the field empty while the smoke thinned. The tests
+   * all passed — every one of them measured the plan, and none of them
+   * measured how long the thing actually ran.
+   */
+  it('spends the moments it planned, rather than collapsing into one', () => {
+    for (const volleys of [3, 10, 30, 100, 1000, 100_000]) {
+      const plan = planSalvo(volleys);
+      const shots = scheduleShots(plan, [0, 1, 2, 3, 4]);
+      const moments = new Set(shots.map(s => s.at)).size;
+      expect(moments, `${volleys} volleys`).toBe(plan.drawn);
+      expect(scheduleLength(shots), `${volleys} volleys`)
+        .toBeCloseTo((plan.drawn - 1) * plan.interval, 6);
+    }
+  });
+
+  it('never makes a bigger salvo a shorter show', () => {
+    let previous = 0;
+    for (const volleys of [1, 5, 15, 50, 250, 1000, 1_000_000]) {
+      const plan = planSalvo(volleys);
+      const length = scheduleLength(scheduleShots(plan, [0, 1, 2, 3, 4]));
+      expect(length, `${volleys} volleys`).toBeGreaterThanOrEqual(previous);
+      previous = length;
+    }
+  });
+
+  it('draws more shots at every step up the tiers', () => {
+    let previous = 0;
+    for (const volleys of [1, 5, 15, 50, 250, 1000]) {
+      const shots = scheduleShots(planSalvo(volleys), [0, 1, 2, 3, 4]);
+      expect(shots.length, `${volleys} volleys`).toBeGreaterThan(previous);
+      previous = shots.length;
+    }
+  });
+
+  it('keeps even a million volleys inside what a frame can carry', () => {
+    const shots = scheduleShots(planSalvo(1_000_000), [0, 1, 2, 3, 4]);
+    // Spread over two seconds with a half-second flight, so the number in the
+    // air at any instant is a fraction of this.
+    expect(shots.length).toBeLessThan(300);
+    expect(scheduleLength(shots)).toBeLessThanOrEqual(MAX_PRESENTATION_SECONDS);
   });
 });
 

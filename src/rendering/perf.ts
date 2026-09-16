@@ -17,11 +17,19 @@ export const FRAME_BUDGET_MS = 16.7;
 /**
  * How many sprites the battlefield may carry before the budget is at risk.
  *
- * Four hundred tiles, five towers with two pieces each, a garrison, an enemy
- * force, shots in the air and a particle field: around six hundred in an
- * ordinary frame, and the ceiling leaves room for a tier E salvo on top.
+ * MEASURED, not guessed. It started at 900 on the reasoning above — four
+ * hundred tiles, five towers of two pieces each, a garrison, an enemy force,
+ * shots in the air and a particle field. Then `scripts/last.mjs` drew the
+ * worst case the game can produce, a million-volley annihilation, on
+ * SwiftShader with no graphics card at all: 925 sprites, three hundred
+ * particles, and a 95th-percentile frame under three milliseconds against a
+ * budget of sixteen and a half.
+ *
+ * So the ceiling moved to where the evidence put it. The FRAME TIME is the
+ * real gate; this number is a tripwire for a scene that has quietly started
+ * building thousands of things.
  */
-export const SPRITE_BUDGET = 900;
+export const SPRITE_BUDGET = 1200;
 
 export interface FrameSample {
   readonly ms: number;

@@ -291,7 +291,7 @@ export function buildBattlefieldScene(
     ...(options.formations ?? []).map(f =>
       node(f.id, 'formation', 'WORLD_FX', f.world, f.sprite, camera,
         { colour: f.colour, accent: f.accent, raise: Math.round(f.raise * 100) / 100,
-          variant: f.kind },
+          variant: f.kind, ...(f.span !== undefined ? { span: f.span } : {}) },
         f.text)),
     ...(options.ghost ? [node('ghost', 'ghost', 'UNITS', options.ghost.world,
       options.ghost.sprite, camera,

@@ -82,6 +82,53 @@ A unit may never be scaled to signal rank. **Rank reads through armour,
 helmet, weapon craftsmanship, cloth and stance** — a rank 13 that is simply
 bigger is a rank 1 with a magnifying glass.
 
+A figure FILLS its box. The declared height is from the top of the helmet to
+the soles, with nothing above it. A soldier drawn short inside a tall frame
+puts every socket in the wrong place — see the decision below.
+
+### 3.1 The size decision, and how it was made
+
+The four candidate sizes — 100 / 115 / 125 / 135 % — were rendered **in the
+real combat screen**, same castle, same enemy, same camera, same tile size,
+at `docs/blick/groesse-*.png`. Measured rather than judged:
+
+| size | drawn height | tile heights | of a watchtower | visible above the parapet | of the tower's area |
+|---|---|---|---|---|---|
+| **100 %** | 27 px | 1,23 | 0,39 | 17 px (63 %) | 4,7 % |
+| 115 % | 31 px | 1,41 | 0,44 | 21 px (68 %) | 6,2 % |
+| 125 % | 34 px | 1,55 | 0,49 | 24 px (73 %) | 7,3 % |
+| 135 % | 37 px | 1,68 | 0,53 | 27 px (73 %) | 8,8 % |
+
+**The decision is 100 % — the sizes already written above.**
+
+Three measurements decide it, and one discovery.
+
+*The discovery first.* The probe's real finding was not a size at all: the
+placeholder had been drawing soldiers about a fifth shorter than this table
+specifies, laying them out from the bottom of a taller frame. 125 % of that
+under-drawn figure came out at exactly the height the bible already asked for.
+So the honest answer to "which of the four" is that the spec was right and the
+drawing was wrong — and the sockets in `UNIT_VISUALS`, authored for a figure
+that fills its box, had been quietly compensating ever since.
+
+*Then the three measurements.*
+
+1. **A man is between one and one and a half tile heights.** Past that he stops
+   reading as standing ON the tile and starts reading as standing in front of
+   it. 100 % is 1,23; 125 % is 1,55 and already over.
+2. **A watchtower must read as a tower.** At 100 % it is two and a half men
+   tall. At 135 % it is under two — something a soldier could climb, which is
+   not a fortification.
+3. **Readability is already satisfied at 100 %.** Seventeen pixels stand clear
+   of the parapet: helmet, shoulders, weapon. Growing the figure buys
+   ten more pixels of something that is already legible, at the cost of the
+   two points above.
+
+**Held in reserve: 115 %.** If, once real art exists, the rank 1–3 militia
+silhouette proves too slight to tell from the professional band at a glance,
+115 % is the next step and still inside the tile rule (1,41). Anything above
+that changes the castle's proportions, not the soldier's legibility.
+
 ## 4. Light
 
 **One sun, from the upper right.** It never moves, and no asset is ever lit

@@ -10,3 +10,6 @@ dist/
 
 # Erzeugte Anlagen — die Quelle ist nachvollziehbar, das Ergebnis nicht
 assets/build/
+
+# Unterschiedskarten des Sichtvergleichs — aus Aufnahme und Grundlage erzeugt
+docs/blick/unterschied/

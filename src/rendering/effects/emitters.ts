@@ -145,8 +145,19 @@ export interface EmitOptions {
   readonly at: WorldPoint;
   /** Which way the event pushed things, in tiles. */
   readonly direction?: { readonly col: number; readonly row: number };
-  /** The salvo's escalation. One shot is 1; a barrage is several. */
+  /**
+   * How hard the event was. Scales each particle's size and its initial
+   * speed — both clamped, so a huge salvo cannot turn smoke into a projectile.
+   */
   readonly force?: number;
+  /**
+   * How MUCH there is. Scales the counts only.
+   *
+   * Kept separate from `force` deliberately: the escalation the brief asks for
+   * at tier D and E is more smoke, not faster smoke, and folding the two
+   * together is what sent a cannon's cloud downrange ahead of its own shot.
+   */
+  readonly abundance?: number;
   /** Nothing an effect toggle has switched off is emitted at all. */
   readonly settings?: PresentationSettings;
 }
@@ -164,6 +175,7 @@ export function emit(
   options: EmitOptions,
 ): ParticleField {
   const force = options.force ?? 1;
+  const abundance = Math.max(0.5, options.abundance ?? 1);
   const direction = options.direction ?? { col: 0, row: 0 };
   let next = field;
   for (const spec of emitter.bursts) {
@@ -174,7 +186,7 @@ export function emit(
     next = spawn(next, {
       kind: spec.kind,
       at,
-      count: Math.max(1, Math.round(spec.count * Math.min(2, Math.max(0.5, force)))),
+      count: Math.max(1, Math.round(spec.count * Math.min(3, abundance))),
       ...(spec.directed ? { direction } : {}),
       force: spec.force * force,
     });

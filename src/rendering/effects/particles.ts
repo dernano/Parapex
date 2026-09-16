@@ -58,7 +58,14 @@ const BEHAVIOUR: Readonly<Record<ParticleKind, {
   //        life        size      rise  drift  gravity  grow  fade
   smoke:  { life: [0.9, 1.6], size: [3, 7], rise: 14, drift: 0.55, gravity: 0, grow: 3.2, fade: 0.8 },
   dust:   { life: [0.35, 0.6], size: [2, 4], rise: 4, drift: 1.1, gravity: 10, grow: 1.4, fade: 1.6 },
-  flash:  { life: [0.06, 0.10], size: [5, 9], rise: 0, drift: 0, gravity: 0, grow: -6, fade: 8 },
+  /*
+   * The flash is SMALL. It was five to nine pixels, and the first screenshot
+   * of a cannon firing showed a glowing block wider than the gunner standing
+   * behind it — which reads as a rendering fault, not as a muzzle flash. A
+   * flash is about the width of the barrel mouth and a moment long; what makes
+   * it feel violent is the brightness and the smoke behind it, never the size.
+   */
+  flash:  { life: [0.05, 0.08], size: [3, 5], rise: 0, drift: 0, gravity: 0, grow: -6, fade: 8 },
   debris: { life: [0.5, 0.9], size: [2, 3], rise: 34, drift: 1.9, gravity: 120, grow: 0, fade: 1.1 },
   spark:  { life: [0.12, 0.26], size: [1, 2], rise: 18, drift: 1.4, gravity: 40, grow: 0, fade: 3 },
 };
@@ -81,6 +88,20 @@ export function spawn(field: ParticleField, burst: Burst): ParticleField {
   const rng = Rng.fromState(field.rng);
   const behaviour = BEHAVIOUR[burst.kind];
   const force = burst.force ?? 1;
+  /*
+   * FORCE MAKES A BURST BIGGER, NOT FASTER.
+   *
+   * Unclamped, a tier E salvo reached a force around twenty-five, and the
+   * muzzle smoke then left the wall at three and a half tiles a second and
+   * arrived at the enemy before the cannonball did. The screenshot showed a
+   * clean castle and a smoke bank sitting on the target — which is not smoke,
+   * it is an artillery shell made of fog.
+   *
+   * So speed is capped hard and only the count and the size keep climbing.
+   * That is also the honest physics: a bigger charge makes more smoke, it does
+   * not make smoke supersonic.
+   */
+  const speed = Math.min(1.8, force);
   const push = burst.direction ?? { col: 0, row: 0 };
   const born: Particle[] = [];
   let id = field.nextId;
@@ -96,9 +117,9 @@ export function spawn(field: ParticleField, burst: Burst): ParticleField {
         height: (burst.at.height ?? 0) + rng.next() * 3,
       },
       velocity: {
-        col: push.col * force * 0.6 + spread(),
-        row: push.row * force * 0.6 + spread(),
-        height: behaviour.rise * force * (0.6 + rng.next() * 0.8),
+        col: push.col * speed * 0.6 + spread(),
+        row: push.row * speed * 0.6 + spread(),
+        height: behaviour.rise * speed * (0.6 + rng.next() * 0.8),
       },
       age: 0,
       life: behaviour.life[0] + rng.next() * (behaviour.life[1] - behaviour.life[0]),
@@ -241,8 +262,15 @@ export const PARTICLE_COLOURS: Readonly<Record<ParticleKind, readonly string[]>>
  * be compared against yesterday's.
  */
 
-/** How many particles the field may hold before it starts merging. */
-export const PARTICLE_BUDGET = 220;
+/**
+ * How many particles the field may hold before it starts merging.
+ *
+ * Set against the SPRITE budget rather than picked: an ordinary frame carries
+ * around 450 sprites for the terrain, the castle and the garrison, and a tier E
+ * salvo adds roughly fifty shots in the air. Three hundred particles on top of
+ * that leaves headroom under the 900 the renderer budgets for.
+ */
+export const PARTICLE_BUDGET = 300;
 
 /** A particle's visual weight. Area, so merging can conserve it. */
 const mass = (p: Particle): number => p.size * p.size;

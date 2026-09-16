@@ -180,6 +180,7 @@ export class BattlefieldRenderer {
       node.detail?.scale ?? '',
       node.detail?.colour ?? '',
       node.detail?.accent ?? '',
+      node.detail?.span ?? '',
       node.text ?? '',
     ].join('|');
   }
@@ -217,6 +218,7 @@ export class BattlefieldRenderer {
       scale: Number(node.detail?.scale ?? 1),
       ...(node.detail?.colour ? { colour: String(node.detail.colour) } : {}),
       ...(node.detail?.accent ? { accent: String(node.detail.accent) } : {}),
+      ...(node.detail?.span !== undefined ? { span: Number(node.detail.span) } : {}),
     });
   }
 

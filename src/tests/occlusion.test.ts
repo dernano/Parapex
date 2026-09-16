@@ -4,8 +4,9 @@ import { createCombat, performAction } from '@/simulation/CombatEngine';
 import { LAYERS, layerIndex, platformHeight } from '@/rendering/artRules';
 import { castleLayer, nearestGarrison, occludes, towerPieces } from '@/rendering/occlusion';
 import { buildBattlefieldScene, towerCentre, towerGroundAnchor } from '@/rendering/SceneGraph';
-import { placeholderFor } from '@/rendering/placeholderAtlas';
+import { drawnBounds, placeholderFor } from '@/rendering/placeholderAtlas';
 import { DEFAULT_CAMERA } from '@/rendering/WorldTransform';
+import { DEFAULT_PRESENTATION, UNIT_SCALE_PROBES } from '@/rendering/presentation/settings';
 
 /**
  * The garrison has to live INSIDE the castle. A soldier with the whole tower
@@ -76,18 +77,60 @@ describe('who stands in front of whom', () => {
     expect(parapet.world.height).toBe(platformHeight('cannonTower'));
   });
 
-  it('and therefore actually crosses the soldier on screen', () => {
+  /**
+   * THE TEST THAT MATTERS, AND THE ONE THE FIRST VERSION GOT WRONG.
+   *
+   * Asserting that the parapet OVERLAPS the soldier is not enough — a
+   * full-height block in front of him overlaps perfectly and hides him
+   * completely, which solves the layering and loses the garrison. A screenshot
+   * caught that in one glance and this assertion did not, so it now measures
+   * how much is covered rather than whether anything is.
+   *
+   * The band is deliberately wide: the exact figure depends on the art, and
+   * what must never happen is either end of it — no contact at all, or a
+   * soldier one cannot see.
+   */
+  it('crosses the soldier at the knee, and does not swallow him', () => {
     const state = combatWithGarrison();
     const scene = buildBattlefieldScene(state, DEFAULT_CAMERA);
-    const unit = scene.nodes.find(n => n.id === 'unit:0')!;
-    const parapet = scene.nodes.find(n => n.id === 'tower:0:towerParapet')!;
 
-    const unitBox = boxOf(unit.sprite, unit.screen);
-    const parapetBox = boxOf(parapet.sprite, parapet.screen);
-    expect(overlaps(unitBox, parapetBox),
-      `unit ${JSON.stringify(unitBox)} parapet ${JSON.stringify(parapetBox)}`).toBe(true);
-    // And it is drawn after him.
-    expect(scene.nodes.indexOf(parapet)).toBeGreaterThan(scene.nodes.indexOf(unit));
+    for (const tower of [0, 2, 4]) {
+      const unit = scene.nodes.find(n => n.id === `unit:${tower}`)!;
+      const parapet = scene.nodes.find(n => n.id === `tower:${tower}:towerParapet`)!;
+      const unitBox = boxOf(unit.sprite, unit.screen);
+      const parapetBox = boxOf(parapet.sprite, parapet.screen);
+
+      expect(overlaps(unitBox, parapetBox), `tower ${tower}: no contact`).toBe(true);
+
+      const unitHeight = unitBox.bottom - unitBox.top;
+      const covered = Math.max(0,
+        Math.min(unitBox.bottom, parapetBox.bottom) - Math.max(unitBox.top, parapetBox.top));
+      const share = covered / unitHeight;
+      expect(share, `tower ${tower}: covered ${Math.round(share * 100)} %`)
+        .toBeGreaterThan(0.1);
+      expect(share, `tower ${tower}: covered ${Math.round(share * 100)} %`)
+        .toBeLessThan(0.55);
+
+      // And it is drawn after him, or the measurement above means nothing.
+      expect(scene.nodes.indexOf(parapet)).toBeGreaterThan(scene.nodes.indexOf(unit));
+    }
+  });
+
+  it('leaves the head and shoulders clear at every probe size', () => {
+    const state = combatWithGarrison();
+    for (const scale of UNIT_SCALE_PROBES) {
+      const scene = buildBattlefieldScene(state, DEFAULT_CAMERA, [], [], {
+        settings: { ...DEFAULT_PRESENTATION, unitScale: scale },
+      });
+      const unit = scene.nodes.find(n => n.id === 'unit:2')!;
+      const parapet = scene.nodes.find(n => n.id === 'tower:2:towerParapet')!;
+      const unitBox = boxOf(unit.sprite, unit.screen, scale);
+      const parapetBox = boxOf(parapet.sprite, parapet.screen);
+      // The top third of the figure - helmet, shoulders, weapon - is never
+      // behind stone, whatever size the units end up being drawn at.
+      const third = unitBox.top + (unitBox.bottom - unitBox.top) / 3;
+      expect(parapetBox.top, `scale ${scale}`).toBeGreaterThan(third);
+    }
   });
 
   it('puts the curtain wall in front below a tower and behind above it', () => {
@@ -143,13 +186,21 @@ describe('who stands in front of whom', () => {
 
 interface Box { left: number; top: number; right: number; bottom: number }
 
-function boxOf(sprite: string, screen: { x: number; y: number }): Box {
-  const placeholder = placeholderFor(sprite);
+/**
+ * What the sprite actually covers on screen.
+ *
+ * `drawnBounds`, not `width`/`height`: the declared box and the drawn pixels
+ * disagree for every extruded block in the atlas, and reading the declaration
+ * is how a parapet that hid a soldier completely measured as covering forty
+ * per cent of him.
+ */
+function boxOf(sprite: string, screen: { x: number; y: number }, scale = 1): Box {
+  const bounds = drawnBounds(placeholderFor(sprite, { scale }));
   return {
-    left: screen.x - placeholder.anchor.x,
-    top: screen.y - placeholder.anchor.y,
-    right: screen.x - placeholder.anchor.x + placeholder.width,
-    bottom: screen.y - placeholder.anchor.y + placeholder.height,
+    left: screen.x + bounds.left,
+    top: screen.y + bounds.top,
+    right: screen.x + bounds.right,
+    bottom: screen.y + bounds.bottom,
   };
 }
 

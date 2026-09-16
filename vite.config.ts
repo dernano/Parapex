@@ -16,7 +16,21 @@ export default defineConfig({
    * chance of accidentally building the thing we are replacing.
    */
   root: 'app',
-  build: { outDir: '../dist', emptyOutDir: true },
+  build: {
+    outDir: '../dist',
+    emptyOutDir: true,
+    /*
+     * Two pages, not one. `/visual-test/` is the workbench, and it is built
+     * rather than being a dev-only convenience: a tool that only exists on
+     * somebody's machine is a tool the next person has to rebuild.
+     */
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./app/index.html', import.meta.url)),
+        visualTest: fileURLToPath(new URL('./app/visual-test/index.html', import.meta.url)),
+      },
+    },
+  },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

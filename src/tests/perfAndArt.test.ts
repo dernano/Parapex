@@ -62,6 +62,16 @@ describe('the frame budget is measured, not wished for', () => {
     expect(meter(Array(100).fill(8), SPRITE_BUDGET + 1).report().withinBudget).toBe(false);
   });
 
+  /**
+   * The sprite ceiling is a TRIPWIRE, not the gate. It has to sit above the
+   * worst case the game can actually produce — a million-volley annihilation
+   * measured at 925 sprites — or it fires on correct behaviour and everyone
+   * learns to ignore it.
+   */
+  it('leaves room above the heaviest scene the game can build', () => {
+    expect(SPRITE_BUDGET).toBeGreaterThan(925);
+  });
+
   it('resets when the thing being measured changes', () => {
     const m = meter(Array(50).fill(40));
     m.reset();

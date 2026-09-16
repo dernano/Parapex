@@ -2,7 +2,7 @@ import type { ActiveFormation, FormationId, Tower, Unit } from '@/core/types';
 import { FORMATIONS } from '@/content/formations/formations';
 import { buildTableau, cardsFromTowers, recogniseFormations, volleyCount }
   from '@/simulation/FormationEngine';
-import type { WorldPoint } from '../WorldTransform';
+import { toScreen, type Camera, type WorldPoint } from '../WorldTransform';
 
 /**
  * FORMATIONS, ON THE BATTLEFIELD.
@@ -88,6 +88,8 @@ export interface FormationNode {
    * rather than five decorations appearing.
    */
   readonly raise: number;
+  /** How far a connector has to reach, in screen pixels. Standards ignore it. */
+  readonly span?: number;
   readonly text?: string;
 }
 
@@ -102,6 +104,7 @@ export function presentFormation(
   formation: ActiveFormation,
   anchors: readonly WorldPoint[],
   t = Infinity,
+  camera?: Camera,
 ): readonly FormationNode[] {
   const visual = FORMATION_VISUALS[formation.id];
   if (!visual) return [];
@@ -138,17 +141,31 @@ export function presentFormation(
     for (let i = 0; i < towers.length - 1; i++) {
       const a = anchors[towers[i]!]!;
       const b = anchors[towers[i + 1]!]!;
+      /*
+       * The connector is measured in SCREEN pixels between the two standards
+       * it joins, not in tiles: the towers are four rows apart and that is a
+       * different number of pixels than four columns would be. A fixed-length
+       * bar floating between them reads as debris rather than as a line.
+       */
+      /*
+       * At the FLAGS, not at the men. The standards hang from a pole whose top
+       * is about fifty pixels above the platform; a line drawn at the
+       * garrison's own height runs straight through the garrison.
+       */
+      const from = toScreen({ ...a, height: (a.height ?? 0) + LINE_HEIGHT }, camera);
+      const to = toScreen({ ...b, height: (b.height ?? 0) + LINE_HEIGHT }, camera);
       nodes.push({
         id: `formation:${formation.id}:link:${i}`,
         kind: 'connector',
         world: {
           col: (a.col + b.col) / 2, row: (a.row + b.row) / 2,
-          height: ((a.height ?? 0) + (b.height ?? 0)) / 2 + 24,
+          height: ((a.height ?? 0) + (b.height ?? 0)) / 2 + LINE_HEIGHT,
         },
         sprite: 'formation/connector',
         colour: visual.colour,
         accent: visual.accent,
         raise: clamp01(t / Math.max(0.001, visual.formSeconds)),
+        span: Math.round(Math.hypot(to.x - from.x, to.y - from.y)),
       });
     }
   }
@@ -169,6 +186,9 @@ export function presentFormation(
 }
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/** How high the line of standards runs above the platform, in logical pixels. */
+const LINE_HEIGHT = 50;
 
 /* ============================================================
  *  The preview, while a card is in the air

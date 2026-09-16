@@ -119,7 +119,14 @@ export const SALVO_TIERS: readonly SalvoTier[] = [
      * million look the same on screen — and they should. What differs is the
      * damage, and damage is a number, not an animation.
      */
-    interval: 0.042, force: 5, aggregateDamage: true,
+    /*
+     * Marginally slower than tier D, not faster. The interval had been 0.042,
+     * and the combination of a shorter interval with only a few more moments
+     * made a thousand-volley annihilation run SIXTEEN MILLISECONDS SHORTER
+     * than a two-hundred-volley bombardment. Nothing about that is visible in
+     * a single screenshot, and everything about it is wrong.
+     */
+    interval: 0.045, force: 5, aggregateDamage: true,
     escalation: {
       smoke: 3.5, impact: 3.2, shake: 3, simultaneous: 5,
       screenFlash: true, groundScar: true, continuousRoar: true,
@@ -139,7 +146,11 @@ export interface SalvoPlan {
   readonly tier: SalvoTier;
   /** How many volleys the simulation produced. */
   readonly volleys: number;
-  /** How many firing events are actually DRAWN. */
+  /**
+   * How many drawn MOMENTS the presentation spends. At tier C and above each
+   * moment carries several towers, so `scheduleShots` returns more entries
+   * than this.
+   */
   readonly drawn: number;
   /** Seconds between drawn shots. */
   readonly interval: number;
@@ -157,16 +168,22 @@ export interface SalvoPlan {
 export const MAX_PRESENTATION_SECONDS = 3.2;
 
 /**
- * How many shots are worth drawing.
+ * How many drawn MOMENTS are worth spending on this salvo.
  *
- * Literal up to fifteen, logarithmic after: twelve shots at sixteen volleys,
- * about thirty at a million. The curve is deliberately flat at the top, so the
+ * Moments, not shots. At tier C and above several towers speak in each one, so
+ * the number of shots the player sees is this times the tier's simultaneity.
+ * The distinction matters: dividing a fixed shot budget into groups is what
+ * made a thousand-volley barrage last a fifth of a second and then leave the
+ * screen empty for a second and a half.
+ *
+ * Literal up to fifteen, logarithmic after: twenty moments at thirty volleys,
+ * about fifty at a million. Deliberately flat at the top, so the
  * player learns that past a point the castle simply ANNIHILATES and stops
  * counting.
  */
 function drawnShots(tier: SalvoTier, n: number): number {
   if (tier.id === 'A' || tier.id === 'B') return n;
-  return Math.round(10 + Math.log10(n) * 6);
+  return Math.round(10 + Math.log10(n) * 7);
 }
 
 export function planSalvo(volleys: number): SalvoPlan {
@@ -236,24 +253,36 @@ export interface DrawnShot {
 export function scheduleShots(plan: SalvoPlan, towers: readonly number[]): readonly DrawnShot[] {
   if (!towers.length || plan.drawn <= 0) return [];
   const shots: DrawnShot[] = [];
+  /*
+   * At tier C and above several towers speak in the SAME INSTANT. That is the
+   * escalation the brief asks for: the castle stops taking turns.
+   *
+   * They MULTIPLY the moments rather than dividing them. The first version
+   * split a fixed shot budget into groups, so a thousand-volley salvo fired
+   * all twenty-eight of its drawn shots inside a fifth of a second and then
+   * left the field empty while the smoke thinned. A barrage has to last as
+   * long as it looks like it should.
+   */
   const simultaneous = Math.min(plan.tier.escalation.simultaneous, towers.length);
+  let index = 0;
   let cursor = 0;
 
-  for (let i = 0; i < plan.drawn; i++) {
-    /*
-     * At tier C and above several towers speak in the same instant. That is
-     * the escalation the brief asks for: the castle stops taking turns.
-     */
-    const group = Math.floor(i / simultaneous);
-    shots.push({
-      index: i,
-      at: group * plan.interval,
-      tower: towers[cursor % towers.length]!,
-      /* The last shots of a barrage hit hardest: the sequence builds. */
-      force: plan.force * (0.8 + 0.4 * (plan.drawn > 1 ? i / (plan.drawn - 1) : 1)),
-      last: i === plan.drawn - 1,
-    });
-    cursor++;
+  for (let moment = 0; moment < plan.drawn; moment++) {
+    for (let n = 0; n < simultaneous; n++) {
+      shots.push({
+        index,
+        at: moment * plan.interval,
+        // Different towers within one instant: the whole wall, not one gun
+        // firing five times at once.
+        tower: towers[cursor % towers.length]!,
+        /* The last moments of a barrage hit hardest: the sequence builds. */
+        force: plan.force
+          * (0.8 + 0.4 * (plan.drawn > 1 ? moment / (plan.drawn - 1) : 1)),
+        last: moment === plan.drawn - 1 && n === simultaneous - 1,
+      });
+      index++;
+      cursor++;
+    }
   }
   return shots;
 }

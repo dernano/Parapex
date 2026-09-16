@@ -124,3 +124,24 @@ export function recoilOffset(
   const direction = fireDirection(from, to, camera);
   return { x: -direction.x * strength, y: -direction.y * strength };
 }
+
+/**
+ * A purely HORIZONTAL screen offset, expressed back in tiles.
+ *
+ * Sockets are measured on the sprite, in screen pixels from its top-left.
+ * Particles and projectiles live in world coordinates. Converting between the
+ * two is not a division: moving `sx` pixels right on screen without moving up
+ * or down means stepping equally forward in columns and BACK in rows, because
+ * the two axes cancel in y and add in x.
+ *
+ *   dx = (dcol - drow) · TILE_WIDTH/2 = sx
+ *   dy = (dcol + drow) · TILE_HEIGHT/2 = 0
+ *
+ * which gives dcol = sx / TILE_WIDTH and drow = -dcol. Doing this by eye is
+ * how a muzzle flash ends up drifting off the barrel as the tower moves down
+ * the wall.
+ */
+export function worldOffsetForScreenX(pixels: number): { col: number; row: number } {
+  const step = pixels / TILE_WIDTH;
+  return { col: step, row: -step };
+}
