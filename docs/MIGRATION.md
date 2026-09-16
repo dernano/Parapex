@@ -147,7 +147,7 @@ Dependency order, not feature order. Each phase leaves the game playable.
 
 | Phase | Content | Gate to the next |
 |---|---|---|
-| **0 ✅** | Tag `legacy-baseline`, golden fixtures for force + formations | 25 fixtures written |
+| **0 ✅** | Freeze at **`6b72a89`** (local tag `legacy-baseline`; this session's git proxy does not relay tags, so the commit SHA is the durable marker), golden fixtures for force + formations | 25 fixtures written |
 | **1 ✅** | npm, TypeScript 7, Vite 8, Vitest 5, PixiJS 8; `dev`/`build`/`test`/`typecheck` | build + tests green, legacy untouched |
 | **2a ✅** | Vertical slice: units, towers, formations, force — typed, pure, proven | 27 parity tests |
 | **2b** | Seeded `Rng`; deck, rewards, offers, encounters draw from it | run-level fixtures regenerated and stable across two runs of one seed |
