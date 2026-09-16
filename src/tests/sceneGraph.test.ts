@@ -88,12 +88,31 @@ describe('depth order', () => {
 
 describe('the castle', () => {
   it('has five towers, at the rows the bible names', () => {
-    const nodes = scene(combatWith([])).nodes.filter(n => n.kind === 'tower');
-    expect(nodes).toHaveLength(5);
-    nodes.forEach((n, i) => {
-      // The centre of a 2x2 footprint starting at the bible's row.
-      expect(n.world.row).toBe(TOWER_ROWS[i]! + 0.5);
-      expect(n.world.col).toBe(WALL_COLUMN + 0.5);
+    expect([0, 1, 2, 3, 4].map(i => towerCentre(i))).toEqual(
+      TOWER_ROWS.map(row => ({ col: WALL_COLUMN + 0.5, row: row + 0.5 })));
+  });
+
+  /**
+   * Each tower is TWO nodes, and that is the occlusion: the body behind the
+   * garrison, the parapet in front of it. One node per tower would put every
+   * soldier on top of his own wall.
+   */
+  it('splits each tower around the emplacement it shelters', () => {
+    const nodes = scene(combatWith([])).nodes;
+    const bodies = nodes.filter(n => n.kind === 'tower');
+    const parapets = nodes.filter(n => n.kind === 'parapet');
+    expect(bodies).toHaveLength(5);
+    expect(parapets).toHaveLength(5);
+
+    bodies.forEach((body, i) => {
+      const centre = towerCentre(i);
+      const parapet = parapets[i]!;
+      expect(body.world.col).toBeLessThan(centre.col);
+      expect(body.world.row).toBeLessThan(centre.row);
+      expect(parapet.world.col).toBeGreaterThan(centre.col);
+      expect(parapet.world.row).toBeGreaterThan(centre.row);
+      expect(body.layer).toBe('CASTLE_BACK');
+      expect(parapet.layer).toBe('CASTLE_FRONT');
     });
   });
 

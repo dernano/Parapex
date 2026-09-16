@@ -1,6 +1,8 @@
 import {
   LIGHT, PALETTE, TILE_HEIGHT, TILE_WIDTH, UNIT_HEIGHT,
 } from './artRules';
+import { scaledUnitHeight } from './presentation/settings';
+import { visualForProjectile } from './effects/projectileVisual';
 
 /**
  * PLACEHOLDER ART. Explicitly, and labelled as such everywhere it appears.
@@ -70,6 +72,9 @@ export interface PlaceholderSprite {
   readonly sockets?: Readonly<Record<string, { readonly x: number; readonly y: number }>>;
 }
 
+/** Round a design pixel through the scale probe. Whole pixels only, always. */
+const scaleBy = (value: number, scale: number): number => Math.max(1, Math.round(value * scale));
+
 const ramp = (family: keyof typeof PALETTE, step: number): string =>
   PALETTE[family][Math.min(step, PALETTE[family].length - 1)]!;
 
@@ -120,10 +125,20 @@ export function towerBlock(type: string): PlaceholderSprite {
   };
 }
 
-export function unitFigure(branch: string, band: keyof typeof UNIT_HEIGHT): PlaceholderSprite {
-  const [low, high] = UNIT_HEIGHT[band];
-  const height = Math.round((low + high) / 2);
-  const width = 14;
+export function unitFigure(
+  branch: string,
+  band: keyof typeof UNIT_HEIGHT,
+  scale = 1,
+): PlaceholderSprite {
+  /*
+   * The height comes from the SCALE PROBE, in whole pixels. This is the one
+   * place the four candidate sizes actually take effect, and it is why they
+   * can be compared in the real combat screen instead of on a white
+   * background: everything else about the scene is untouched.
+   */
+  const height = scaledUnitHeight(band, scale);
+  const width = Math.max(10, Math.round(14 * scale));
+  const px = (value: number): number => scaleBy(value, scale);
   const cloth: Record<string, string> = {
     bow: PALETTE.heraldic[2]!, crossbow: PALETTE.heraldic[1]!,
     artillery: PALETTE.heraldic[3]!, gunner: PALETTE.heraldic[0]!,
@@ -134,17 +149,78 @@ export function unitFigure(branch: string, band: keyof typeof UNIT_HEIGHT): Plac
     shapes: [
       // Body, then helmet: two value clusters, strong silhouette, no detail
       // that would vanish at gameplay distance.
-      { kind: 'rect', x: 4, y: height - 16, w: 6, h: 12, fill: cloth[branch] ?? ramp('cloth', 1) },
-      { kind: 'rect', x: 3, y: height - 22, w: 8, h: 6, fill: ramp('iron', 3) },
-      { kind: 'rect', x: 5, y: height - 4, w: 4, h: 4, fill: ramp('iron', 1) },
+      { kind: 'rect', x: px(4), y: height - px(16), w: px(6), h: px(12),
+        fill: cloth[branch] ?? ramp('cloth', 1) },
+      { kind: 'rect', x: px(3), y: height - px(22), w: px(8), h: px(6), fill: ramp('iron', 3) },
+      { kind: 'rect', x: px(5), y: height - px(4), w: px(4), h: px(4), fill: ramp('iron', 1) },
     ],
     sockets: {
       // The bowstring / nut / barrel mouth sits at shoulder height, out front.
-      muzzle: { x: width - 1, y: height - 17 },
-      recoilPivot: { x: width / 2, y: height - 12 },
-      smoke: { x: width + 1, y: height - 17 },
+      muzzle: { x: width - 1, y: height - px(17) },
+      recoilPivot: { x: width / 2, y: height - px(12) },
+      smoke: { x: width + 1, y: height - px(17) },
       banner: { x: width / 2, y: 0 },
     },
+  };
+}
+
+/** The parapet: the near merlons the garrison stands behind. */
+export function parapetBlock(type: string): PlaceholderSprite {
+  const height = Math.round((TOWER_HEIGHT[type] ?? 70) * 0.18);
+  const width = TILE_WIDTH * 2;
+  const footprint = TILE_HEIGHT * 2;
+  return {
+    width, height: height + footprint,
+    anchor: { x: width / 2, y: height + footprint / 2 },
+    shapes: [
+      // A low crenellated band, lit like everything else by the one sun. It is
+      // deliberately shorter than a man: a parapet that hides the garrison
+      // would solve the occlusion and lose the soldiers.
+      { kind: 'box', cx: width / 2, cy: height + footprint / 2,
+        w: width * 0.82, h: footprint * 0.5, depth: height, base: ramp('stone', 2) },
+    ],
+  };
+}
+
+/** A formation's standard, its connector, and the caption plate. */
+export function formationPiece(variant: string, colour: string, accent: string): PlaceholderSprite {
+  if (variant === 'connector') {
+    return {
+      width: 40, height: 4, anchor: { x: 20, y: 2 },
+      shapes: [{ kind: 'rect', x: 0, y: 0, w: 40, h: 3, fill: colour }],
+    };
+  }
+  if (variant === 'caption') {
+    return {
+      width: 4, height: 4, anchor: { x: 0, y: 4 },
+      shapes: [],
+    };
+  }
+  return {
+    width: 12, height: 26, anchor: { x: 6, y: 26 },
+    shapes: [
+      { kind: 'rect', x: 5, y: 0, w: 2, h: 26, fill: ramp('wood', 1) },
+      { kind: 'rect', x: 7, y: 2, w: 5, h: 10, fill: colour },
+      { kind: 'rect', x: 7, y: 2, w: 5, h: 2, fill: accent },
+    ],
+  };
+}
+
+/**
+ * A shot, drawn to the readability rules: dark outline, light core, big enough
+ * to follow. The outline is a second, larger body underneath, which is how
+ * pixel art gets a one-pixel edge without a stroke.
+ */
+export function projectileShape(kind: string): PlaceholderSprite {
+  const visual = visualForProjectile(kind);
+  const w = visual.length + 2;
+  const h = visual.width + 2;
+  return {
+    width: w, height: h, anchor: { x: w / 2, y: h / 2 },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w, h, fill: visual.outline },
+      { kind: 'rect', x: 1, y: 1, w: visual.length, h: visual.width, fill: visual.core },
+    ],
   };
 }
 
@@ -177,18 +253,48 @@ export function projectileDot(): PlaceholderSprite {
   };
 }
 
+export interface PlaceholderOptions {
+  /** The unit scale probe. Whole pixels come out the other side. */
+  readonly scale?: number;
+  readonly colour?: string;
+  readonly accent?: string;
+}
+
 /** Resolve a scene node's sprite name to a placeholder. */
-export function placeholderFor(sprite: string): PlaceholderSprite {
+export function placeholderFor(
+  sprite: string,
+  options: PlaceholderOptions = {},
+): PlaceholderSprite {
   const [family, ...rest] = sprite.split('/');
   switch (family) {
     case 'ground': return groundTile(Number(rest[0]) || 0);
-    case 'castle':
-      return rest[0] === 'wall' ? wallSegment() : towerBlock((rest[0] ?? '').replace('tower-', ''));
+    case 'castle': {
+      const name = rest[0] ?? '';
+      if (name === 'wall') return wallSegment();
+      if (name.startsWith('parapet-')) return parapetBlock(name.replace('parapet-', ''));
+      return towerBlock(name.replace('tower-', ''));
+    }
     case 'unit':
-      return unitFigure(rest[0] ?? 'bow', (rest[1] ?? 'militia') as keyof typeof UNIT_HEIGHT);
+      return unitFigure(rest[0] ?? 'bow',
+        bandOf(rest[1]), options.scale ?? 1);
     case 'enemy': return enemyFigure();
-    case 'projectile': return projectileDot();
+    case 'projectile': return projectileShape(rest[0] ?? 'arrow');
+    case 'formation':
+      return formationPiece(rest[0] ?? 'standardLine',
+        options.colour ?? PALETTE.heraldic[0]!, options.accent ?? PALETTE.heraldic[3]!);
     case 'fx': return contactShadow();
     default: return projectileDot();
   }
+}
+
+/**
+ * A unit's height band, with the ghost folded in.
+ *
+ * A dragged card's ghost has no rank of its own — it is the silhouette of what
+ * WOULD stand there — so it borrows the professional band, the middle of the
+ * three, rather than inventing a fourth size.
+ */
+function bandOf(name: string | undefined): keyof typeof UNIT_HEIGHT {
+  if (name && name in UNIT_HEIGHT) return name as keyof typeof UNIT_HEIGHT;
+  return 'professional';
 }

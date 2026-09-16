@@ -1,9 +1,14 @@
 import type { CombatState, Tower, Unit } from '@/core/types';
 import type { Particle } from './effects/particles';
+import type { FormationNode } from './formations/formationPresentation';
+import type { DropGhost } from './hud/dropTargets';
+import type { PresentationSettings } from './presentation/settings';
 import {
-  ENEMY_COLUMN, GRID_COLS, GRID_ROWS, TOWER_FOOTPRINT, TOWER_ROWS, WALL_COLUMN,
-  heightBandForRank, layerIndex, platformHeight, type LayerName,
+  ENEMY_COLUMN, GRID_COLS, GRID_ROWS, TILE_HEIGHT, TILE_WIDTH, TOWER_FOOTPRINT,
+  TOWER_ROWS, WALL_COLUMN, heightBandForRank, layerIndex, platformHeight,
+  type LayerName,
 } from './artRules';
+import { castleLayer, nearestGarrison, towerPieces } from './occlusion';
 import {
   groundDepth, snap, toScreen, type Camera, type ScreenPoint, type WorldPoint,
 } from './WorldTransform';
@@ -25,8 +30,8 @@ import {
  */
 
 export type SceneNodeKind =
-  | 'ground' | 'wall' | 'tower' | 'unit' | 'enemy' | 'projectile' | 'shadow'
-  | 'particle' | 'projectileShadow';
+  | 'ground' | 'wall' | 'tower' | 'parapet' | 'unit' | 'enemy' | 'projectile'
+  | 'shadow' | 'particle' | 'projectileShadow' | 'formation' | 'floating' | 'ghost';
 
 export interface SceneNode {
   /** Stable across frames, so the binding can reuse a sprite instead of rebuilding it. */
@@ -42,6 +47,8 @@ export interface SceneNode {
   readonly sprite: string;
   /** Extra facts the binding may need. Never anything the rules own. */
   readonly detail?: Readonly<Record<string, string | number | boolean>>;
+  /** Text, for the few nodes that carry any. */
+  readonly text?: string;
 }
 
 export interface Scene {
@@ -71,16 +78,23 @@ export function towerGroundAnchor(index: number, towerType: string): WorldPoint 
   return { ...towerCentre(index), height: platformHeight(towerType) };
 }
 
+/** Every emplacement's standing point, for the occlusion decisions. */
+export function garrisonAnchors(towers: readonly Tower[]): readonly WorldPoint[] {
+  return towers.map((tower, i) => towerGroundAnchor(i, tower.type));
+}
+
 const node = (
   id: string, kind: SceneNodeKind, layer: LayerName,
   world: WorldPoint, sprite: string, camera: Camera,
   detail?: SceneNode['detail'],
+  text?: string,
 ): SceneNode => ({
   id, kind, layer, world,
   screen: snap(toScreen(world, camera)),
   depth: groundDepth(world),
   sprite,
   ...(detail ? { detail } : {}),
+  ...(text !== undefined ? { text } : {}),
 });
 
 /**
@@ -111,21 +125,38 @@ export function terrainVariant(col: number, row: number): number {
   return Math.floor((n - Math.floor(n)) * 4);
 }
 
+/**
+ * The castle, in pieces, each in the layer its POSITION earns.
+ *
+ * Nothing here says "the parapet goes in front". It says where the parapet is,
+ * and `castleLayer` answers. That is the difference between occlusion that
+ * stays right when the camera or the footprint changes and occlusion that was
+ * right once.
+ */
 function castleNodes(state: CombatState, camera: Camera): SceneNode[] {
   const out: SceneNode[] = [];
+  const anchors = garrisonAnchors(state.towers);
 
-  // The wall runs down the column; the towers sit in it.
+  // The curtain wall between the towers.
   for (let row = 0; row < GRID_ROWS; row++) {
     const inTower = TOWER_ROWS.some(t => row >= t && row < t + TOWER_FOOTPRINT.rows);
     if (inTower) continue;
-    out.push(node(`wall:${row}`, 'wall', 'CASTLE_BACK',
-      { col: WALL_COLUMN, row }, 'castle/wall', camera));
+    const world: WorldPoint = { col: WALL_COLUMN, row };
+    const garrison = nearestGarrison(world, anchors);
+    out.push(node(`wall:${row}`, 'wall',
+      garrison ? castleLayer(world, garrison) : 'CASTLE_BACK',
+      world, 'castle/wall', camera));
   }
 
   state.towers.forEach((tower, i) => {
     const centre = towerCentre(i);
-    out.push(node(`tower:${i}`, 'tower', 'TOWERS', centre,
-      `castle/tower-${tower.type}`, camera, { index: i, type: tower.type }));
+    const garrison = anchors[i]!;
+    for (const piece of towerPieces(centre, garrison, tower.type)) {
+      out.push(node(`tower:${i}:${piece.piece}`,
+        piece.piece === 'towerParapet' ? 'parapet' : 'tower',
+        piece.layer, piece.world, piece.sprite, camera,
+        { index: i, type: tower.type, piece: piece.piece }));
+    }
   });
 
   return out;
@@ -136,8 +167,11 @@ function castleNodes(state: CombatState, camera: Camera): SceneNode[] {
  * there: firing moves the upper body, the weapon and the machine, never the
  * whole sprite.
  */
-function unitNodes(towers: readonly Tower[], camera: Camera): SceneNode[] {
+function unitNodes(
+  towers: readonly Tower[], camera: Camera, settings?: PresentationSettings,
+): SceneNode[] {
   const out: SceneNode[] = [];
+  const scale = settings?.unitScale ?? 1;
   towers.forEach((tower, i) => {
     const unit: Unit | null = tower.unit;
     if (!unit) return;
@@ -146,7 +180,7 @@ function unitNodes(towers: readonly Tower[], camera: Camera): SceneNode[] {
     out.push(node(`shadow:${i}`, 'shadow', 'TOWERS', anchor, 'fx/contact-shadow', camera));
     out.push(node(`unit:${i}`, 'unit', 'UNITS', anchor,
       `unit/${unit.branch}/${heightBandForRank(unit.rank)}`, camera,
-      { tower: i, branch: unit.branch, rank: unit.rank, uid: unit.uid }));
+      { tower: i, branch: unit.branch, rank: unit.rank, uid: unit.uid, scale }));
   });
   return out;
 }
@@ -181,6 +215,33 @@ export interface FlyingProjectile {
   readonly id: string;
   readonly kind: string;
   readonly at: WorldPoint;
+  /**
+   * Where it was a moment ago. An oriented shot faces the line between the
+   * two, so it points along its real screen velocity rather than at its
+   * launch point.
+   */
+  readonly from?: WorldPoint;
+}
+
+/** Something written over the field: damage, a caption, a refusal. */
+export interface FloatingLabel {
+  readonly id: string;
+  readonly at: WorldPoint;
+  readonly text: string;
+  /** How large, from the damage magnitude bands. */
+  readonly size: number;
+  readonly colour: string;
+  /** 0..1 through its life, for the rise and the fade. */
+  readonly progress: number;
+}
+
+export interface SceneOptions {
+  readonly settings?: PresentationSettings;
+  /** Formation standards, already posed by `presentFormation`. */
+  readonly formations?: readonly FormationNode[];
+  readonly floating?: readonly FloatingLabel[];
+  /** The unit as it would stand, while a card is in the air. */
+  readonly ghost?: DropGhost | null;
 }
 
 /**
@@ -196,28 +257,50 @@ export function buildBattlefieldScene(
   camera: Camera,
   projectiles: readonly FlyingProjectile[] = [],
   particles: readonly Particle[] = [],
+  options: SceneOptions = {},
 ): Scene {
+  const settings = options.settings;
+  const shotShadows = settings?.effects.shotShadows ?? true;
+
   const nodes = [
     ...groundNodes(camera),
     ...castleNodes(state, camera),
-    ...unitNodes(state.towers, camera),
+    ...unitNodes(state.towers, camera, settings),
     ...enemyNodes(state, camera),
     /*
      * A shadow on the GROUND beneath an arcing shot. In isometric pixel art
      * this communicates height better than anything else — without it a
      * trebuchet stone and a low cannonball are the same dot moving right.
      */
-    ...projectiles.filter(p => (p.at.height ?? 0) > 8).map(p =>
+    ...(shotShadows ? projectiles.filter(p => (p.at.height ?? 0) > 8).map(p =>
       node(`shotShadow:${p.id}`, 'projectileShadow', 'DECORATION',
         { col: p.at.col, row: p.at.row }, 'fx/shot-shadow', camera,
-        { height: p.at.height ?? 0 })),
+        { height: p.at.height ?? 0, kind: p.kind })) : []),
     ...projectiles.map(p => node(`shot:${p.id}`, 'projectile', 'PROJECTILES',
-      p.at, `projectile/${p.kind}`, camera)),
+      p.at, `projectile/${p.kind}`, camera, angleDetail(p))),
     ...particles.map(p => node(`fx:${p.id}`, 'particle',
       p.kind === 'dust' || p.kind === 'debris' ? 'IMPACTS' : 'WORLD_FX',
       p.at, `particle/${p.kind}`, camera,
       { size: Math.round(p.size), opacity: Math.round(p.opacity * 100) / 100,
         palette: p.palette })),
+    /*
+     * The formation stands ABOVE the wall it describes, in the world layer:
+     * it belongs to the castle, not to a panel. That is the whole point of
+     * refusing the modal.
+     */
+    ...(options.formations ?? []).map(f =>
+      node(f.id, 'formation', 'WORLD_FX', f.world, f.sprite, camera,
+        { colour: f.colour, accent: f.accent, raise: Math.round(f.raise * 100) / 100,
+          variant: f.kind },
+        f.text)),
+    ...(options.ghost ? [node('ghost', 'ghost', 'UNITS', options.ghost.world,
+      options.ghost.sprite, camera,
+      { opacity: options.ghost.opacity, scale: settings?.unitScale ?? 1 })] : []),
+    ...((settings?.effects.floatingText ?? true) ? (options.floating ?? []).map(label =>
+      node(label.id, 'floating', 'FLOATING_TEXT', label.at, 'text/floating', camera,
+        { size: label.size, colour: label.colour,
+          progress: Math.round(label.progress * 100) / 100 },
+        label.text)) : []),
   ];
 
   nodes.sort((a, b) => {
@@ -231,4 +314,26 @@ export function buildBattlefieldScene(
   });
 
   return { nodes, camera };
+}
+
+/**
+ * The angle an oriented shot is drawn at, in SCREEN space.
+ *
+ * Taken from the projection rather than from the world heading, and with the
+ * height change included. Both matter. An arrow travelling due east on the
+ * ground plane travels down and to the right on the screen, so a sprite
+ * rotated by the world angle points somewhere the arrow is not going. And an
+ * arrow at the top of its arc is climbing in world terms but level on screen —
+ * without the height term it would point upward through the whole flight and
+ * the arc would vanish from the one object that should express it.
+ */
+function angleDetail(p: FlyingProjectile): SceneNode['detail'] {
+  if (!p.from) return { kind: p.kind };
+  const dCol = p.at.col - p.from.col;
+  const dRow = p.at.row - p.from.row;
+  const dHeight = (p.at.height ?? 0) - (p.from.height ?? 0);
+  const x = (dCol - dRow) * (TILE_WIDTH / 2);
+  const y = (dCol + dRow) * (TILE_HEIGHT / 2) - dHeight;
+  if (!x && !y) return { kind: p.kind };
+  return { kind: p.kind, angle: Math.round(Math.atan2(y, x) * 1000) / 1000 };
 }
