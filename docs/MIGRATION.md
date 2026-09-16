@@ -157,7 +157,7 @@ Dependency order, not feature order. Each phase leaves the game playable.
 | **3b ✅** | The typed pipeline: slots, strict left-to-right order, trigger sources, all six guards, protocol, dry runs | 24 machinery tests against stub crests; all six rejection reasons exercised; four deliberate breaks caught |
 | **3c ✅** | The effect primitives and all 50 crest definitions, as typed data | content parity: every crest listens to exactly the events it did, with the same name, glyph, tincture, rarity and card text |
 | **3d ✅** | Pipeline wired into `CombatEngine`; every crest event fired at its call site | 2449 of 2450 ordered pairs exact, 1 known deviation named and measured; every single-crest and guard fixture reproduced |
-| **4** | Pixi renderer beside the old one: terrain, castle, five towers, one unit, one projectile | both renderers from one state, visually compared |
+| **4 ✅** | Pixel art bible; world transform proven identical to the legacy over the whole grid; explicit layers; pure scene graph; thin Pixi binding | 420 tests; battlefield renders in a real browser from a real `CombatState` — `docs/phase4-battlefield.png` |
 | **5** | Unit visuals: atlas, `UnitVisualDefinition`, anchors, recoil | profile before/after |
 | **6** | `AnimationDirector` consumes the event list | simulation finishes before presentation starts |
 | **7** | DOM UI as typed components | |
@@ -210,6 +210,7 @@ a suite that proved nothing.
 | The Dragon listening only to volleys | 2 |
 | Row padded back to five slots | 10 |
 | Row walked right to left (with crests) | 12 |
+| Units anchored at the tower's foot | **caught by looking at the render, then pinned** |
 
 The weighted-fallback case is the instructive one. The first version of that
 test chose weights where the countdown reached zero inside the loop, so the

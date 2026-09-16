@@ -4,17 +4,27 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Parapex</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0908; color: #a8977c;
+      font: 12px "Trebuchet MS", system-ui, sans-serif; }
+    body { display: grid; place-items: center; }
+    #frame { display: grid; gap: 6px; justify-items: center; }
+    /* Nearest neighbour, and nothing else. Integer scale only. */
+    canvas { image-rendering: pixelated; display: block; }
+    #note { letter-spacing: 0.06em; }
+  </style>
 </head>
 <body>
   <!--
-    The shell of the new client.
-
-    It is deliberately almost empty. The battlefield canvas arrives in Phase 4,
-    the DOM interface in Phase 7. What this page proves today is only that the
-    toolchain carries the real engine into a browser unchanged - the same
-    module the Node tests run against, with no build-time fork between them.
+    The shell of the new client. The battlefield is a Pixi canvas; the
+    interface becomes DOM in Phase 7. Both live here, side by side, which is
+    the arrangement the brief asks for: the world in a real renderer, the text
+    where text belongs.
   -->
-  <main id="app"></main>
+  <div id="frame">
+    <canvas id="world"></canvas>
+    <p id="note"></p>
+  </div>
   <script type="module" src="./main.ts"></script>
 </body>
 </html>
