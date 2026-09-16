@@ -52,10 +52,26 @@ const ergebnis = await seite.evaluate(({ LAEUFE, STRATEGIE }) => {
     return beste && beste.gewinn > 0 ? beste : null;
   };
 
+  /*
+   * Eine gesetzte Einheit feuert SOFORT einen Schuss. Trifft der den Gegner
+   * tot, ist der Kampf mitten im Zug vorbei - und von da an weist
+   * `setzeEinheit` jede weitere Setzung ab, ohne Tatendrang zu kosten.
+   *
+   * Genau daran hing dieser Bot: `besterZug` schlaegt denselben Zug immer
+   * wieder vor, weil sich nichts aendert, und die innere Schleife lief
+   * endlos. Ein Lauf von vierzig hing so zweieinhalb Stunden, ohne eine
+   * einzige Zeile auszugeben - der Fehler sah aus wie Langsamkeit, und
+   * deshalb steht die Notbremse jetzt mit dabei: haengt es doch wieder,
+   * bricht der Lauf ab und sagt es, statt zu schweigen.
+   */
   const spieleKampf = (k) => {
     while (!k.ende) {
-      let zug;
-      while ((zug = besterZug(k))) P.setzeEinheit(zug.turm, zug.karte);
+      let zug, setzt = 0;
+      while (!k.ende && (zug = besterZug(k))) {
+        if (!P.setzeEinheit(zug.turm, zug.karte).ok) break;
+        if (++setzt > 200) throw new Error('Der Bot setzt endlos in Runde ' + k.runde + '.');
+      }
+      if (k.ende) break;
       P.beendeRunde();
     }
     return k.ende === 'sieg';
@@ -84,11 +100,20 @@ const ergebnis = await seite.evaluate(({ LAEUFE, STRATEGIE }) => {
     return angebote.find(a => a.art === 'ausbau') || weg || karten[0] || angebote[0];
   };
 
+  /*
+   * Wie viele Kraefte je Ante ziehen gelassen werden. "alles" und "nichts"
+   * allein sagen nichts ueber die eigentliche Frage des Spiels - die lautet
+   * nicht "durchlassen: ja oder nein", sondern "WIE VIEL kann ich mir
+   * leisten". Dafuer braucht es die Stufen dazwischen.
+   */
+  const DURCHLASS = { durchlassen: 99, zwei: 2, eines: 1 };
+
   const laeufe = [];
   for (let n = 0; n < LAEUFE; n++) {
     const l = P.neuerLauf();
     const proStation = [];
     let schutz = 0;
+    let durchgelassen = 0, anteVorher = -1;
     while (!l.ende && schutz++ < 300) {
       const b = P.dieBelagerung;
       if (!b || b.abschnitt === 'vorbei') {
@@ -118,11 +143,15 @@ const ergebnis = await seite.evaluate(({ LAEUFE, STRATEGIE }) => {
       }
 
       /*
-       * STRATEGIE `durchlassen`: alles ziehen lassen, was geht - das misst
-       * den schwersten Heerfuehrer. Sonst wird gestellt.
+       * Wie viel ziehen gelassen wird, sagt die Strategie - und der Zaehler
+       * faengt mit jeder neuen Ante wieder bei null an, weil die Bedrohung
+       * das auch tut.
        */
+      if (l.ante !== anteVorher) { anteVorher = l.ante; durchgelassen = 0; }
+      const grenze = DURCHLASS[STRATEGIE] || 0;
       const durch = wahlen.find(w => w.art === 'durchlassen' && !w.gesperrt);
-      const wahl = (STRATEGIE === 'durchlassen' && durch) ? durch : wahlen.find(w => w.kampf);
+      const wahl = (durch && durchgelassen < grenze) ? durch : wahlen.find(w => w.kampf);
+      if (durch && wahl === durch) durchgelassen++;
       const erg = P.waehle(wahl);
       if (!erg.ok) break;
       if (!erg.kampf) continue;
