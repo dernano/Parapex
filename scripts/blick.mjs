@@ -133,6 +133,21 @@ const SAETZE = {
       frage: 'Übertrag zur Ablage, und die Warnung darunter.' },
   ],
 
+  /*
+   * Die beiden Dinge, die die Eskalationstabelle ab Stufe C und D verspricht
+   * und die bis eben niemand gezeichnet hat.
+   */
+  erde: [
+    { name: 'narben-danach',
+      bench: { family: 'gunner', rank: 13, volleys: 100 },
+      feuern: true, zeit: 4.5,
+      frage: 'Der Rauch ist weg. Sieht man dem Feld an, was ihm zugestoßen ist?' },
+    { name: 'feldbeleuchtung',
+      bench: { family: 'gunner', rank: 13, volleys: 1000 },
+      feuern: true, zeit: 0.7,
+      frage: 'Liegt ein warmes Licht auf dem Feld — ohne dass es blitzt?' },
+  ],
+
   diagnose: [
     { name: 'diagnose-sockel',
       bench: {

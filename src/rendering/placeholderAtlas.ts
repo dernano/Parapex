@@ -357,6 +357,28 @@ export function contactShadow(): PlaceholderSprite {
   };
 }
 
+/**
+ * A mark in the earth.
+ *
+ * A flattened diamond on the ground plane, in the darkest earth tone — turned
+ * soil, not a black hole. Its size and darkness come from the scene; this is
+ * the shape only.
+ */
+export function groundScar(size: number): PlaceholderSprite {
+  const w = Math.max(6, Math.round(size * 2));
+  const h = Math.max(3, Math.round(size));
+  return {
+    width: w, height: h,
+    anchor: { x: w / 2, y: h / 2 },
+    shapes: [
+      { kind: 'diamond', cx: w / 2, cy: h / 2, w, h, fill: ramp('earth', 0) },
+      // One lighter rim on the sunward side: thrown earth, not a stain.
+      { kind: 'diamond', cx: w / 2, cy: h / 2 - 1, w: w * 0.6, h: h * 0.6,
+        fill: ramp('earth', 1) },
+    ],
+  };
+}
+
 export function projectileDot(): PlaceholderSprite {
   return {
     width: 4, height: 4, anchor: { x: 2, y: 2 },
@@ -371,6 +393,8 @@ export interface PlaceholderOptions {
   readonly accent?: string;
   /** How far a formation connector has to reach, in screen pixels. */
   readonly span?: number;
+  /** How wide a ground scar is, in logical pixels. */
+  readonly size?: number;
 }
 
 /** Resolve a scene node's sprite name to a placeholder. */
@@ -396,7 +420,8 @@ export function placeholderFor(
       return formationPiece(rest[0] ?? 'standardLine',
         options.colour ?? PALETTE.heraldic[0]!, options.accent ?? PALETTE.heraldic[3]!,
         options.span);
-    case 'fx': return contactShadow();
+    case 'fx':
+      return rest[0] === 'scar' ? groundScar(options.size ?? 8) : contactShadow();
     default: return projectileDot();
   }
 }

@@ -1,5 +1,6 @@
 import type { CombatState, Tower, Unit } from '@/core/types';
 import type { Particle } from './effects/particles';
+import { scarOpacity, type Scar } from './effects/groundScars';
 import type { FormationNode } from './formations/formationPresentation';
 import type { DropGhost } from './hud/dropTargets';
 import type { PresentationSettings } from './presentation/settings';
@@ -31,7 +32,8 @@ import {
 
 export type SceneNodeKind =
   | 'ground' | 'wall' | 'tower' | 'parapet' | 'unit' | 'enemy' | 'projectile'
-  | 'shadow' | 'particle' | 'projectileShadow' | 'formation' | 'floating' | 'ghost';
+  | 'shadow' | 'particle' | 'projectileShadow' | 'formation' | 'floating' | 'ghost'
+  | 'scar';
 
 export interface SceneNode {
   /** Stable across frames, so the binding can reuse a sprite instead of rebuilding it. */
@@ -237,6 +239,8 @@ export interface FloatingLabel {
 
 export interface SceneOptions {
   readonly settings?: PresentationSettings;
+  /** Marks a bombardment left in the earth. They outlive their own salvo. */
+  readonly scars?: readonly Scar[];
   /** Formation standards, already posed by `presentFormation`. */
   readonly formations?: readonly FormationNode[];
   readonly floating?: readonly FloatingLabel[];
@@ -264,6 +268,14 @@ export function buildBattlefieldScene(
 
   const nodes = [
     ...groundNodes(camera),
+    /*
+     * Scars sit in DECORATION: on the ground, above the tiles, below
+     * everything that stands on it. They are drawn before the castle so a
+     * crater never appears in front of a wall.
+     */
+    ...(options.scars ?? []).map(scar =>
+      node(`scar:${scar.id}`, 'scar', 'DECORATION', scar.at, 'fx/scar', camera,
+        { size: Math.round(scar.size), opacity: Math.round(scarOpacity(scar) * 100) / 100 })),
     ...castleNodes(state, camera),
     ...unitNodes(state.towers, camera, settings),
     ...enemyNodes(state, camera),

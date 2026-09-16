@@ -21,6 +21,7 @@ import { deployCost } from '@/simulation/CombatEngine';
 import { rejectionMessage } from '@/content/combat/rejections';
 import { shakenCamera } from '@/rendering/effects/cameraResponse';
 import { compress, emptyField, step, type ParticleField } from '@/rendering/effects/particles';
+import { emptyScars, stepScars, type ScarField } from '@/rendering/effects/groundScars';
 import { presentFormation } from '@/rendering/formations/formationPresentation';
 import { fieldJourney, journeyLine, replayChain, reversedOrder, valueUnderOrder }
   from '@/rendering/crests/crestChain';
@@ -84,6 +85,8 @@ let state: CombatState = buildState(bench);
 let director: SalvoDirector | null = null;
 /** Idle smoke and dust, so the field is never a still life between salvos. */
 let ambient: ParticleField = emptyField('ambient');
+/** The earth remembers between salvos. That is the whole point of a scar. */
+let earth: ScarField = emptyScars();
 let formationSince = 0;
 let ticker = 'Bereit.';
 /** The harness drives time itself; the animation frame must not also do it. */
@@ -156,6 +159,7 @@ function rebuild(): void {
   state = buildState(bench);
   director = null;
   ambient = emptyField('ambient');
+  earth = emptyScars();
   formationSince = performance.now() / 1000;
   ticker = 'Bereit.';
   hand = freshHand();
@@ -269,6 +273,7 @@ function fire(): void {
     camera,
     settings: withReducedMotion(bench.settings),
     target: targetPoint(bench.target),
+    scars: earth,
     // Tower three carries the family under examination, so it speaks first.
     towerOrder: [2, 0, 1, 3, 4],
     volleys: bench.volleys,
@@ -432,7 +437,11 @@ function drawFrame(dt: number): void {
 
   if (director) {
     director.advance(dt);
+    // The marks in the earth survive the salvo that made them.
+    earth = director.earth;
     if (director.done) director = null;
+  } else {
+    earth = stepScars(earth, dt);
   }
   ambient = compress(step(ambient, dt));
 
@@ -455,9 +464,10 @@ function drawFrame(dt: number): void {
   const ghost = held ? dropGhost(drag, held, state.towers) : null;
 
   const scene = buildBattlefieldScene(state, shaken, projectiles, particles, {
-    settings, formations: formationNodes, floating, ghost,
+    settings, formations: formationNodes, floating, ghost, scars: earth.scars,
   });
   renderer.render(scene, settings);
+  renderer.setFlash(director ? director.flash : 0);
 
   const line = preview ? `${ticker}   ${preview}` : ticker;
   const hud = {
@@ -511,6 +521,8 @@ function writeReadout(): void {
       + `${plan.tier.escalation.screenFlash ? ' · Lichtblitz' : ''}`
       + `${plan.tier.escalation.groundScar ? ' · Narben' : ''}`
       + `${plan.tier.escalation.continuousRoar ? ' · Dauerdonner' : ''}`);
+    lines.push(`Erde: ${earth.scars.length} Narben`
+      + ` · Feldbeleuchtung ${(director.flash * 100).toFixed(1)} %`);
     if (debug.queue) {
       lines.push(`Warteschlange <b>${director.pending}</b> von ${director.shots.length}`
         + ` · ${director.elapsed.toFixed(2)} s`
@@ -639,7 +651,10 @@ window.WERKBANK = {
     for (let t = 0; t < seconds - dt; t += dt) {
       if (director) {
         director.advance(dt);
+        earth = director.earth;
         if (director.done) director = null;
+      } else {
+        earth = stepScars(earth, dt);
       }
       ambient = compress(step(ambient, dt));
     }
@@ -673,7 +688,10 @@ window.WERKBANK = {
       const before = performance.now();
       if (director) {
         director.advance(dt);
+        earth = director.earth;
         if (director.done) director = null;
+      } else {
+        earth = stepScars(earth, dt);
       }
       ambient = compress(step(ambient, dt));
       const settings = withReducedMotion(bench.settings);
@@ -688,7 +706,9 @@ window.WERKBANK = {
         : camera;
       renderer.render(buildBattlefieldScene(state, shaken, projectiles, particles, {
         settings, formations: nodes, floating: director ? director.floating : [],
+        scars: earth.scars,
       }), settings);
+      renderer.setFlash(director ? director.flash : 0);
       run.frame({
         ms: performance.now() - before,
         sprites: renderer.spriteCount(),

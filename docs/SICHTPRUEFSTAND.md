@@ -10,7 +10,7 @@ nicht, dass es das tut. Er legt offen, woran man es prüfen kann.
 
 ```
 npm run build && npm run dev     →  /visual-test/
-npm run blick                    →  21 Aufnahmen in docs/blick/
+npm run blick                    →  23 Aufnahmen in docs/blick/
 npm run blick:vergleich          →  gegen die Grundlage
 npm run last                     →  echte Bildkosten
 ```
@@ -50,6 +50,18 @@ Dimension wächst monoton über die fünf Stufen.
 **Schadenszahlen lügen nie.** Die Summe der gezeigten Zahlen ist exakt der
 angerichtete Schaden, bei jeder Größenordnung, und nie mehr als zehn auf einmal.
 
+**Die Erde behält die Spuren.** Ab Stufe C hinterlassen Einschläge Narben, die
+ihre eigene Salve überleben: vier Sekunden später ist der Rauch weg und dem Feld
+sieht man an, was ihm zugestoßen ist. Nahe Einschläge vertiefen dieselbe Stelle,
+statt zweihundert einzelne Löcher zu machen.
+
+**Ab Stufe D liegt Licht auf dem Feld.** Ein gehaltener warmer Schein, der
+aufzieht, steht und wieder abfällt — kein Blitzen. Warum das keine
+Geschmacksfrage ist, steht unten unter *Eine Entscheidung ohne Alternative*.
+
+**Ein Sperrfeuer deckt Boden ab.** Die Schüsse streuen um den Zielpunkt, weiter
+mit jeder Stufe. Vorher landeten hundert Kugeln auf demselben Bildpunkt.
+
 **Die Kamera bleibt fast immer still.** Drei Pixel, ganzzahlig, ab Stufe C, auf
 jedem dritten Schuss und dem letzten. Bei reduzierter Bewegung exakt null.
 
@@ -86,6 +98,7 @@ Alles Gezeichnete. Ohne Ausnahme.
 | Was | Was der Platzhalter ist |
 |---|---|
 | Boden | zwei Farbrampen, vier Varianten, kein Übergang, keine Struktur |
+| Narben | dunkle Rauten mit einem helleren Rand |
 | Mauer und Türme | Quader mit einer beleuchteten Deckfläche |
 | Zinnenkranz | ein flacher Quader, 21 Pixel hoch |
 | Soldaten | drei Rechtecke: Helm, Wams, Stiefel |
@@ -122,7 +135,7 @@ jeden steht der Vertrag: Größe, Anker, Sockel, Ebene, Zeitverlauf.
 | **Wappen** | fünfzig als Daten, acht Motive | fünfzig Wappenbilder |
 | **Karten** | Rang, Name, Gattung, Farbe, Anordnung | Kartenrahmen, Porträts |
 
-Zwölf Grafikplätze meldet der Prüfstand im Ruhezustand als fehlend, einundzwanzig
+Zwölf Grafikplätze meldet der Prüfstand im Ruhezustand als fehlend, siebzehn
 über alle Zustände — mit dem genauen Pfad, an dem die Pipeline jede erwartet
 (`assets/source/unit/bow/elite.png`). In der Entwicklung wird jeder einmal
 gemeldet, in der Auslieferung fällt er auf ein Geschwister zurück, nie ins
@@ -135,11 +148,12 @@ Richtung zeigen.
 
 ## 4. Die Aufnahmen
 
-21 benannte Zustände, feste Ausgangswerte, feste Zeitmarken, in `docs/blick/`.
+23 benannte Zustände, feste Ausgangswerte, feste Zeitmarken, in `docs/blick/`.
 
 | Satz | Zustände |
 |---|---|
 | haupt | ruhe · bogen · armbrust · artillerie · kanone · salve-drei · sperrfeuer · bombardement · vernichtung · formation · wappenkette · pulver-tot |
+| erde | narben-danach · feldbeleuchtung |
 | groesse | groesse-100 · 115 · 125 · 135 |
 | handlung | karte-ueber-turm |
 | wappen | kette-zuendet · kette-pulver |
@@ -169,6 +183,10 @@ Die Sprite-Obergrenze stand auf 900 und war geraten. Die Messung hat sie auf
 1200 gerückt: 925 Sprites kosten unter drei Millisekunden, und das
 Bild-Zeit-Budget ist ohnehin die eigentliche Schranke.
 
+**Nach Narben und Feldbeleuchtung** (Messung erneuert): Ruhe 0,6 ms · Salve
+1,4 ms · Sperrfeuer 3,8 ms · Bombardement 2,2 ms · Vernichtung 2,5 ms · eine
+Million 2,6 ms (p95), bei bis zu 941 Sprites. Alles im Budget.
+
 **Ein Ausreißer, ehrlich benannt:** in etwa jedem zweiten Lauf kostet EIN Bild
 einer Stufe-E-Salve rund 50 ms. Es ist immer dasselbe Bild — das, in dem der
 Regisseur hundertfünfzig Geschosse und dreihundert Partikel auf einmal anlegt —
@@ -177,7 +195,7 @@ wäre die Lösung, falls es je stört.
 
 ## 6. Die Tests
 
-**659** im neuen Baum, alle grün. Typprüfung und Bau ebenfalls. Die Altfassung
+**683** im neuen Baum, alle grün. Typprüfung und Bau ebenfalls. Die Altfassung
 ist unberührt: 55/55 Kern, 53/53 Feldzug, 112/112 Browser.
 
 Jede der neuen Zusicherungen wurde durch absichtliches Kaputtmachen geprüft —
@@ -203,6 +221,25 @@ Die eigentliche Erkenntnis war keine Größe: der Platzhalter zeichnete Soldaten
 ein Fünftel kleiner, als die Bibel vorschreibt. 125 % davon ergab genau die
 Höhe, die dort steht.
 
+## 7a. Eine Entscheidung ohne Alternative
+
+Die Eskalationstabelle verspricht ab Stufe D einen **Lichtblitz**. Die
+naheliegende Lesart — ein heller Puls je gezeichnetem Schuss — ist nicht nur
+falsch, sie ist gefährlich: eine Stufe-E-Salve zeichnet alle 45 ms einen
+Moment, ein Puls darauf wäre ein **22-Hz-Vollbildstroboskop**, mitten im Band,
+das photosensitive Anfälle auslöst. `reducedMotion` würde niemanden schützen,
+der die Einstellung nicht vorher gefunden hat.
+
+Gebaut ist deshalb kein Puls, sondern ein **gehaltener Schein**: das Licht
+zieht einmal auf, steht, und fällt einmal ab. Keine Frequenz, nirgends. Ein
+Test fährt die gesamte Salve in Viertelmillisekunden ab und zählt die
+Richtungswechsel der Helligkeit — es müssen genau **zwei** sein, hinauf und
+hinunter. Baut man den Puls ein, zählt er 127 und wird rot.
+
+Das ist die einzige Stelle in diesem Abschnitt, an der ich eine Anforderung
+aus dem Auftrag nicht wörtlich umgesetzt habe. Es liest sich schwerer als ein
+Stroboskop, und es ist durch Konstruktion sicher statt durch eine Einstellung.
+
 ## 8. Was offen ist
 
 Ehrlich, und nach Gewicht sortiert.
@@ -214,16 +251,14 @@ Ehrlich, und nach Gewicht sortiert.
 2. **Zwölf von dreizehn Formationen haben keine Präsentation.** Der Auftrag
    wollte ausdrücklich EINE richtig; die Liste der übrigen wird abgeleitet und
    nennt sich selbst.
-3. **Der Lichtblitz und die Bodennarben von Stufe D und E sind Daten, keine
-   Zeichnung.** Die Eskalation steht in der Tabelle, wird geprüft und vom
-   Regisseur gelesen; der Renderer zeichnet sie noch nicht.
-4. **Der Dauerdonner ist Ton, und Ton gibt es im neuen Baum noch nicht.**
-5. **Die Oberfläche wohnt in `app/visual-test/`**, nicht in `src/ui/`. Die
+3. **Der Dauerdonner ist Ton, und Ton gibt es im neuen Baum noch nicht.** Der
+   letzte Eintrag der Eskalationstabelle ohne Umsetzung.
+4. **Die Oberfläche wohnt in `app/visual-test/`**, nicht in `src/ui/`. Die
    Anordnung selbst ist Daten und geprüft; nur das Erzeugen der DOM-Knoten muss
    in Phase 7 umziehen.
-6. **Der Schemen beim Ziehen hat keine eigene Fassung** — er ist die Figur bei
+5. **Der Schemen beim Ziehen hat keine eigene Fassung** — er ist die Figur bei
    halber Deckkraft. Für echte Kunst wäre eine Umrisszeichnung besser.
-7. **Ein Sprite-Vorrat** würde den einen 50-ms-Ausreißer beseitigen.
+6. **Ein Sprite-Vorrat** würde den einen 50-ms-Ausreißer beseitigen.
 
 ## 9. Was ich nicht gemacht habe
 

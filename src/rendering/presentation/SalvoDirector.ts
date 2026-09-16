@@ -1,4 +1,5 @@
 import type { BranchId, Tower } from '@/core/types';
+import { Rng } from '@/simulation/Rng';
 import { placeholderFor } from '../placeholderAtlas';
 import {
   emit, impactEmitter, muzzleEmitter,
@@ -15,6 +16,12 @@ import {
 import {
   planSalvo, scheduleShots, type DrawnShot, type SalvoPlan,
 } from '../effects/salvoPresentation';
+import {
+  addScar, emptyScars, stepScars, type Scar, type ScarField,
+} from '../effects/groundScars';
+import {
+  flashAt, flashEndsAt, flashWindow, type FlashWindow,
+} from '../effects/screenFlash';
 import { firingDuration, visualFor, type UnitVisualDefinition } from '../units/UnitVisual';
 import { poseAt, projectileAt, socketWorld, type Pose } from '../units/firing';
 import { towerGroundAnchor } from '../SceneGraph';
@@ -72,6 +79,8 @@ export interface DirectorOptions {
   readonly volleys: number;
   /** What the simulation says this salvo dealt. */
   readonly damage: number;
+  /** What the earth already looks like. Scars outlive the salvo that made them. */
+  readonly scars?: ScarField;
   /**
    * Which emplacement speaks first, and in what order after that. Defaults to
    * left-to-right along the wall. The workbench sets it so the family being
@@ -93,6 +102,17 @@ export class SalvoDirector {
   private readonly labels: FloatingLabel[] = [];
   private readonly impulses: CameraImpulse[] = [];
   private field: ParticleField;
+  /** Marks in the earth. The one thing here that outlives its own salvo. */
+  private scarField: ScarField = emptyScars();
+  private readonly window: FlashWindow | null;
+  /**
+   * Where each shot actually aims.
+   *
+   * Its own generator, separate from the particle field's: scatter and smoke
+   * must not shift each other's results, or changing a particle count would
+   * silently move every crater.
+   */
+  private readonly aim: Rng;
   private time = 0;
   private started = 0;
   private shownNumbers = 0;
@@ -112,6 +132,12 @@ export class SalvoDirector {
     this.shots = scheduleShots(this.plan, order);
     this.damage = planDamageNumbers(this.plan, this.shots, options.damage);
     this.field = emptyField(options.seed ?? 'salvo');
+    this.aim = Rng.fromSeed(`${options.seed ?? 'salvo'}:aim`);
+    this.window = flashWindow(this.plan,
+      this.shots.length ? this.shots[this.shots.length - 1]!.at : 0);
+    // Scars carried over from earlier salvos: the field does not start clean
+    // just because this volley is new.
+    if (options.scars) this.scarField = options.scars;
   }
 
   /* ---------- What the renderer asks for ---------- */
@@ -135,6 +161,25 @@ export class SalvoDirector {
 
   get cameraImpulses(): readonly CameraImpulse[] {
     return this.impulses;
+  }
+
+  get scars(): readonly Scar[] {
+    return this.scarField.scars;
+  }
+
+  /** The field as it now stands, to be carried into the next salvo. */
+  get earth(): ScarField {
+    return this.scarField;
+  }
+
+  /**
+   * How lit the whole field is, 0..1 as an alpha.
+   *
+   * A sustained wash, never a strobe — see `screenFlash.ts`. Tiers A to C
+   * return zero, which is what makes tier D mean something.
+   */
+  get flash(): number {
+    return flashAt(this.window, this.time, this.options.settings);
   }
 
   /** The poses, so the renderer can bend the bows it is drawing. */
@@ -161,7 +206,8 @@ export class SalvoDirector {
   get done(): boolean {
     return this.started >= this.shots.length
       && !this.guns.length && !this.flights.length
-      && !this.field.particles.length && !this.labels.length;
+      && !this.field.particles.length && !this.labels.length
+      && this.time >= flashEndsAt(this.window);
   }
 
   /* ---------- The one method that moves time ---------- */
@@ -176,6 +222,7 @@ export class SalvoDirector {
     this.runLabels(dt);
 
     this.field = compress(step(this.field, dt));
+    this.scarField = stepScars(this.scarField, dt);
   }
 
   private startDueShots(): void {
@@ -246,7 +293,7 @@ export class SalvoDirector {
       id: `shot-${gun.shot.index}`,
       visual: gun.visual,
       from: muzzle,
-      to: this.options.target,
+      to: this.scatter(),
       force: gun.shot.force,
       shot: gun.shot,
       previous: muzzle,
@@ -276,6 +323,16 @@ export class SalvoDirector {
       settings: this.options.settings,
     });
     this.lastImpact = flight.visual.projectile;
+
+    /*
+     * The earth keeps the mark. From tier C upward — below that a handful of
+     * shots should leave the field as they found it, or the escalation has
+     * nothing left to say.
+     */
+    if (this.plan.tier.escalation.groundScar) {
+      this.scarField = addScar(this.scarField, at,
+        flight.force * this.plan.tier.escalation.impact);
+    }
 
     const screenDirection = fireDirection(flight.from, flight.to, this.options.camera);
     const impulse = impulseFor(this.plan, flight.shot, screenDirection);
@@ -317,6 +374,28 @@ export class SalvoDirector {
     }
   }
 
+  /**
+   * Where this shot lands: near the aim point, not on it.
+   *
+   * Drawn from the seeded generator, so the same salvo scatters the same way
+   * every time and a screenshot of a shelled field can be compared with
+   * yesterday's. The radius is the tier's — one volley is aimed, a
+   * bombardment covers ground.
+   */
+  private scatter(): WorldPoint {
+    const radius = this.plan.tier.escalation.spread;
+    const angle = this.aim.next() * Math.PI * 2;
+    // Square-rooted, so the points fall evenly over the disc instead of
+    // clustering in the middle — a barrage with a dense core and a thin edge
+    // reads as bad aim rather than as saturation.
+    const distance = Math.sqrt(this.aim.next()) * radius;
+    return {
+      col: this.options.target.col + Math.cos(angle) * distance,
+      row: this.options.target.row + Math.sin(angle) * distance,
+      height: this.options.target.height ?? 0,
+    };
+  }
+
   /** Which impact profile fired last. For the workbench's readout. */
   get lastImpactProfile(): string | null { return this.lastImpact; }
 }
@@ -330,19 +409,32 @@ function towardTarget(from: WorldPoint, to: WorldPoint): { col: number; row: num
 }
 
 /**
- * Numbers fan out rather than stacking on one spot.
+ * Numbers fan out rather than stacking on one spot — in SCREEN terms.
  *
- * Three columns, and the height steps with the column as well as the row — on
- * an isometric field two points a row apart are only eleven pixels apart on
- * screen, which is less than the type is tall.
+ * Spreading them in world tiles does not work and looked like it did: two
+ * points one row apart are eleven screen pixels apart on a 2:1 diamond, which
+ * is less than the type is tall, so a tier E salvo stacked "91.122" straight
+ * over "9.602".
+ *
+ * So the grid is built out of the projection instead. Stepping one column
+ * FORWARD and one row BACK moves a point horizontally and not at all
+ * vertically — 44 px per unit — and height moves it vertically and not at all
+ * horizontally. That gives a clean twelve-cell grid, 62 px by 24, which is
+ * comfortably larger than the widest number at the largest band.
  */
+const LABEL_COLUMNS = 3;
+const LABEL_ROWS = 4;
+
 function labelPoint(target: WorldPoint, index: number): WorldPoint {
-  const column = index % 3;
-  const row = Math.floor(index / 3) % 4;
+  const column = index % LABEL_COLUMNS;
+  const row = Math.floor(index / LABEL_COLUMNS) % LABEL_ROWS;
+  // 1.4 tiles forward and back: 1.4 × 44 = 62 screen pixels of separation,
+  // with no vertical component at all.
+  const across = (column - (LABEL_COLUMNS - 1) / 2) * 1.4;
   return {
-    col: target.col + column * 1.1 - 1.1,
-    row: target.row + row * 1.2 - 1.8,
-    height: 34 + column * 16 + row * 9,
+    col: target.col + across,
+    row: target.row - across,
+    height: 30 + row * 24,
   };
 }
 

@@ -87,7 +87,7 @@ describe('the five tiers are the brief\'s', () => {
    * grow, and the ones that are booleans have to switch on and stay on.
    */
   it('escalates in every dimension, not just in speed', () => {
-    const dimensions = ['smoke', 'impact', 'shake', 'simultaneous'] as const;
+    const dimensions = ['smoke', 'impact', 'shake', 'simultaneous', 'spread'] as const;
     for (const dimension of dimensions) {
       const values = SALVO_TIERS.map(t => t.escalation[dimension]);
       for (let i = 1; i < values.length; i++) {

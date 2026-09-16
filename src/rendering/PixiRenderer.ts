@@ -3,6 +3,7 @@ import { LAYERS, TILE_HEIGHT, TILE_WIDTH, type LayerName } from './artRules';
 import { facesOf, placeholderFor, type PlaceholderSprite, type Shape } from './placeholderAtlas';
 import { PARTICLE_COLOURS, type ParticleKind } from './effects/particles';
 import { visualForProjectile } from './effects/projectileVisual';
+import { FLASH_COLOUR } from './effects/screenFlash';
 import { UNIT_VISUALS } from './units/UnitVisual';
 import { fireDirection, toScreen } from './WorldTransform';
 import type { ArtRegister } from './artHooks';
@@ -63,6 +64,11 @@ export class BattlefieldRenderer {
   /** Drawn thing per node id, so a frame reuses rather than rebuilds. */
   private readonly drawn = new Map<string, Container>();
   private readonly world = new Container();
+  /**
+   * The field lit by its own guns. One rectangle over the whole stage, under
+   * the debug overlay so diagnostics stay readable through it.
+   */
+  private readonly wash = new Graphics();
   /** Everything the debug toggles put on top. Rebuilt every frame; it is small. */
   private readonly overlay = new Container();
   private readonly art: ArtRegister | null;
@@ -104,6 +110,16 @@ export class BattlefieldRenderer {
       renderer.layers.set(name, container);
       renderer.world.addChild(container);
     }
+    /*
+     * The wash sits above the world and is NOT one of the eleven layers: it is
+     * light on the scene rather than a thing in it, and putting it in the
+     * layer list would invite somebody to sort a sprite against it.
+     */
+    renderer.wash.label = 'WASH';
+    renderer.wash.rect(0, 0, options.width, options.height).fill(FLASH_COLOUR);
+    renderer.wash.alpha = 0;
+    app.stage.addChild(renderer.wash);
+
     // Above every layer, and outside the art contract: the debug overlay is
     // not part of the game's look and must never be mistaken for it.
     renderer.overlay.label = 'DEBUG';
@@ -114,6 +130,17 @@ export class BattlefieldRenderer {
   /** How many things the last frame put on the GPU. For the budget overlay. */
   spriteCount(): number {
     return this.count;
+  }
+
+  /**
+   * How lit the field is, 0..1.
+   *
+   * A sustained wash, never a strobe — the director computes it and this only
+   * applies it. See `screenFlash.ts` for why that distinction is not a matter
+   * of taste.
+   */
+  setFlash(alpha: number): void {
+    this.wash.alpha = Math.max(0, Math.min(1, alpha));
   }
 
   /** Draw a scene. Nodes that vanished are removed; the rest are moved. */
@@ -148,6 +175,8 @@ export class BattlefieldRenderer {
         const raise = Number(node.detail?.raise ?? 1);
         sprite.alpha = raise;
         sprite.position.set(node.screen.x, node.screen.y + Math.round((1 - raise) * 10));
+      } else if (node.kind === 'scar') {
+        sprite.alpha = Number(node.detail?.opacity ?? 1);
       } else if (node.kind === 'floating') {
         const progress = Number(node.detail?.progress ?? 0);
         sprite.alpha = Math.max(0, 1 - progress * progress);
@@ -181,6 +210,7 @@ export class BattlefieldRenderer {
       node.detail?.colour ?? '',
       node.detail?.accent ?? '',
       node.detail?.span ?? '',
+      node.kind === 'scar' ? node.detail?.size ?? '' : '',
       node.text ?? '',
     ].join('|');
   }
@@ -219,6 +249,8 @@ export class BattlefieldRenderer {
       ...(node.detail?.colour ? { colour: String(node.detail.colour) } : {}),
       ...(node.detail?.accent ? { accent: String(node.detail.accent) } : {}),
       ...(node.detail?.span !== undefined ? { span: Number(node.detail.span) } : {}),
+      ...(node.detail?.size !== undefined && node.kind === 'scar'
+        ? { size: Number(node.detail.size) } : {}),
     });
   }
 

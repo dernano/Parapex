@@ -39,6 +39,16 @@ export interface SalvoEscalation {
   readonly shake: number;
   /** How many towers fire in the same instant. One is a duel; five is a wall. */
   readonly simultaneous: number;
+  /**
+   * How far the shots scatter around the aim point, in tiles.
+   *
+   * A hundred cannonballs landing on one coordinate is not a bombardment, it
+   * is a laser — and it was exactly what the first version drew: every impact
+   * on the same pixel, every scar merged into one crater, and a shelled field
+   * that looked like a single pothole. A barrage COVERS GROUND, and the
+   * ground it covers is what the player sees afterwards.
+   */
+  readonly spread: number;
   /** A brief warm wash over the whole field on each drawn shot. */
   readonly screenFlash: boolean;
   /** Impacts leave marks on the ground that outlive the salvo. */
@@ -77,7 +87,7 @@ export const SALVO_TIERS: readonly SalvoTier[] = [
     id: 'A', name: 'Salve', from: 1, to: 5,
     interval: 0.16, force: 1, aggregateDamage: false,
     escalation: {
-      smoke: 1, impact: 1, shake: 0, simultaneous: 1,
+      smoke: 1, impact: 1, shake: 0, simultaneous: 1, spread: 0.15,
       screenFlash: false, groundScar: false, continuousRoar: false,
     },
   },
@@ -87,7 +97,7 @@ export const SALVO_TIERS: readonly SalvoTier[] = [
     // but they overlap, so the row reads as coordinated rather than patient.
     interval: 0.075, force: 1.3, aggregateDamage: false,
     escalation: {
-      smoke: 1.3, impact: 1.2, shake: 0, simultaneous: 1,
+      smoke: 1.3, impact: 1.2, shake: 0, simultaneous: 1, spread: 0.35,
       screenFlash: false, groundScar: false, continuousRoar: false,
     },
   },
@@ -97,7 +107,7 @@ export const SALVO_TIERS: readonly SalvoTier[] = [
     // speak at once, the earth starts keeping the marks.
     interval: 0.060, force: 2, aggregateDamage: true,
     escalation: {
-      smoke: 1.8, impact: 1.6, shake: 1.2, simultaneous: 2,
+      smoke: 1.8, impact: 1.6, shake: 1.2, simultaneous: 2, spread: 0.8,
       screenFlash: false, groundScar: true, continuousRoar: false,
     },
   },
@@ -107,7 +117,7 @@ export const SALVO_TIERS: readonly SalvoTier[] = [
     // and the separate reports run together into one sound.
     interval: 0.050, force: 3.2, aggregateDamage: true,
     escalation: {
-      smoke: 2.6, impact: 2.4, shake: 2, simultaneous: 3,
+      smoke: 2.6, impact: 2.4, shake: 2, simultaneous: 3, spread: 1.3,
       screenFlash: true, groundScar: true, continuousRoar: true,
     },
   },
@@ -128,7 +138,7 @@ export const SALVO_TIERS: readonly SalvoTier[] = [
      */
     interval: 0.045, force: 5, aggregateDamage: true,
     escalation: {
-      smoke: 3.5, impact: 3.2, shake: 3, simultaneous: 5,
+      smoke: 3.5, impact: 3.2, shake: 3, simultaneous: 5, spread: 1.9,
       screenFlash: true, groundScar: true, continuousRoar: true,
     },
   },
