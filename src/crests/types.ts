@@ -203,6 +203,8 @@ export interface CrestTools {
    * otherwise every mouse movement over a tower would cost powder.
    */
   moveResource(context: CrestContext, kind: ResourceKind, amount: number): number;
+  /** Game operations a crest may invoke — see `CrestServices`. */
+  services(): { fireSingleShot(towerIndex: number, source: string): number };
 }
 
 export type CrestReaction = (

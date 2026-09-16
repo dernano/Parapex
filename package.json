@@ -20,7 +20,8 @@
     "legacy:style": "node scripts/stil.mjs",
     "golden:draws": "node scripts/goldenDraws.mjs",
     "golden:combat": "node scripts/goldenCombat.mjs",
-    "golden:crests": "node scripts/goldenCrests.mjs"
+    "golden:crests": "node scripts/goldenCrests.mjs",
+    "golden:shapes": "node scripts/goldenCrestShapes.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -155,7 +155,8 @@ Dependency order, not feature order. Each phase leaves the game playable.
 | **2c ✅** | `CombatState` as data; `performAction(state, action) → {state, events}` for deploy / replace / exchange / endRound | 15 scripted combats, 55 actions, step-by-step parity; plus purity, determinism and no-card-lost properties |
 | **3a ✅** | Golden fixtures for the crest system, captured before anything moves | 250 single-crest cases (50 crests × 5 combat shapes), 2450 ordered pairs, 50 guard rows; every crest ignites, 4 of 6 rejection reasons exercised |
 | **3b ✅** | The typed pipeline: slots, strict left-to-right order, trigger sources, all six guards, protocol, dry runs | 24 machinery tests against stub crests; all six rejection reasons exercised; four deliberate breaks caught |
-| **3c** | The 50 crest definitions and the effect primitives | every fixture above reproduced |
+| **3c ✅** | The effect primitives and all 50 crest definitions, as typed data | content parity: every crest listens to exactly the events it did, with the same name, glyph, tincture, rarity and card text |
+| **3d** | Wire the pipeline into `CombatEngine`; run the 2450 pair fixtures | every single, pair and guard fixture reproduced |
 | **4** | Pixi renderer beside the old one: terrain, castle, five towers, one unit, one projectile | both renderers from one state, visually compared |
 | **5** | Unit visuals: atlas, `UnitVisualDefinition`, anchors, recoil | profile before/after |
 | **6** | `AnimationDirector` consumes the event list | simulation finishes before presentation starts |
@@ -200,6 +201,13 @@ a suite that proved nothing.
 | `perSlot` guard removed | 2 |
 | A copy counted as a retrigger | 3 |
 | Row walked right to left | 2 |
+| Amplifier multiplying instead of raising to a power | **nothing — the test used times = 1** |
+| Amplifier reaching to the right | **nothing — the test had no later ignition** |
+| Taking supplies without a cap | 1 |
+| A dry run spending supplies | 1 |
+| A crest losing an event in translation | 1 |
+| A crest's card text drifting | 1 |
+| The Dragon listening only to volleys | 2 |
 
 The weighted-fallback case is the instructive one. The first version of that
 test chose weights where the countdown reached zero inside the loop, so the
@@ -219,7 +227,19 @@ ordering it depends on never came up. A deck of eight now forces the pile dry
 *during* an exchange, where discarding early would hand back the card you just
 paid to lose.
 
-**The last row is an honest limit, not a gap.** `costs.deploy` and
+**Two more blind tests, same shape as the weighted fallback.** The amplifier
+tests passed with the rule broken, for two different reasons and both worth
+knowing:
+
+- *Powers.* `×1.5` amplified once more must be `×2.25`, not `×3`. But with
+  `times = 1` the two arithmetics agree — `1.5¹` and `1.5×1` are both 1.5 — so
+  the broken version passed. Only `times ≥ 2` separates them.
+- *Direction.* An amplifier reaches only to its left. In a plain left-to-right
+  walk nothing has ignited on the right yet, so deleting the filter changed
+  nothing. Only a Mirror copying a LATER slot produces an ignition with a
+  higher slot number before the amplifier runs.
+
+**One honest limit, not a gap.** `costs.deploy` and
 `costs.replace` are both 1, so no test can tell a hardcoded value from the
 correct expression. What can be done is to make the distinction structural:
 `deployCost()` reads both constants, so the day they differ the engine is

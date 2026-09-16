@@ -20,6 +20,21 @@ import { LIMITS } from './types';
  * pair fixtures a test rather than a lottery.
  */
 
+/**
+ * Operations a crest may ask the game to perform.
+ *
+ * The Boar lets a replaced unit fire one last time — but HOW a shot is fired
+ * is the combat's business, not the crest's. The combat hands its shot in
+ * here, so the crests do not depend on the combat and the pipeline does not
+ * either. The default does nothing, which is what a test or a preview wants.
+ */
+export interface CrestServices {
+  /** Fire one shot from a tower. Returns the force that landed. */
+  fireSingleShot(towerIndex: number, source: string): number;
+}
+
+export const NO_SERVICES: CrestServices = { fireSingleShot: () => 0 };
+
 /** Everything the pipeline needs to know between events. Plain data. */
 export interface CrestSession {
   readonly row: CrestRow;
@@ -33,11 +48,15 @@ export interface CrestSession {
   /** Running numbers, so ignitions stay orderable across events. */
   readonly nextNr: number;
   readonly nextEventNumber: number;
+  /** Not data — the game operations crests may invoke. Never serialised. */
+  readonly services: CrestServices;
 }
 
 export function newSession(
   row: CrestRow,
-  options: { resources: Resources; enemy?: Enemy | null; round?: number },
+  options: {
+    resources: Resources; enemy?: Enemy | null; round?: number; services?: CrestServices;
+  },
 ): CrestSession {
   return {
     row,
@@ -48,6 +67,7 @@ export function newSession(
     protocol: [],
     nextNr: 0,
     nextEventNumber: 0,
+    services: options.services ?? NO_SERVICES,
   };
 }
 
@@ -399,6 +419,7 @@ class Run {
       row: () => this.row.slots,
       resources: () => this.pool,
       moveResource: (context, kind, amount) => this.moveResource(context, kind, amount),
+      services: () => this.base.services,
     };
   }
 }

@@ -40,6 +40,26 @@ export const RULES = {
   towerFactor: 1.4,
 
   /**
+   * The crests. These values are measured against one question: is a crest
+   * worth as much as the best card that would have been offered instead? In
+   * the first version it was not — a bot that never took a crest cleared half
+   * its runs, one that always took a crest cleared a seventh. A rule-breaking
+   * crest must not be a trap.
+   *
+   * Only the numbers of crests that reach into COMBAT live here. What a crest
+   * does entirely by itself lives with that crest: at fifty crests a second
+   * table would only be the place where the out-of-date number sits.
+   */
+  crests: {
+    /** The middle emplacement counts its rank threefold. */
+    lion: 3,
+    /** Per empty emplacement. */
+    wolf: 0.6,
+    /** Free exchanges per round. */
+    serpent: 2,
+  },
+
+  /**
    * The base volley. Every occupied emplacement fires once even with no
    * formation at all; everything beyond that comes from formations.
    */
