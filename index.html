@@ -15625,8 +15625,11 @@ html, body { max-width: 100%; overflow-x: hidden; }
   margin: 0 0 6px; text-align: center; }
 #pk .pk-fb-text { margin: 3px 0 0; font-size: 13px; font-style: italic; color: var(--tinte-blass); }
 #pk .pk-fb-mitte { display: grid; grid-template-columns: minmax(0, 1fr) 244px; gap: 18px;
-  align-items: start; }
-#pk .pk-fb-karte { min-width: 0; }
+  align-items: stretch; }
+#pk .pk-fb-karte { min-width: 0; display: grid; align-content: center; }
+#pk .pk-sturm { position: relative; }
+#pk .pk-sturm-innen { position: absolute; inset: 0; overflow-y: auto;
+  padding-left: 16px; min-height: 0; }
 #pk .pk-fb-regel { margin: 6px 0 0; font-size: 12.5px; font-style: italic; text-align: center;
   color: var(--tinte-blass); line-height: 1.5; }
 #pk .pk-feldbuch .pk-begriff { border-bottom-color: rgba(46,36,24,0.45); }
@@ -15634,7 +15637,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
   color: var(--tinte-rot); }
 
 /* ---------- Die gezeichnete Karte ---------- */
-#pk .pk-skizze { width: 100%; height: auto; max-height: min(35vh, 328px); display: block; }
+#pk .pk-skizze { width: 100%; height: auto; display: block; }
 #pk .pk-skizze .fp-linie { fill: none; stroke: var(--tinte); stroke-width: 1.5;
   stroke-linecap: round; stroke-linejoin: round; }
 #pk .pk-skizze .fp-linie-fuell { fill: var(--tinte); }
@@ -15701,12 +15704,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
   box-shadow: 0 1px 3px rgba(40,20,10,0.5); opacity: 0.85; }
 
 /* ---------- Der finale Sturm ---------- */
-#pk .pk-sturm { border-left: 1px solid rgba(90,66,34,0.32); padding-left: 16px; }
-#pk .pk-sturm-regeln { display: flex; flex-direction: column; gap: 6px; margin-top: 3px; }
-#pk .pk-sturm-regel { border-top: 1px solid rgba(90,66,34,0.22); padding-top: 6px; }
+#pk .pk-sturm { border-left: 1px solid rgba(90,66,34,0.32); }
+#pk .pk-sturm-regeln { margin: 10px 0 0; padding-top: 9px;
+  border-top: 1px solid rgba(90,66,34,0.3); }
+#pk .pk-sturm-gitter { display: grid; gap: 8px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+#pk .pk-sturm-regel { border-left: 2px solid rgba(138,42,32,0.5); padding: 1px 0 1px 9px;
+  text-align: left; }
 #pk .pk-sturm-regel b { display: block; font-size: 12.5px; color: var(--tinte-rot); }
-#pk .pk-sturm-regel span { display: block; font-size: 11.5px; line-height: 1.4; }
-#pk .pk-sturm-regel i { display: block; font-size: 10.5px; color: var(--tinte-blass); margin-top: 2px; }
+#pk .pk-sturm-regel span { display: block; font-size: 11.5px; line-height: 1.35; }
+#pk .pk-sturm-regel i { display: block; font-size: 10.5px; color: var(--tinte-blass);
+  line-height: 1.3; margin-top: 1px; }
 
 /* ---------- Die Lage: zwei Felder, gleich gelesen ---------- */
 #pk .pk-fb-lage { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 10px; }
@@ -15804,13 +15812,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
  * die Karte Platz ab, dann das Bildnis und die Randbemerkungen. Weggelassen
  * wird nie etwas, was zum Entscheiden gebraucht wird - lieber wird gerollt.
  */
-@media (max-height: 960px) {
+@media (max-height: 1140px) {
   #pk .pk-feldbuch { padding: 12px 24px 14px; }
   #pk .pk-feldbuch h2 { font-size: 22px; }
   #pk .pk-fb-kopf { margin-bottom: 9px; padding-bottom: 7px; }
   #pk .pk-fb-text { font-size: 12.5px; }
-  #pk .pk-feldbuch .pk-skizze { max-height: min(23vh, 224px); }
-  #pk .pk-feldbuch.viele .pk-skizze { max-height: min(19vh, 178px); }
+  #pk .pk-feldbuch .pk-skizze { max-height: 26vh; }
+  #pk .pk-feldbuch.viele .pk-skizze { max-height: 19vh; }
   #pk .pk-feldbuch .pk-portrait svg { width: 94px; height: 127px; }
   #pk .pk-feldbuch.viele .pk-portrait svg { width: 78px; height: 106px; }
   #pk .pk-feldbuch.viele .pk-musterrolle { gap: 3px; }
@@ -15822,18 +15830,27 @@ html, body { max-width: 100%; overflow-x: hidden; }
   #pk .pk-wk-text { line-height: 1.3; }
   #pk .pk-wk-block { line-height: 1.32; }
 }
-@media (max-height: 820px) {
+@media (max-height: 960px) {
   #pk .pk-feldbuch { padding: 10px 20px 12px; }
   #pk .pk-feldbuch h2 { font-size: 20px; }
-  #pk .pk-feldbuch .pk-skizze,
-  #pk .pk-feldbuch.viele .pk-skizze { max-height: 22vh; }
+  #pk .pk-feldbuch .pk-skizze { max-height: 24vh; }
+  #pk .pk-feldbuch.viele .pk-skizze { max-height: 20vh; }
   #pk .pk-feldbuch .pk-portrait svg,
   #pk .pk-feldbuch.viele .pk-portrait svg { width: 82px; height: 111px; }
   #pk .pk-lage-wert { font-size: 21px; }
   #pk .pk-lage-text b { font-size: 12px; }
   #pk .pk-wk-text, #pk .pk-wk-block { font-size: 11px; }
   #pk .pk-portrait figcaption b { font-size: 13px; }
-  #pk .pk-sturm-regel i { display: none; }
+  /*
+   * Vier Regeln in einer Reihe statt in zweien. Der Rat darunter bleibt
+   * stehen - er ist der Teil, den ein neuer Spieler wirklich braucht.
+   */
+  #pk .pk-sturm-gitter { grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+    gap: 6px 12px; }
+  #pk .pk-sturm-regeln { margin-top: 8px; padding-top: 7px; }
+  #pk .pk-sturm-regel b { font-size: 12px; }
+  #pk .pk-sturm-regel span { font-size: 11px; }
+  #pk .pk-sturm-regel i { font-size: 10px; }
   #pk .pk-mr-wahl { padding: 5px 8px 6px; }
   #pk .pk-mr-folgen span, #pk .pk-mr-danach span { font-size: 10.5px; }
   #pk .pk-mr-wer b { font-size: 12.5px; }
@@ -16623,9 +16640,9 @@ function federBurg(x, y, breit) {
       [tx - 4, y - hoehe - 5], [tx - 4, y - hoehe], [tx + 4, y - hoehe], [tx + 4, y - hoehe - 5],
       [tx + 9, y - hoehe - 5], [tx + 9, y - hoehe], [tx + 9, y]], same, 1.3) + '" class="fp-flaeche"/>';
   return '<g class="fp-burg">'
-    + '<path d="' + federPfad([[x - b, y], [x - b, y - 22], [x + b, y - 22], [x + b, y]], 11, 1.4)
+    + '<path d="' + federPfad([[x - b, y], [x - b, y - 26], [x + b, y - 26], [x + b, y]], 11, 1.4)
     + '" class="fp-flaeche"/>'
-    + turm(x - b + 11, 36, 12) + turm(x, 46, 13) + turm(x + b - 11, 36, 14)
+    + turm(x - b + 13, 42, 12) + turm(x, 54, 13) + turm(x + b - 13, 42, 14)
     + '<path d="' + federPfad([[x - b - 18, y], [x + b + 18, y]], 15, 1.8) + '" class="fp-boden"/>'
     + '<path d="' + federPfad([[x - 5, y], [x - 5, y - 13], [x + 5, y - 13], [x + 5, y]], 16, 1)
     + '" class="fp-tor"/>'
@@ -16825,14 +16842,14 @@ function pkZeigeZettel(text) {
  * hinaufwandern - und danach steht es dort, neben ihm, bis zur letzten
  * Schlacht.
  */
-const SKIZZE_B = 600, SKIZZE_H = 358;
-const SKIZZE_REIHEN = { heer: 52, marsch: 150, vorhut: 228, burg: 334 };
+const SKIZZE_B = 720, SKIZZE_H = 420;
+const SKIZZE_REIHEN = { heer: 66, marsch: 186, vorhut: 272, burg: 392 };
 /*
  * Feste Plaetze im Lager. Die Mitte bleibt frei - dort steht der Heerfuehrer,
  * und sein Banner soll nicht zwischen Zelten verschwinden.
  */
-const LAGER_FEUER = [136, 464, 240, 360];
-const LAGER_GERAET = [88, 512, 192];
+const LAGER_FEUER = [163, 557, 288, 432];
+const LAGER_GERAET = [106, 614, 230];
 /* Die Spalte vor dem Tor gehoert der Vorhut. Kein Pfeil laeuft hindurch. */
 const VORHUT_SPALTE = 24;
 
@@ -16844,14 +16861,14 @@ function pkKampagnenSkizze(lage, gerade) {
   const bed = lage.bedrohung;
   const zelte = 2 + bed;
   for (let i = 0; i < zelte; i++) {
-    const x = 66 + (i * 468) / Math.max(1, zelte - 1) + ((i % 2) * 16 - 8);
-    teile.push(federZelt(x, 38 + (i % 2) * 7, 0.8 + (i % 3) * 0.12, 60 + i));
+    const x = 80 + (i * 560) / Math.max(1, zelte - 1) + ((i % 2) * 18 - 9);
+    teile.push(federZelt(x, 44 + (i % 2) * 8, 0.85 + (i % 3) * 0.13, 60 + i));
   }
   for (let i = 0; i < Math.min(LAGER_FEUER.length, Math.max(0, bed - 1)); i++) {
-    teile.push(federFeuer(LAGER_FEUER[i], 44 + (i % 2) * 5, 80 + i));
+    teile.push(federFeuer(LAGER_FEUER[i], 50 + (i % 2) * 6, 80 + i));
   }
   for (let i = 0; i < Math.min(LAGER_GERAET.length, Math.max(0, bed - 2)); i++) {
-    teile.push(federGeraet(LAGER_GERAET[i], 48, 100 + i));
+    teile.push(federGeraet(LAGER_GERAET[i], 56, 100 + i));
   }
   teile.push('<text x="' + mitte + '" y="14" class="fp-band">DAS HEER</text>');
 
@@ -16867,7 +16884,7 @@ function pkKampagnenSkizze(lage, gerade) {
     + lage.heerfuehrer.name + '</text>');
   durch.forEach((d, i) => {
     const seite = i % 2 ? 1 : -1;
-    const x = mitte + seite * (98 + Math.floor(i / 2) * 60) - 13;
+    const x = mitte + seite * (112 + Math.floor(i / 2) * 64) - 13;
     teile.push('<g class="fp-gewandert"' + (gerade === d.id ? ' data-neu="1"' : '') + '>'
       + federBanner(x, SKIZZE_REIHEN.heer + 12, d.zeichen, 200 + i, 'durch')
       + '<text x="' + (x + 13) + '" y="' + (SKIZZE_REIHEN.heer + 84) + '" class="fp-name klein">'
@@ -16893,7 +16910,7 @@ function pkKampagnenSkizze(lage, gerade) {
       const seite = x + 13 <= mitte ? -1 : 1;
       const zielX = mitte + seite * (VORHUT_SPALTE + 12 + (i % 2) * 22);
       teile.push(federPfeil(x + 13 + seite * 10, SKIZZE_REIHEN.marsch + 66,
-        zielX, SKIZZE_REIHEN.burg - 62, 400 + i, seite * -0.22));
+        zielX, SKIZZE_REIHEN.burg - 72, 400 + i, seite * -0.22));
     }
   });
 
@@ -16910,8 +16927,8 @@ function pkKampagnenSkizze(lage, gerade) {
   }
 
   /* --- Die Burg. Sie steht, und sie bewegt sich nicht. --- */
-  teile.push(federBurg(mitte, SKIZZE_REIHEN.burg, 96));
-  teile.push('<text x="' + mitte + '" y="' + (SKIZZE_H - 5) + '" class="fp-band">DEINE BURG</text>');
+  teile.push(federBurg(mitte, SKIZZE_REIHEN.burg, 132));
+  teile.push('<text x="' + mitte + '" y="' + (SKIZZE_H - 7) + '" class="fp-band">DEINE BURG</text>');
 
   return '<svg class="pk-skizze" viewBox="0 0 ' + SKIZZE_B + ' ' + SKIZZE_H
     + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + teile.join('') + '</svg>';
@@ -16987,23 +17004,43 @@ function pkLagebandHtml(lage) {
 }
 
 function pkFinalerSturmHtml(lage) {
-  const regeln = lage.heerfuehrer.regeln.map(id => BOSSREGELN[id]).filter(Boolean);
   /* Wer schon durchgelassen wurde, steht am Ende neben ihm - und zwar hier. */
   const bei = (lage.vorhut.zustand === 'durch' ? ['Die Vorhut'] : [])
     .concat(lage.divisionen.filter(d => d.zustand === 'durch').map(d => d.name));
-  return '<aside class="pk-sturm">'
+  /*
+   * Der Inhalt liegt in einem eigenen Kasten, der ueber der Spalte SCHWEBT.
+   * Ohne das bestimmt der Heerfuehrer mit vier Regeln die Hoehe der ganzen
+   * Zeile - und die Karte daneben steht dann oben in einem Loch aus leerem
+   * Pergament. Jetzt bestimmt die KARTE die Hoehe, und der Sturm rollt, wenn
+   * er mehr braucht.
+   */
+  return '<aside class="pk-sturm"><div class="pk-sturm-innen">'
     + '<h3>' + pkBegriffHtml('finalerSturm', 'Finaler Sturm') + '</h3>'
     + pkPortraitHtml(lage.heerfuehrer.id, lage.heerfuehrer.name,
         pkZahl(lage.heerfuehrer.hp) + ' Stärke')
     + '<p class="pk-sturm-bei">' + (bei.length
         ? 'Bei ihm steht: ' + bei.join(', ') + '.'
         : 'Noch steht niemand bei ihm.') + '</p>'
-    + '<div class="pk-sturm-regeln">'
+    + '</div></aside>';
+}
+
+/*
+ * WAS ER TUN WIRD - in ganzer Breite, unter der Karte.
+ *
+ * In der schmalen Spalte neben dem Bildnis brach jede Regel auf vier Zeilen
+ * um, und bei vier Regeln war die Spalte hoeher als die halbe Seite. Hier
+ * bekommt jede Regel die Breite, die sie braucht, und der Spieler sieht ALLE
+ * auf einmal - was der Sinn dieser Tafel ist.
+ */
+function pkSturmregelnHtml(lage) {
+  const regeln = lage.heerfuehrer.regeln.map(id => BOSSREGELN[id]).filter(Boolean);
+  if (!regeln.length) return '';
+  return '<div class="pk-sturm-regeln"><h3>Was ' + lage.heerfuehrer.name + ' tun wird</h3>'
+    + '<div class="pk-sturm-gitter">'
     + regeln.map(r => '<div class="pk-sturm-regel"><b>' + r.zeichen + ' ' + r.name + '</b>'
         + '<span>' + r.text + '</span>'
         + '<i>' + r.antwort + '</i></div>').join('')
-    + '</div>'
-    + '</aside>';
+    + '</div></div>';
 }
 
 /*
@@ -17192,6 +17229,7 @@ function pkZeigeBelagerung() {
       + '<div class="pk-fb-karte">' + pkKampagnenSkizze(lage, gewandert) + '</div>'
       + pkFinalerSturmHtml(lage)
     + '</div>'
+    + pkSturmregelnHtml(lage)
     + '<p class="pk-fb-regel">' + pkBegriffHtml('division', 'Nicht alle Teile des Heeres')
       + ' lassen sich abfangen. Was du ziehen lässt, kämpft später an der Seite des '
       + pkBegriffHtml('heerfuehrer', 'Heerführers') + '.</p>'
