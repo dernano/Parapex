@@ -13,6 +13,7 @@ npm run build && npm run dev     →  /visual-test/
 npm run blick                    →  23 Aufnahmen in docs/blick/
 npm run blick:vergleich          →  gegen die Grundlage
 npm run last                     →  echte Bildkosten
+npm run spielprobe               →  eine echte Runde im Browser
 ```
 
 ---
@@ -91,6 +92,13 @@ veraltet.
 **Das Schlachtfeld bekommt den Bildschirm.** Mindestens 62 % bei jeder
 Fenstergröße. Tatendrang sind fünf Marken. Sieben Karten fächern, statt zu
 scrollen. Sortieren gibt eine Reihenfolge zurück und fasst die Hand nie an.
+
+**Es ist spielbar.** `/` ist der Kampfbildschirm, nicht mehr die
+Phase-4-Vorführung: Karten auf Türme ziehen, tauschen, Runde beenden, fünf
+Runden, Sieg und Niederlage — alles aus `performAction`, alles über dieselben
+Module wie der Prüfstand. `npm run spielprobe` spielt eine Runde im Browser mit
+echten Zeigerereignissen und schlägt fehl, wenn der Feind keinen Schaden nimmt
+oder die Runde nicht weitergeht.
 
 **Karte auf Turm.** Der Schemen steht auf der Plattform, auf der die Einheit
 stehen würde, und die Laufzeile beantwortet den Zug, bevor er liegt:
@@ -255,14 +263,13 @@ Ehrlich, und nach Gewicht sortiert.
    nennt sich selbst.
 2. **Der Dauerdonner ist Ton, und Ton gibt es im neuen Baum noch nicht.** Der
    letzte Eintrag der Eskalationstabelle ohne Umsetzung.
-3. **Die Oberfläche wohnt in `app/visual-test/`**, nicht in `src/ui/`. Die
-   Anordnung selbst ist Daten und geprüft; nur das Erzeugen der DOM-Knoten muss
-   in Phase 7 umziehen.
+3. **Der Wappenschemen und die Karten teilen sich noch eine Darstellung.** Die
+   Karte ist ein Rechteck mit Rang und Namen; ein Kartenrahmen fehlt.
 4. **Der Schemen beim Ziehen hat keine eigene Fassung** — er ist die Figur bei
    halber Deckkraft. Für echte Kunst wäre eine Umrisszeichnung besser.
-5. **Es gibt kein spielbares Kampfbild im neuen Baum.** Der Prüfstand zeigt die
-   Präsentation, `app/index.html` ist noch die Phase-4-Vorführung. Das ist
-   Phase 7 und der nächste große Schritt.
+5. **Der Kampfbildschirm kennt noch keinen Feldzug.** Eine Runde lässt sich
+   spielen, fünf Runden auch — aber Ausgangswert, Gegnerstärke und Wappenreihe
+   sind fest verdrahtet. Das ist Phase 8.
 
 ## 9. Was ich nicht gemacht habe
 

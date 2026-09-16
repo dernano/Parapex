@@ -15,6 +15,7 @@
     "blick:grundlage": "node scripts/blick.mjs --grundlage",
     "blick:vergleich": "python3 scripts/art/vergleich.py",
     "last": "node scripts/last.mjs",
+    "spielprobe": "node scripts/spielprobe.mjs",
     "golden": "node scripts/golden.mjs",
     "legacy:build": "node scripts/baue.mjs",
     "legacy:typecheck": "tsc -p tsconfig.legacy.json",

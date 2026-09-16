@@ -6,25 +6,70 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Parapex</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #0b0908; color: #a8977c;
-      font: 12px "Trebuchet MS", system-ui, sans-serif; }
+    :root { --ink: #a8977c; --bright: #e3d2a4; --dim: #6a5f4c; --line: #2a231c;
+      --warn: #e3b552; --bad: #a8261f; }
+    html, body { margin: 0; height: 100%; background: #0b0908; color: var(--ink);
+      font: 12px/1.5 "Trebuchet MS", system-ui, sans-serif; }
     body { display: grid; place-items: center; }
-    #frame { display: grid; gap: 6px; justify-items: center; }
-    /* Nearest neighbour, and nothing else. Integer scale only. */
+    #shell { position: relative; }
     canvas { image-rendering: pixelated; display: block; }
-    #note { letter-spacing: 0.06em; }
+
+    /* The HUD is drawn OVER the world, at the same logical size. Panels beside
+       it would shrink it; a thin frame on top does not. */
+    #hud, #motifs { position: absolute; inset: 0; pointer-events: none; }
+    #motifs { z-index: 5; }
+    #hud .region { position: absolute; box-sizing: border-box; }
+    #hud .frame { border: 1px solid var(--line); background: rgba(10,8,6,.72); }
+    #hud .card { pointer-events: auto; cursor: grab; touch-action: none; }
+    #hud .card:active { cursor: grabbing; }
+    #hud .card.chosen { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
+    #hud .card.locked { pointer-events: none; opacity: .75; }
+
+    .mark { position: absolute; box-sizing: border-box; border: 1px solid var(--dim); }
+    .mark.held { background: var(--warn); border-color: var(--bright); }
+    .mark.spending { background: #6a5520; border-color: var(--warn); }
+    .mark.spent { background: transparent; }
+
+    .card { position: absolute; box-sizing: border-box; border: 1px solid var(--line);
+      background: #191309; color: var(--bright); border-radius: 2px;
+      transition: transform .18s ease, left .18s ease, top .12s ease;
+      display: grid; grid-template-rows: auto 1fr auto; padding: 4px;
+      font-size: 11px; overflow: hidden; }
+    .card .rank { font-size: 18px; font-weight: bold; line-height: 1; }
+    .card .branch { color: var(--dim); font-size: 10px; }
+    .card.ghosted { opacity: .35; }
+
+    .slot { position: absolute; box-sizing: border-box; border: 1px solid var(--line);
+      background: #16110c; display: grid; place-items: center; border-radius: 2px; }
+    .slot .glyph { font-size: 17px; line-height: 1; }
+    .slot .tally { font-size: 9px; color: var(--dim); }
+    .slot.empty { border-style: dashed; }
+    .slot.sealed { border-color: var(--bad); }
+    .flow { position: absolute; color: var(--dim); font-size: 11px; }
+
+    #commands { position: absolute; right: 8px; bottom: 8px; display: flex;
+      gap: 6px; z-index: 6; }
+    #commands button { font: inherit; background: #1d1711; color: var(--ink);
+      border: 1px solid var(--line); padding: 6px 12px; cursor: pointer;
+      border-radius: 2px; letter-spacing: .06em; }
+    #commands button:hover:not(:disabled) { border-color: var(--warn); color: var(--bright); }
+    #commands button:disabled { opacity: .4; cursor: default; }
   </style>
 </head>
 <body>
   <!--
-    The shell of the new client. The battlefield is a Pixi canvas; the
-    interface becomes DOM in Phase 7. Both live here, side by side, which is
-    the arrangement the brief asks for: the world in a real renderer, the text
-    where text belongs.
+    The combat screen. Everything on it comes out of the same modules the
+    workbench at /visual-test/ drives: one renderer, one scene graph, one
+    director. There is no second implementation anywhere.
   -->
-  <div id="frame">
+  <div id="shell">
     <canvas id="world"></canvas>
-    <p id="note"></p>
+    <div id="hud"></div>
+    <div id="motifs"></div>
+    <div id="commands">
+      <button id="exchange" type="button">Tauschen</button>
+      <button id="end" type="button">Runde beenden</button>
+    </div>
   </div>
   <script type="module" src="./main.ts"></script>
 </body>

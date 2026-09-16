@@ -48,6 +48,14 @@ export type Act =
 /** How long the screen should hold an act that has no animation of its own. */
 export const NOTE_SECONDS = 0.9;
 
-/** Whether an act is something to watch, or only something to read. */
-export const isSpectacle = (act: Act): boolean =>
+/** The acts that have a presentation of their own. */
+export type Spectacle = Extract<Act, { kind: 'deployment' | 'volley' }>;
+
+/**
+ * Whether an act is something to WATCH, or only something to read.
+ *
+ * A type guard rather than a predicate: the screen asks this and then
+ * immediately wants the damage, and a boolean would leave it casting.
+ */
+export const isSpectacle = (act: Act): act is Spectacle =>
   act.kind === 'deployment' || act.kind === 'volley';

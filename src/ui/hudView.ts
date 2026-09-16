@@ -22,6 +22,11 @@ import {
  * The HUD is drawn OVER the canvas, at the same logical size, deliberately.
  * Panels beside the world would shrink the world; a thin frame on top of it
  * does not.
+ *
+ * It was written inside the workbench and moved here once the real combat
+ * screen needed it. Nothing had to be re-derived, because the positions were
+ * already coming out of `rendering/hud/layout` — the move was a file rename,
+ * which is the test of whether a split was real.
  */
 
 export interface HudState {

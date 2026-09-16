@@ -39,8 +39,8 @@ import {
   type Bench, type CrestPreset, type TargetSide,
 } from './bench';
 import { benchHand as freshHand } from './bench';
-import { hudSignature, renderHud } from './hudView';
-import { MOTIF_CSS, applyMotifs, buildMotifs } from './crestMotifs';
+import { hudSignature, renderHud } from '@/ui/hudView';
+import { MOTIF_CSS, applyMotifs, buildMotifs } from '@/ui/motifView';
 
 /**
  * THE VISUAL WORKBENCH.
