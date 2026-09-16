@@ -139,6 +139,15 @@ export function neuesBand(reihe = [], feind = null) {
     /** @type {Record<number, number>} wie oft ein Platz im ganzen Kampf gezuendet hat */
     zaehlung: {},
     nr: 0,
+    /*
+     * Der wievielte AUSLOESER das ist. Nicht dasselbe wie `nr`: ein Ereignis
+     * zaehlt einmal hoch, gleich wie viele Wappen darin zuenden - und alles,
+     * was darunter entsteht, behaelt die Nummer. Die Erklaerung braucht das:
+     * "was hat das Wappen im letzten Ereignis getan" ist ohne eine solche
+     * Grenze nicht zu beantworten, und ohne sie verschmolzen fuenf Lesungen
+     * desselben Blattes zu einer.
+     */
+    ereignisNr: 0,
   };
   return dasBand;
 }
@@ -246,6 +255,9 @@ export function neueLage(ereignis, daten = {}, eltern = null, probe = false) {
   return {
     ereignis,
     daten,
+    /* Ein Ausloeser bekommt eine neue Nummer; was unter ihm entsteht, erbt sie. */
+    ereignisNr: eltern ? eltern.ereignisNr
+      : (dasBand ? ++dasBand.ereignisNr : 0),
     /*
      * Eine Probe rechnet, ohne die Welt zu beruehren. Die Anzeige fragt bei
      * jedem Schweben einer Karte ueber einem Turm, was die Burg dann woege -
@@ -394,6 +406,8 @@ function zuendePlatz(lage, platz, art, durch = null) {
 
   const zuendung = {
     nr: ++dasBand.nr,
+    ereignisNr: lage.ereignisNr,
+    runde: lage.runde,
     platz, id, name: def.name, ereignis: lage.ereignis, art,
     gegner: platz < 0,
     tiefe: lage.tiefe,
@@ -477,6 +491,8 @@ function warumNicht(lage, platz, id, art) {
 function halteFest(lage, platz, id, art, grund) {
   const eintrag = {
     nr: ++dasBand.nr,
+    ereignisNr: lage.ereignisNr,
+    runde: lage.runde,
     platz, id, name: (WAPPEN_REGISTER[id] || {}).name || id,
     gegner: platz < 0,
     ereignis: lage.ereignis, art, tiefe: lage.tiefe,

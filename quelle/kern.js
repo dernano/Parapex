@@ -29,6 +29,10 @@ export {
 } from './wappen/vorrat.js';
 export { WAPPEN, WAPPEN_LISTE, WAPPEN_PLAETZE, SELTENHEITEN, wappenNach } from './wappen/sammlung.js';
 export {
+  EREIGNIS_NAMEN, ABWEISUNG_NAMEN, hoertAuf, wirkungText,
+  platzBericht, wappenBericht, reihenfolgeBeispiel,
+} from './wappen/erklaerung.js';
+export {
   FORMATIONEN, FORMATIONS_FAMILIEN, FAMILIEN_ZEICHEN, KOENIGSRAENGE,
   baueBlatt, erkenneFormationen, salvenZahl, formationsSalven,
 } from './kern/formationen.js';

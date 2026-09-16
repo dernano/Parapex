@@ -1087,6 +1087,132 @@ const ergebnis = await seite.evaluate(() => {
     return leiste.textContent.includes('4') ? true : 'die Menge fehlt: ' + leiste.textContent;
   });
 
+  /* ---------- Die Wappen erklaeren sich ---------- */
+  /*
+   * Das Fliessband ist ein gutes System und eine schlechte Erfahrung, solange
+   * es schweigt. Hier wird geprueft, dass es redet - und zwar dreistufig.
+   */
+  const einKampfMitWappen = (ids) => {
+    P.neuerLauf();
+    P.derLauf.wappen = ids.filter(id => P.WAPPEN[id]);
+    const r = P.waehle(P.offeneWahlen().find(x => x.kampf));
+    const k = P.beginneSchlacht(r.kampf);
+    for (let i = 0; i < 5 && k.hand.length; i++) P.setzeEinheit(i, k.hand[0]);
+    P.beendeRunde();
+    return k;
+  };
+
+  pruefe('Jedes Wappen sagt, worauf es hört', () => {
+    for (const id of P.WAPPEN_LISTE) {
+      const h = P.hoertAuf(id);
+      if (!h.length) return P.WAPPEN[id].name + ' hört auf kein Ereignis';
+      for (const t of h) if (/^[a-z]+[A-Z]/.test(t)) return P.WAPPEN[id].name
+        + ' nennt ein Ereignis beim Maschinennamen: ' + t;
+    }
+    return true;
+  });
+
+  pruefe('Ein Wappen, das gewirkt hat, sagt was', () => {
+    einKampfMitWappen(['schleifstein', 'loewe']);
+    const b = P.wappenBericht(0);
+    if (!b) return 'kein Bericht';
+    if (!b.regel) return 'keine Regel';
+    if (!b.jetzt) return 'kein Aktuell';
+    if (!b.jetzt.wirkungen.length) return 'der Schleifstein hat angeblich nichts bewirkt';
+    return b.warumNicht === null ? true : 'er entschuldigt sich trotzdem: ' + b.warumNicht;
+  });
+
+  pruefe('Ein Wappen, das nichts getan hat, sagt warum', () => {
+    /* Ein Wappen, das nur auf den Sieg hoert, kann in Runde eins nichts tun. */
+    const still = P.WAPPEN_LISTE.find(id => {
+      const h = Object.keys(P.WAPPEN[id].hoert || {});
+      return h.length === 1 && (h[0] === 'feindBesiegt' || h[0] === 'kampfEndet');
+    });
+    if (!still) return true;                       // gibt es gerade keines
+    einKampfMitWappen([still]);
+    const b = P.wappenBericht(0);
+    if (!b) return 'kein Bericht';
+    if (b.jetzt && b.jetzt.wirkungen.length) return 'es hat doch gewirkt';
+    if (!b.warumNicht) return 'es schweigt: ' + b.name;
+    return b.warumNicht.length > 20 ? true : 'die Antwort ist zu knapp: ' + b.warumNicht;
+  });
+
+  pruefe('Ein versiegelter Platz nennt das Siegel als Grund', () => {
+    einKampfMitWappen(['schleifstein', 'loewe']);
+    P.siegelePlatz(0);
+    const b = P.wappenBericht(0);
+    return b && b.versiegelt && /ersiegelt/.test(b.warumNicht || '')
+      ? true : 'der Grund lautet: ' + (b && b.warumNicht);
+  });
+
+  pruefe('Der Hinweis am Gestell zeigt Regel, Erklärung und Aktuell', () => {
+    einKampfMitWappen(['schleifstein', 'loewe']);
+    pkGestell(P.derKampf);
+    const d = document.querySelector('#pk-wappen div[data-platz="0"]');
+    if (!d) return 'kein Platz';
+    const h = pkWappenHinweis(d);
+    if (!h || !h.text) return 'kein Hinweis';
+    if (!/pk-wh-regel/.test(h.text)) return 'keine Regel';
+    if (!/Erklärung/.test(h.text)) return 'keine Erklaerung';
+    if (!/Aktuell/.test(h.text)) return 'kein Aktuell';
+    return /Diese Runde/.test(h.text) ? true : 'Aktuell sagt nichts Gemessenes: ' + h.text;
+  });
+
+  pruefe('Der Hinweis nennt den Platz und wie viele es gibt', () => {
+    einKampfMitWappen(['schleifstein']);
+    pkGestell(P.derKampf);
+    const d = document.querySelector('#pk-wappen div[data-platz="0"]');
+    const h = pkWappenHinweis(d);
+    return /Platz 1 von 5/.test(h.titel) ? true : 'die Überschrift lautet: ' + h.titel;
+  });
+
+  pruefe('Beim Überfahren sieht man, wer vorher wirkt', () => {
+    einKampfMitWappen(['schleifstein', 'loewe']);
+    pkGestell(P.derKampf);
+    const gestell = document.getElementById('pk-wappen');
+    pkReihenfolgeZeigen(gestell, 2);
+    const kinder = [...gestell.children];
+    if (!kinder[0].classList.contains('davor')) return 'Platz 1 gilt nicht als davor';
+    if (!kinder[4].classList.contains('danach')) return 'Platz 5 gilt nicht als danach';
+    if (kinder[2].classList.contains('davor') || kinder[2].classList.contains('danach')) {
+      return 'der Platz selbst ist markiert';
+    }
+    pkReihenfolgeAus(gestell);
+    return kinder.every(k => !k.classList.contains('davor') && !k.classList.contains('danach'))
+      ? true : 'die Markierung bleibt hängen';
+  });
+
+  pruefe('Die Lehre zur Reihenfolge nennt die eigenen Wappen', () => {
+    const bsp = P.reihenfolgeBeispiel(['schleifstein', 'loewe']);
+    if (!bsp) return 'kein Beispiel';
+    if (bsp.links.platz >= bsp.rechts.platz) return 'links steht nicht links';
+    return /Schleifstein|Löwen/.test(bsp.so) ? true : 'ohne Namen: ' + bsp.so;
+  });
+
+  pruefe('Das Kriegsbuch lässt sich mitten in der Schlacht aufschlagen', () => {
+    einKampfMitWappen(['schleifstein']);
+    pkRaeumeTafel();
+    document.getElementById('buch-btn').click();
+    const buch = document.querySelector('.pk-tafel .pk-buch');
+    if (!buch) return 'kein Buch';
+    const reiter = document.querySelectorAll('.pk-buch-reiter');
+    if (reiter.length < 4) return 'nur ' + reiter.length + ' Kapitel';
+    document.getElementById('buch-btn').click();
+    return document.querySelector('.pk-tafel .pk-buch') ? 'es liess sich nicht zuklappen' : true;
+  });
+
+  pruefe('Der Feuerknopf sagt, was er auslöst', () => {
+    const k = einKampfMitWappen(['schleifstein']);
+    pkAktualisiere();
+    const knopf = document.getElementById('pk-ende');
+    if (/Runde beenden/.test(knopf.textContent)) return 'er sagt "Runde beenden"';
+    if (!/Salve|Sturm/.test(knopf.textContent)) return 'er sagt "' + knopf.textContent + '"';
+    k.runde = k.rundenMax;
+    pkAktualisiere();
+    return /Sturm/.test(document.getElementById('pk-ende').textContent)
+      ? true : 'in der letzten Runde sagt er "' + knopf.textContent + '"';
+  });
+
   /* ---------- Die Ante-Seite: sie muss lesbar sein, nicht nur richtig ---------- */
   /*
    * Zweimal ist diese Seite unbrauchbar geworden, ohne dass etwas abstuerzte:
