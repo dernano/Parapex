@@ -46,6 +46,13 @@ function importsOf(text: string): string[] {
  */
 const RULE_LAYERS = ['core/', 'content/', 'simulation/', 'crests/'];
 
+/**
+ * Layers that MAY see a renderer. Naming them is not decoration: it is what
+ * makes "everything else is a rule layer" checkable, so a new folder cannot
+ * quietly appear outside both lists and be guarded by neither.
+ */
+const PRESENTATION_LAYERS = ['rendering/', 'ui/', 'assets/'];
+
 describe('dependency direction', () => {
   it('finds source files at all', () => {
     expect(FILES.length).toBeGreaterThan(5);
@@ -63,6 +70,14 @@ describe('dependency direction', () => {
     for (const layer of RULE_LAYERS) {
       expect(FILES.some(f => f.path.startsWith(layer)), layer).toBe(true);
     }
+  });
+
+  it('every folder under src/ is either a rule layer or a presentation layer', () => {
+    const known = [...RULE_LAYERS, ...PRESENTATION_LAYERS, 'tests/'];
+    const strays = [...new Set(FILES
+      .map(f => `${f.path.split('/')[0]}/`)
+      .filter(folder => !known.includes(folder)))];
+    expect(strays).toEqual([]);
   });
 
   it('the rule layers never import a renderer or the DOM', () => {

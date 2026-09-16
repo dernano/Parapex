@@ -21,6 +21,10 @@
  * The tiers are the brief's own: 1–5, 6–15, 16–50, 51–250, 251+.
  */
 
+import { formatBig } from '@/core/format';
+
+export { formatBig };
+
 export type SalvoTierId = 'A' | 'B' | 'C' | 'D' | 'E';
 
 /**
@@ -224,22 +228,6 @@ export function planSalvo(volleys: number): SalvoPlan {
     aggregateDamage: tier.aggregateDamage,
     caption: n === 1 ? 'Salve' : `${formatBig(n)} ${tier.name}`,
   };
-}
-
-/**
- * Big numbers, the way a player can read them.
- *
- * Stop treating every point of damage as equally important: 84, then 1,2K,
- * then 18,4K, then 2,7M. German decimal comma, because that is what the rest
- * of the game speaks.
- */
-export function formatBig(value: number): string {
-  const n = Math.round(value);
-  if (n < 10_000) return n.toLocaleString('de-DE');
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1).replace('.', ',')}K`;
-  if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(1).replace('.', ',')}M`;
-  if (n < 1_000_000_000_000) return `${(n / 1_000_000_000).toFixed(1).replace('.', ',')}B`;
-  return `${(n / 1_000_000_000_000).toFixed(1).replace('.', ',')}T`;
 }
 
 /**
