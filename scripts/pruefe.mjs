@@ -1221,6 +1221,70 @@ const ergebnis = await seite.evaluate(() => {
     return document.querySelector('.pk-zugfolge') ? 'sie bleibt stehen' : true;
   });
 
+  /*
+   * Die Kette nach einer Salve. Sie ist die einzige Stelle, an der die
+   * Reihenfolge des Fliessbands in Bewegung zu sehen ist - und zwei Dinge
+   * muessen daran stimmen: sie laeuft von links nach rechts, und sie
+   * ueberschlaegt sich nicht. Ein Protokoll mit zwanzig Zeilen darf nicht
+   * zwanzig Blitze werfen.
+   */
+  const kettenPlan = (protokoll) => {
+    const plan = [];
+    const echt = window.setTimeout;
+    window.setTimeout = (fn, ms) => { plan.push({ fn, ms }); return 0; };
+    try { pkSpielKette(protokoll); } finally { window.setTimeout = echt; }
+    return plan;
+  };
+
+  pruefe('Nach der Salve läuft die Kette von links nach rechts', () => {
+    const k = einKampfMitWappen(P.WAPPEN_LISTE.slice(0, 5));
+    pkGestell(k);
+    const plan = kettenPlan([
+      { platz: 2, abgewiesen: null, wirkungen: ['a'] },
+      { platz: 0, abgewiesen: null, wirkungen: ['b'] },
+      { platz: 2, abgewiesen: 'jePlatz', wirkungen: [] },
+      { platz: 1, abgewiesen: 'siegel', wirkungen: [] },
+      { platz: -1, abgewiesen: null, wirkungen: ['der Heerführer'] },
+    ]);
+    if (plan.length !== 3) return plan.length + ' Schritte statt 3 (je Platz einer)';
+    for (let i = 1; i < plan.length; i++) {
+      if (plan[i].ms <= plan[i - 1].ms) return 'Schritt ' + i + ' kommt nicht nach dem davor';
+    }
+    return plan[0].ms === 0 ? true : 'der erste Schritt wartet ' + plan[0].ms + ' ms';
+  });
+
+  pruefe('Die Kette ist zwischen 300 und 800 ms durch', () => {
+    const k = einKampfMitWappen(P.WAPPEN_LISTE.slice(0, 5));
+    pkGestell(k);
+    for (let n = 1; n <= 20; n++) {
+      const protokoll = Array.from({ length: n }, (_, i) =>
+        ({ platz: i % 5, abgewiesen: null, wirkungen: ['x'] }));
+      const plan = kettenPlan(protokoll);
+      if (plan.length > 5) return n + ' Zeilen wurden ' + plan.length + ' Blitze';
+      const gesamt = plan[plan.length - 1].ms + 420;
+      if (gesamt < 300) return 'bei ' + n + ' Zeilen nur ' + gesamt + ' ms';
+      if (gesamt > 800) return 'bei ' + n + ' Zeilen schon ' + gesamt + ' ms';
+    }
+    return true;
+  });
+
+  pruefe('Ein Wappen, das abgewiesen wurde, fällt in der Kette auf', () => {
+    const k = einKampfMitWappen(P.WAPPEN_LISTE.slice(0, 5));
+    pkGestell(k);
+    const plan = kettenPlan([
+      { platz: 0, abgewiesen: null, wirkungen: ['a'] },
+      { platz: 1, abgewiesen: 'siegel', wirkungen: [] },
+    ]);
+    for (const s of plan) s.fn();
+    const gestell = document.getElementById('pk-wappen');
+    const eins = gestell.querySelector('div[data-platz="0"]');
+    const zwei = gestell.querySelector('div[data-platz="1"]');
+    if (!eins.classList.contains('zuendet')) return 'der gezündete Platz zuckt nicht';
+    if (!zwei.classList.contains('abgewiesen')) return 'der abgewiesene Platz bleibt still';
+    if (zwei.classList.contains('zuendet')) return 'der abgewiesene Platz zündet angeblich doch';
+    return true;
+  });
+
   pruefe('Das Kriegsbuch lässt sich mitten in der Schlacht aufschlagen', () => {
     einKampfMitWappen(['schleifstein']);
     pkRaeumeTafel();
