@@ -58,6 +58,14 @@ export function neueBelagerung(anteNr = 1) {
      */
     bedrohung: 1,
     vorbereitung: 0,
+    /*
+     * WARUM steht die Bedrohung auf drei? Ohne diese Liste ist das nicht zu
+     * beantworten - und der Spieler soll es beantwortet bekommen, nicht
+     * zurueckrechnen muessen. Jede Aenderung mit ihrem Grund, in der
+     * Reihenfolge des Geschehens.
+     */
+    /** @type {{wert: number, auf: number, grund: string}[]} */
+    bedrohungsWeg: [],
     vorhut: { id: ante.vorhut, zustand: 'offen' },
     divisionen: ante.divisionen.map(id => ({ id, zustand: 'offen' })),
     kaempfe: 0,
@@ -189,7 +197,7 @@ export function waehle(wahl) {
   if (wahl.art === 'durchlassen') {
     if (!darfDurchlassen()) return { ok: false, grund: SPERRE };
     setzeZustand(b, wahl, 'durch');
-    b.bedrohung = Math.min(BEDROHUNG_MAX, b.bedrohung + wahl.bedrohung);
+    hebeBedrohung(b, wahl.bedrohung, wahl.name + ' ziehen lassen');
     b.vorbereitung += wahl.vorbereitung;
     b.verlauf.push(wahl.ziel + ':durch');
     b.abschnitt = naechsterAbschnitt(b);
@@ -202,6 +210,19 @@ export function waehle(wahl) {
     return { ok: true, kampf: gegner };
   }
   return { ok: false, grund: 'Diese Wahl gibt es nicht.' };
+}
+
+/**
+ * Die Bedrohung aendern - und dabei aufschreiben, warum.
+ * @param {any} b @param {number} um @param {string} grund
+ */
+function hebeBedrohung(b, um, grund) {
+  if (!um) return;
+  const vorher = b.bedrohung;
+  b.bedrohung = Math.max(0, Math.min(BEDROHUNG_MAX, b.bedrohung + um));
+  if (b.bedrohung === vorher) return;
+  if (!b.bedrohungsWeg) b.bedrohungsWeg = [];
+  b.bedrohungsWeg.push({ wert: b.bedrohung - vorher, auf: b.bedrohung, grund });
 }
 
 /** @param {any} b @param {any} wahl @param {string} zustand */
@@ -230,7 +251,7 @@ export function meldeAusgang(sieg) {
 
   if (wer.ziel === 'vorhut') {
     b.vorhut.zustand = 'geschlagen';
-    b.bedrohung = Math.max(0, b.bedrohung - 1);
+    hebeBedrohung(b, -1, 'Die Vorhut abgefangen');
     b.verlauf.push('vorhut:geschlagen');
   } else if (wer.ziel === 'division') {
     b.divisionen[wer.nr].zustand = 'geschlagen';
@@ -391,6 +412,7 @@ export function belagerungslage() {
     divisionen: b.divisionen.map(d => ({ ...d, ...DIVISIONEN[d.id] })),
     stufe: bedrohungsstufe(b.bedrohung),
     naechsteStufe: b.bedrohung < BEDROHUNG_MAX ? bedrohungsstufe(b.bedrohung + 1) : null,
+    bedrohungsWeg: (b.bedrohungsWeg || []).slice(),
     heerfuehrer: {
       ...h,
       regeln: heerfuehrerRegeln(b),

@@ -222,6 +222,38 @@ export function wappenBericht(platz) {
 }
 
 /*
+ * WOHER KOMMEN DIESE SALVEN?
+ *
+ * Die Salvenzahl ist die Zahl, die im Kampf am staerksten schwankt - und die
+ * am wenigsten erklaert war. Formationen stehen in der Abrechnung, Wappen
+ * standen nirgends. Hier steht, WELCHES Wappen wie viele Salven beigetragen
+ * hat, aus demselben Protokoll, das auch der Kampf gelesen hat.
+ *
+ * @param {any[]} protokoll
+ */
+export function salvenHerkunft(protokoll) {
+  const zu = [];
+  for (const z of protokoll || []) {
+    if (z.abgewiesen) continue;
+    for (const wi of z.wirkungen) {
+      if (wi.art !== 'salven' && wi.art !== 'salvenFaktor') continue;
+      let e = zu.find(x => x.platz === z.platz);
+      if (!e) {
+        e = { platz: z.platz, name: z.name, gegner: Boolean(z.gegner), plus: 0, mal: 1 };
+        zu.push(e);
+      }
+      if (wi.art === 'salven') e.plus += wi.wert;
+      else e.mal *= wi.wert;
+    }
+  }
+  return zu.map(e => ({
+    ...e,
+    text: [e.plus ? (e.plus > 0 ? '+' : '') + e.plus : '',
+      e.mal !== 1 ? '×' + (Math.round(e.mal * 100) / 100) : ''].filter(Boolean).join(' '),
+  }));
+}
+
+/*
  * DIE REIHENFOLGE, mit den Wappen des Spielers erklaert.
  *
  * Ein Satz ueber "links nach rechts" lernt niemand. Zwei konkrete Namen aus

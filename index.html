@@ -2874,6 +2874,38 @@
   }
 
   /*
+   * WOHER KOMMEN DIESE SALVEN?
+   *
+   * Die Salvenzahl ist die Zahl, die im Kampf am staerksten schwankt - und die
+   * am wenigsten erklaert war. Formationen stehen in der Abrechnung, Wappen
+   * standen nirgends. Hier steht, WELCHES Wappen wie viele Salven beigetragen
+   * hat, aus demselben Protokoll, das auch der Kampf gelesen hat.
+   *
+   * @param {any[]} protokoll
+   */
+  function salvenHerkunft(protokoll) {
+    const zu = [];
+    for (const z of protokoll || []) {
+      if (z.abgewiesen) continue;
+      for (const wi of z.wirkungen) {
+        if (wi.art !== 'salven' && wi.art !== 'salvenFaktor') continue;
+        let e = zu.find(x => x.platz === z.platz);
+        if (!e) {
+          e = { platz: z.platz, name: z.name, gegner: Boolean(z.gegner), plus: 0, mal: 1 };
+          zu.push(e);
+        }
+        if (wi.art === 'salven') e.plus += wi.wert;
+        else e.mal *= wi.wert;
+      }
+    }
+    return zu.map(e => ({
+      ...e,
+      text: [e.plus ? (e.plus > 0 ? '+' : '') + e.plus : '',
+        e.mal !== 1 ? '×' + (Math.round(e.mal * 100) / 100) : ''].filter(Boolean).join(' '),
+    }));
+  }
+
+  /*
    * DIE REIHENFOLGE, mit den Wappen des Spielers erklaert.
    *
    * Ein Satz ueber "links nach rechts" lernt niemand. Zwei konkrete Namen aus
@@ -3738,6 +3770,42 @@
     return berechneWucht(probe, k.wappen, true);
   }
 
+  /*
+   * WAS AENDERT SICH, WENN ICH DIESES WAPPEN DORTHIN HAENGE?
+   *
+   * Das ist die Frage, wegen der das Gestell ueberhaupt beweglich ist - und
+   * sie war bisher nur durch Ausprobieren zu beantworten, also durch Bezahlen.
+   * Beide Reihen werden in der Probe gerechnet; die Welt bleibt unberuehrt.
+   *
+   * Verschieben, nicht tauschen: genau das tut `ordneWappen`, und eine
+   * Vorschau, die etwas anderes rechnet als der Knopf tut, ist schlimmer als
+   * keine.
+   *
+   * @param {number} von @param {number} nach
+   */
+  function ordnungsVorschau(von, nach) {
+    const k = derKampf;
+    if (!k || von === nach) return null;
+    const reihe = k.wappen.slice();
+    if (von < 0 || von >= reihe.length || nach < 0 || nach >= reihe.length) return null;
+    if (!reihe[von]) return null;
+
+    const jetzt = berechneWucht(k.tuerme, reihe, true);
+    const andere = reihe.slice();
+    const [w] = andere.splice(von, 1);
+    andere.splice(nach, 0, w);
+    const dann = berechneWucht(k.tuerme, andere, true);
+
+    const a = Math.round(jetzt.wucht), b = Math.round(dann.wucht);
+    return {
+      von, nach,
+      vorher: { wucht: a, salven: jetzt.salven },
+      nachher: { wucht: b, salven: dann.salven },
+      unterschied: b - a,
+      gleich: a === b,
+    };
+  }
+
   /** Der Kampf ist vorbei: die Besatzung räumt die Türme, die Gebäude bleiben. */
   function raeumeKampf() {
     if (!derKampf) return;
@@ -4108,6 +4176,14 @@
        */
       bedrohung: 1,
       vorbereitung: 0,
+      /*
+       * WARUM steht die Bedrohung auf drei? Ohne diese Liste ist das nicht zu
+       * beantworten - und der Spieler soll es beantwortet bekommen, nicht
+       * zurueckrechnen muessen. Jede Aenderung mit ihrem Grund, in der
+       * Reihenfolge des Geschehens.
+       */
+      /** @type {{wert: number, auf: number, grund: string}[]} */
+      bedrohungsWeg: [],
       vorhut: { id: ante.vorhut, zustand: 'offen' },
       divisionen: ante.divisionen.map(id => ({ id, zustand: 'offen' })),
       kaempfe: 0,
@@ -4239,7 +4315,7 @@
     if (wahl.art === 'durchlassen') {
       if (!darfDurchlassen()) return { ok: false, grund: SPERRE };
       setzeZustand(b, wahl, 'durch');
-      b.bedrohung = Math.min(BEDROHUNG_MAX, b.bedrohung + wahl.bedrohung);
+      hebeBedrohung(b, wahl.bedrohung, wahl.name + ' ziehen lassen');
       b.vorbereitung += wahl.vorbereitung;
       b.verlauf.push(wahl.ziel + ':durch');
       b.abschnitt = naechsterAbschnitt(b);
@@ -4252,6 +4328,19 @@
       return { ok: true, kampf: gegner };
     }
     return { ok: false, grund: 'Diese Wahl gibt es nicht.' };
+  }
+
+  /**
+   * Die Bedrohung aendern - und dabei aufschreiben, warum.
+   * @param {any} b @param {number} um @param {string} grund
+   */
+  function hebeBedrohung(b, um, grund) {
+    if (!um) return;
+    const vorher = b.bedrohung;
+    b.bedrohung = Math.max(0, Math.min(BEDROHUNG_MAX, b.bedrohung + um));
+    if (b.bedrohung === vorher) return;
+    if (!b.bedrohungsWeg) b.bedrohungsWeg = [];
+    b.bedrohungsWeg.push({ wert: b.bedrohung - vorher, auf: b.bedrohung, grund });
   }
 
   /** @param {any} b @param {any} wahl @param {string} zustand */
@@ -4280,7 +4369,7 @@
 
     if (wer.ziel === 'vorhut') {
       b.vorhut.zustand = 'geschlagen';
-      b.bedrohung = Math.max(0, b.bedrohung - 1);
+      hebeBedrohung(b, -1, 'Die Vorhut abgefangen');
       b.verlauf.push('vorhut:geschlagen');
     } else if (wer.ziel === 'division') {
       b.divisionen[wer.nr].zustand = 'geschlagen';
@@ -4441,6 +4530,7 @@
       divisionen: b.divisionen.map(d => ({ ...d, ...DIVISIONEN[d.id] })),
       stufe: bedrohungsstufe(b.bedrohung),
       naechsteStufe: b.bedrohung < BEDROHUNG_MAX ? bedrohungsstufe(b.bedrohung + 1) : null,
+      bedrohungsWeg: (b.bedrohungsWeg || []).slice(),
       heerfuehrer: {
         ...h,
         regeln: heerfuehrerRegeln(b),
@@ -5838,14 +5928,14 @@
       loeseAus, meldeAusgang, meldeWappen, mitReihe, naechsteAnte, neueBelagerung,
       neueEinheit, neuerKampf, neuerLauf, neuerVorrat, neuesBand, nimmAngebot,
       nimmLagerangebot, oeffneHaendler, oeffneLager, offeneWahlen, ordneWappen,
-      platzBericht, raeumeBand, raeumeBelagerung, raeumeKampf, raeumeLager, reicht,
-      reihe, reihenfolgeBeispiel, salvenZahl, schleifeKarte, setzeEinheit, setzeLauf,
-      setzeRunde, sichereBelagerung, sichereFeldzug, sichtbarerVorrat, siegelePlatz,
-      tauschKosten, tauschKostenFuer, tauscheHandkarte, tauscheHandkarten, turmFaktor,
-      verbessereEinheit, verschiebePlatz, vertauschePlaetze, vorbereitungslage,
-      vorratsBegriffe, vorschau, waehle, waehleInBegegnung, wappenBericht, wappenNach,
-      werteKampfAus, wirkungText, wirkwucht, zehre, ziehBegegnung, ziehe, zieheAuf,
-      zuendeErneut,
+      ordnungsVorschau, platzBericht, raeumeBand, raeumeBelagerung, raeumeKampf,
+      raeumeLager, reicht, reihe, reihenfolgeBeispiel, salvenHerkunft, salvenZahl,
+      schleifeKarte, setzeEinheit, setzeLauf, setzeRunde, sichereBelagerung, sichereFeldzug,
+      sichtbarerVorrat, siegelePlatz, tauschKosten, tauschKostenFuer, tauscheHandkarte,
+      tauscheHandkarten, turmFaktor, verbessereEinheit, verschiebePlatz, vertauschePlaetze,
+      vorbereitungslage, vorratsBegriffe, vorschau, waehle, waehleInBegegnung,
+      wappenBericht, wappenNach, werteKampfAus, wirkungText, wirkwucht, zehre,
+      ziehBegegnung, ziehe, zieheAuf, zuendeErneut,
       kampf: () => derKampf,
       lauf: () => derLauf,
       ueberlauf: () => abgewiesene(),
@@ -11966,6 +12056,14 @@ document.getElementById('buch-btn').addEventListener('click', () => {
   klang('karte');
 });
 window.addEventListener('keydown', (e) => {
+  if (e.key !== 'p' && e.key !== 'P') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const z = document.activeElement;
+  if (z && (z.tagName === 'INPUT' || z.tagName === 'TEXTAREA')) return;
+  if (document.querySelector('.pk-tafel')) return;
+  if (typeof pkZeigeProtokoll === 'function') pkZeigeProtokoll();
+});
+window.addEventListener('keydown', (e) => {
   if (e.key !== 'k' && e.key !== 'K') return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const z = document.activeElement;
@@ -13892,6 +13990,20 @@ function pkWappenHinweis(d) {
       jetzt.push('<span class="pk-wh-nicht"><em>Warum nichts geschieht</em>'
         + b.warumNicht + '</span>');
     }
+    /* Was ein Zug nach links oder rechts braechte - ohne ihn zu bezahlen. */
+    if (derKampf && !derKampf.ende) {
+      const zuege = [];
+      for (const nach of [platz - 1, platz + 1]) {
+        const v = ordnungsVorschau(platz, nach);
+        if (!v || v.gleich) continue;
+        zuege.push('Platz ' + (nach + 1) + ': ' + pkZahl(v.vorher.wucht) + ' → '
+          + pkZahl(v.nachher.wucht));
+      }
+      if (zuege.length) {
+        jetzt.push('<span class="pk-wh-zug"><em>Umhängen brächte</em>'
+          + zuege.join(' · ') + '</span>');
+      }
+    }
     /* Die Kette: wer hat es angestossen, wen hat es angestossen. */
     const nenn = (x) => 'Platz ' + (x.platz < 0 ? '(Gegner)' : x.platz + 1) + ' · ' + x.name;
     if (b.jetzt && b.jetzt.vorher.length) {
@@ -13941,6 +14053,46 @@ function pkWirkungText(z) {
  * nicht gestalten und haengt auf halbem Weg an der Auswahl fest.
  */
 let pkZug = null;
+/*
+ * WAS BRINGT DIESER ZUG? - waehrend die Hand noch am Schild ist.
+ *
+ * Umhaengen kostet Tatendrang, also war die Reihenfolge bisher eine Frage,
+ * die man nur durch Bezahlen beantworten konnte. Jetzt steht die Antwort
+ * ueber dem Gestell, bevor man loslaesst: dieselbe Rechnung wie im Kampf,
+ * nur in der Probe - sie verbraucht nichts und schreibt nichts ins Protokoll.
+ */
+let pkZugFolgeEl = null;
+
+function pkZugFolgeAus() {
+  if (pkZugFolgeEl) { pkZugFolgeEl.remove(); pkZugFolgeEl = null; }
+}
+
+function pkZeigeZugFolge(von, nach) {
+  if (nach < 0 || nach === von || !derKampf || derKampf.ende) { pkZugFolgeAus(); return; }
+  const v = ordnungsVorschau(von, nach);
+  if (!v) { pkZugFolgeAus(); return; }
+  const ebene = document.getElementById('pk-ebene');
+  if (!ebene) return;
+  if (!pkZugFolgeEl) {
+    pkZugFolgeEl = document.createElement('div');
+    pkZugFolgeEl.className = 'pk-zugfolge';
+    ebene.appendChild(pkZugFolgeEl);
+  }
+  const art = v.gleich ? 'gleich' : (v.unterschied > 0 ? 'besser' : 'schlechter');
+  pkZugFolgeEl.className = 'pk-zugfolge ' + art;
+  pkZugFolgeEl.innerHTML = '<em>Auf Platz ' + (nach + 1) + '</em>'
+    + '<b>Salve ' + pkZahl(v.vorher.wucht) + ' → ' + pkZahl(v.nachher.wucht) + '</b>'
+    + '<i>' + (v.gleich ? 'Ändert nichts'
+      : (v.unterschied > 0 ? '+' : '') + pkZahl(v.unterschied) + ' Wucht') + '</i>';
+  const gestell = document.getElementById('pk-wappen');
+  const r = gestell.getBoundingClientRect();
+  const m = pkZugFolgeEl.getBoundingClientRect();
+  let x = r.left + r.width / 2 - m.width / 2;
+  x = Math.max(8, Math.min(x, window.innerWidth - m.width - 8));
+  pkZugFolgeEl.style.left = Math.round(x) + 'px';
+  pkZugFolgeEl.style.top = Math.round(Math.max(8, r.bottom + 8)) + 'px';
+}
+
 function pkSchildZiehbar(d, gestell) {
   d.addEventListener('pointerdown', (e) => {
     if (!d.dataset.wappen || e.button) return;
@@ -13963,6 +14115,7 @@ function pkSchildZiehbar(d, gestell) {
     d.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(1.14)';
     const ziel = pkPlatzUnter(gestell, e.clientX);
     [...gestell.children].forEach((c, i) => c.classList.toggle('ziel', i === ziel && i !== pkZug.von));
+    pkZeigeZugFolge(pkZug.von, ziel);
   });
   const los = (e) => {
     if (!pkZug || pkZug.el !== d) return;
@@ -13972,6 +14125,7 @@ function pkSchildZiehbar(d, gestell) {
     d.classList.remove('zieht');
     d.style.transform = '';
     [...gestell.children].forEach(c => c.classList.remove('ziel'));
+    pkZugFolgeAus();
     pkZug = null;
     if (!gezogen || nach < 0 || nach === von) return;
     const r = ordneWappen(von, nach);
@@ -15005,7 +15159,7 @@ function pkZeigeKette(abrechnung) {
   const kasten = document.createElement('div');
   kasten.id = 'pk-kette';
   kasten.className = 'pk-kette';
-  kasten.title = 'Anklicken für das ganze Protokoll';
+  kasten.title = 'Anklicken für das ganze Protokoll (oder Taste P)';
   kasten.addEventListener('click', () => pkZeigeProtokoll());
   // Die Zeilen fangen den Klick; der Kasten selbst laesst ihn durch.
 
@@ -15570,6 +15724,9 @@ html, body { max-width: 100%; overflow-x: hidden; }
 #pk .pk-lage-text b { display: block; font-size: 12.5px; font-weight: 400; font-style: italic; }
 #pk .pk-lage-text > span { display: block; font-size: 11.5px; line-height: 1.35; }
 #pk .pk-lage-text i { display: block; font-size: 11px; line-height: 1.3; margin-top: 2px; }
+#pk .pk-lage-weil { display: block; color: var(--tinte-blass); font-style: italic; }
+#pk .pk-sturm-bei { margin: 4px 0 0; font-size: 11.5px; font-style: italic;
+  text-align: center; color: var(--tinte-rot); line-height: 1.35; }
 #pk .pk-lage-feld.bedrohung i { color: var(--tinte-rot); }
 #pk .pk-lage-feld.vorbereitung i { color: var(--tinte-gruen); }
 
@@ -15652,11 +15809,12 @@ html, body { max-width: 100%; overflow-x: hidden; }
   #pk .pk-feldbuch h2 { font-size: 22px; }
   #pk .pk-fb-kopf { margin-bottom: 9px; padding-bottom: 7px; }
   #pk .pk-fb-text { font-size: 12.5px; }
-  #pk .pk-feldbuch .pk-skizze { max-height: min(26vh, 250px); }
-  #pk .pk-feldbuch.viele .pk-skizze { max-height: min(21vh, 200px); }
-  #pk .pk-feldbuch .pk-portrait svg { width: 100px; height: 136px; }
-  #pk .pk-feldbuch.viele .pk-portrait svg { width: 84px; height: 114px; }
-  #pk .pk-feldbuch.viele .pk-musterrolle { gap: 4px; }
+  #pk .pk-feldbuch .pk-skizze { max-height: min(23vh, 224px); }
+  #pk .pk-feldbuch.viele .pk-skizze { max-height: min(19vh, 178px); }
+  #pk .pk-feldbuch .pk-portrait svg { width: 94px; height: 127px; }
+  #pk .pk-feldbuch.viele .pk-portrait svg { width: 78px; height: 106px; }
+  #pk .pk-feldbuch.viele .pk-musterrolle { gap: 3px; }
+#pk .pk-feldbuch.viele .pk-sturm-bei { font-size: 11px; }
   #pk .pk-feldbuch.viele .pk-mr-wahl { padding: 5px 8px 6px; }
   #pk .pk-lage-wert { font-size: 23px; min-width: 38px; }
   #pk .pk-lage-text > span, #pk .pk-lage-text i { font-size: 11px; }
@@ -15678,7 +15836,22 @@ html, body { max-width: 100%; overflow-x: hidden; }
   #pk .pk-sturm-regel i { display: none; }
   #pk .pk-mr-wahl { padding: 5px 8px 6px; }
   #pk .pk-mr-folgen span, #pk .pk-mr-danach span { font-size: 10.5px; }
+  #pk .pk-mr-wer b { font-size: 12.5px; }
+  #pk .pk-mr-wer span { font-size: 10px; }
 }
+
+/*
+ * Bleibt am Ende doch etwas unter dem Rand, muss man das SEHEN. Ein
+ * gerollter Kasten ohne sichtbaren Rand ist ein abgeschnittener Kasten -
+ * genau der Fehler, den diese Seite schon einmal hatte.
+ */
+#pk .pk-tafel-inhalt::-webkit-scrollbar { width: 9px; }
+#pk .pk-tafel-inhalt::-webkit-scrollbar-track { background: rgba(0,0,0,0.25); border-radius: 5px; }
+#pk .pk-tafel-inhalt::-webkit-scrollbar-thumb { background: rgba(160,124,68,0.55);
+  border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+#pk .pk-tafel-inhalt::-webkit-scrollbar-thumb:hover { background: rgba(200,160,90,0.8);
+  background-clip: padding-box; }
+#pk .pk-tafel-inhalt { scrollbar-width: thin; scrollbar-color: rgba(160,124,68,0.6) rgba(0,0,0,0.25); }
 
 /* ---------- Der Zettel am Rand ---------- */
 /*
@@ -15731,6 +15904,25 @@ html, body { max-width: 100%; overflow-x: hidden; }
 #pk .pk-hinweis .pk-wh-tat { color: #cfe3a8; }
 #pk .pk-hinweis .pk-wh-nicht { color: #d9a894; }
 #pk .pk-hinweis .pk-wh-kette { color: #b9ab8e; }
+#pk .pk-hinweis .pk-wh-zug { display: block; margin-top: 3px; color: #e8c464; }
+#pk .pk-hinweis .pk-wh-zug em { font-style: normal; font-size: 9.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: #8e8068; margin-right: 6px; }
+
+/* Was ein Zug braechte - waehrend die Hand noch am Schild ist. */
+#pk .pk-zugfolge { position: fixed; z-index: 60; pointer-events: none;
+  padding: 6px 12px 7px; border-radius: 5px; text-align: center;
+  background: rgba(16,11,6,0.96); border: 1px solid rgba(160,124,68,0.5);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+#pk .pk-zugfolge em { display: block; font-style: normal; font-size: 9px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: #a8977a; }
+#pk .pk-zugfolge b { display: block; font-size: 15px; color: #f0e2c0;
+  font-variant-numeric: tabular-nums; }
+#pk .pk-zugfolge i { display: block; font-style: normal; font-size: 11.5px; }
+#pk .pk-zugfolge.besser { border-color: #7fa04a; }
+#pk .pk-zugfolge.besser i { color: #a9cf6a; }
+#pk .pk-zugfolge.schlechter { border-color: #a4503c; }
+#pk .pk-zugfolge.schlechter i { color: #e08a72; }
+#pk .pk-zugfolge.gleich i { color: #9a8c73; }
 
 #pk .pk-hinweis .pk-h-satz { display: block; margin-bottom: 6px; }
 #pk .pk-hinweis .pk-h-block { display: block; margin-top: 7px; padding-top: 6px;
@@ -15769,6 +15961,19 @@ html, body { max-width: 100%; overflow-x: hidden; }
 #pk .pk-buch-jetzt span { display: block; }
 
 /* ---------- Das Kampfprotokoll ---------- */
+/* Woher die Salven kommen: Formationen und Wappen in einer Zeile. */
+#pk .pk-salvenherkunft { margin: 0 0 12px; padding: 9px 12px 10px;
+  background: rgba(0,0,0,0.22); border: 1px solid rgba(160,124,68,0.28); border-radius: 5px; }
+#pk .pk-salvenherkunft h3 { margin: 0 0 6px; font-size: 11px; font-weight: 400;
+  letter-spacing: 0.16em; text-transform: uppercase; color: #a8977a; text-align: center; }
+#pk .pk-salvenherkunft i { color: #8e8068; font-size: 12px; }
+#pk .pk-sh-teil { display: inline-block; margin: 2px 4px; padding: 3px 9px 4px;
+  border-radius: 4px; background: rgba(160,124,68,0.14);
+  border: 1px solid rgba(160,124,68,0.3); font-size: 12px; color: #e6d6b2; }
+#pk .pk-sh-teil.wappen { background: rgba(232,196,100,0.16); border-color: rgba(232,196,100,0.4); }
+#pk .pk-sh-teil em { font-style: normal; font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #a8977a; margin-right: 6px; }
+
 #pk .pk-protokoll { text-align: left; margin: 8px 0 12px; max-height: 44vh; overflow-y: auto;
   border: 1px solid #3f3120; border-radius: 5px; background: rgba(12,9,6,0.5); }
 #pk .pk-prot-zeile { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
@@ -16238,9 +16443,24 @@ function pkZeigeProtokoll(zurueck = null) {
     '<div class="pk-schritt"><span>' + s.name + '</span><b>' +
       (s.art === 'grund' ? pkZahl(Math.round(s.wucht)) : s.wert) + '</b></div>').join('');
 
+  /*
+   * WOHER DIE SALVEN KOMMEN - die Frage, die der Spieler nach jedem Schuss
+   * hat. Formationen standen schon in der Abrechnung, Wappen nirgends.
+   */
+  const ausForm = ab.schritte.filter(x => x.art === 'formation');
+  const ausWappen = salvenHerkunft(ab.protokoll);
+  const herkunft = ausForm.map(x =>
+      '<span class="pk-sh-teil"><em>Formation</em>' + x.name + ' ' + x.wert + '</span>')
+    .concat(ausWappen.map(x =>
+      '<span class="pk-sh-teil wappen"><em>' + (x.gegner ? 'Gegner' : 'Platz ' + (x.platz + 1))
+      + '</em>' + x.name + ' ' + x.text + '</span>'));
+
   const k = ab.kette || { zuendungen: 0, abgewiesen: 0, tiefste: 0 };
   const t = pkTafel(
     '<h2>Kampfprotokoll</h2>' +
+    '<div class="pk-salvenherkunft"><h3>Woher die '
+      + ab.salven + ' ' + pkBegriffHtml('salven', 'Salven') + ' kommen</h3>'
+      + (herkunft.length ? herkunft.join('') : '<i>Nur die Grundsalve.</i>') + '</div>' +
     '<div class="pk-abrechnung">' +
       '<span>Zündungen <b>' + k.zuendungen + '</b></span>' +
       '<span>abgewiesen <b>' + k.abgewiesen + '</b></span>' +
@@ -16727,15 +16947,27 @@ function pkLagebandHtml(lage) {
   const v = vorbereitungslage();
   const felder = [];
 
+  /*
+   * "Warum steht meine Bedrohung auf drei?" ist eine Frage, die der Spieler
+   * wirklich hat - und sie war bisher nicht zu beantworten. Der letzte Grund
+   * steht jetzt da; der ganze Weg haengt am Begriff.
+   */
+  const weg = lage.bedrohungsWeg || [];
+  const zuletzt = weg[weg.length - 1];
+  const folge = lage.bedrohung
+    ? 'Der Heerführer schlägt um ' + Math.round(JE_BEDROHUNG * lage.bedrohung * 100)
+      + ' % härter zu.'
+    : 'Der Heerführer schlägt noch nicht härter zu.';
   felder.push(pkLageFeldHtml('bedrohung', lage.bedrohung, '/' + lage.bedrohungMax,
     'bedrohung', 'Bedrohung', lage.stufe.name,
-    lage.bedrohung
-      ? 'Der Heerführer schlägt um ' + Math.round(JE_BEDROHUNG * lage.bedrohung * 100)
-        + ' % härter zu.'
-      : 'Der Heerführer schlägt noch nicht härter zu.',
+    folge + (zuletzt
+      ? ' <span class="pk-lage-weil">Zuletzt ' + (zuletzt.wert > 0 ? '+' : '')
+        + zuletzt.wert + ': ' + zuletzt.grund + '.</span>'
+      : ''),
     lage.naechsteStufe
-      ? 'Bei ' + lage.naechsteStufe.stufe + ': ' + lage.naechsteStufe.name + '.'
-      : 'Höher geht es nicht.'));
+      ? 'Bei ' + lage.naechsteStufe.stufe + ' — ' + lage.naechsteStufe.name + ': '
+        + lage.naechsteStufe.text
+      : 'Höher geht es nicht: alles, was marschieren kann, marschiert.'));
 
   if (v) {
     /* Part 4: die Punkte sind nichts wert, solange nicht dasteht, was sie kaufen. */
@@ -16756,10 +16988,16 @@ function pkLagebandHtml(lage) {
 
 function pkFinalerSturmHtml(lage) {
   const regeln = lage.heerfuehrer.regeln.map(id => BOSSREGELN[id]).filter(Boolean);
+  /* Wer schon durchgelassen wurde, steht am Ende neben ihm - und zwar hier. */
+  const bei = (lage.vorhut.zustand === 'durch' ? ['Die Vorhut'] : [])
+    .concat(lage.divisionen.filter(d => d.zustand === 'durch').map(d => d.name));
   return '<aside class="pk-sturm">'
     + '<h3>' + pkBegriffHtml('finalerSturm', 'Finaler Sturm') + '</h3>'
     + pkPortraitHtml(lage.heerfuehrer.id, lage.heerfuehrer.name,
         pkZahl(lage.heerfuehrer.hp) + ' Stärke')
+    + '<p class="pk-sturm-bei">' + (bei.length
+        ? 'Bei ihm steht: ' + bei.join(', ') + '.'
+        : 'Noch steht niemand bei ihm.') + '</p>'
     + '<div class="pk-sturm-regeln">'
     + regeln.map(r => '<div class="pk-sturm-regel"><b>' + r.zeichen + ' ' + r.name + '</b>'
         + '<span>' + r.text + '</span>'

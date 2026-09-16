@@ -358,6 +358,42 @@ export function vorschau(index, karte) {
   return berechneWucht(probe, k.wappen, true);
 }
 
+/*
+ * WAS AENDERT SICH, WENN ICH DIESES WAPPEN DORTHIN HAENGE?
+ *
+ * Das ist die Frage, wegen der das Gestell ueberhaupt beweglich ist - und
+ * sie war bisher nur durch Ausprobieren zu beantworten, also durch Bezahlen.
+ * Beide Reihen werden in der Probe gerechnet; die Welt bleibt unberuehrt.
+ *
+ * Verschieben, nicht tauschen: genau das tut `ordneWappen`, und eine
+ * Vorschau, die etwas anderes rechnet als der Knopf tut, ist schlimmer als
+ * keine.
+ *
+ * @param {number} von @param {number} nach
+ */
+export function ordnungsVorschau(von, nach) {
+  const k = derKampf;
+  if (!k || von === nach) return null;
+  const reihe = k.wappen.slice();
+  if (von < 0 || von >= reihe.length || nach < 0 || nach >= reihe.length) return null;
+  if (!reihe[von]) return null;
+
+  const jetzt = berechneWucht(k.tuerme, reihe, true);
+  const andere = reihe.slice();
+  const [w] = andere.splice(von, 1);
+  andere.splice(nach, 0, w);
+  const dann = berechneWucht(k.tuerme, andere, true);
+
+  const a = Math.round(jetzt.wucht), b = Math.round(dann.wucht);
+  return {
+    von, nach,
+    vorher: { wucht: a, salven: jetzt.salven },
+    nachher: { wucht: b, salven: dann.salven },
+    unterschied: b - a,
+    gleich: a === b,
+  };
+}
+
 /** Der Kampf ist vorbei: die Besatzung räumt die Türme, die Gebäude bleiben. */
 export function raeumeKampf() {
   if (!derKampf) return;

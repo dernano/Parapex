@@ -30,7 +30,7 @@ export {
 export { WAPPEN, WAPPEN_LISTE, WAPPEN_PLAETZE, SELTENHEITEN, wappenNach } from './wappen/sammlung.js';
 export {
   EREIGNIS_NAMEN, ABWEISUNG_NAMEN, hoertAuf, wirkungText,
-  platzBericht, wappenBericht, reihenfolgeBeispiel,
+  platzBericht, wappenBericht, reihenfolgeBeispiel, salvenHerkunft,
 } from './wappen/erklaerung.js';
 export {
   FORMATIONEN, FORMATIONS_FAMILIEN, FAMILIEN_ZEICHEN, KOENIGSRAENGE,
@@ -40,6 +40,7 @@ export { berechneWucht } from './kern/wucht.js';
 export {
   derKampf, neuerKampf, setzeEinheit, tauscheHandkarte, tauscheHandkarten,
   tauschKosten, tauschKostenFuer, beendeRunde, ziehe, zieheAuf, vorschau,
+  ordnungsVorschau,
   raeumeKampf,
 } from './kern/kampf.js';
 export {

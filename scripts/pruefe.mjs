@@ -1189,6 +1189,38 @@ const ergebnis = await seite.evaluate(() => {
     return /Schleifstein|Löwen/.test(bsp.so) ? true : 'ohne Namen: ' + bsp.so;
   });
 
+  pruefe('Das Protokoll sagt, woher die Salven kommen', () => {
+    const k = einKampfMitWappen(P.WAPPEN_LISTE.slice(5, 10));
+    /* Die Salve der Oberflaeche kommt sonst nur aus der Feueranimation. */
+    pkLetzteSalve = P.berechneWucht(k.tuerme, k.wappen, true);
+    pkRaeumeTafel();
+    pkZeigeProtokoll();
+    const kasten = document.querySelector('.pk-salvenherkunft');
+    if (!kasten) return 'kein Kasten zur Herkunft';
+    if (!/Salven/.test(kasten.textContent)) return 'er nennt die Salven nicht';
+    const teile = kasten.querySelectorAll('.pk-sh-teil');
+    if (!teile.length && !/Grundsalve/.test(kasten.textContent)) {
+      return 'weder Teile noch die Auskunft, dass es keine gibt';
+    }
+    for (const t of teile) if (!t.querySelector('em')) return 'ein Teil sagt nicht, woher';
+    pkRaeumeTafel();
+    return true;
+  });
+
+  pruefe('Ein Zug im Gestell zeigt seine Folge, bevor er bezahlt ist', () => {
+    const k = einKampfMitWappen(P.WAPPEN_LISTE.slice(5, 10));
+    pkGestell(k);
+    const drang = k.tatendrang;
+    pkZeigeZugFolge(0, 3);
+    const el = document.querySelector('.pk-zugfolge');
+    if (!el) return 'keine Anzeige';
+    if (!/Salve/.test(el.textContent)) return 'sie nennt keine Salve: ' + el.textContent;
+    if (!/besser|schlechter|gleich/.test(el.className)) return 'sie sagt nicht, ob es hilft';
+    if (k.tatendrang !== drang) return 'die Vorschau hat Tatendrang gekostet';
+    pkZugFolgeAus();
+    return document.querySelector('.pk-zugfolge') ? 'sie bleibt stehen' : true;
+  });
+
   pruefe('Das Kriegsbuch lässt sich mitten in der Schlacht aufschlagen', () => {
     einKampfMitWappen(['schleifstein']);
     pkRaeumeTafel();

@@ -616,6 +616,74 @@ pruefe('Was zu teuer ist, sagt genau, wie viel fehlt', () => {
   return gleich(v.naechstes.fehlt, v.naechstes.preis - v.punkte, 'Fehlbetrag');
 });
 
+pruefe('Die Bedrohung merkt sich, warum sie gestiegen ist', () => {
+  P.neuerLauf();
+  if (P.belagerungslage().bedrohungsWeg.length) return 'der Feldzug beginnt mit einer Vorgeschichte';
+  const w = P.offeneWahlen().find(x => x.art === 'durchlassen' && !x.gesperrt);
+  P.waehle(w);
+  const weg = P.belagerungslage().bedrohungsWeg;
+  if (weg.length !== 1) return 'es stehen ' + weg.length + ' Gründe da';
+  if (weg[0].wert !== 1) return 'der Schritt ist ' + weg[0].wert;
+  if (weg[0].auf !== P.dieBelagerung.bedrohung) return 'der Stand stimmt nicht';
+  return weg[0].grund.includes(w.name) ? true : 'der Grund nennt nicht, wen: ' + weg[0].grund;
+});
+
+pruefe('Ein abgefangener Späher senkt die Bedrohung — und sagt es', () => {
+  P.neuerLauf();
+  /* Erst steigen lassen, sonst ist bei null nichts zu senken. */
+  P.waehle(P.offeneWahlen().find(x => x.art === 'durchlassen' && !x.gesperrt));
+  const vorher = P.dieBelagerung.bedrohung;
+  P.neuerLauf();
+  const r = P.waehle(P.offeneWahlen().find(x => x.kampf));
+  P.beginneSchlacht(r.kampf);
+  P.meldeAusgang(true);
+  const weg = P.belagerungslage().bedrohungsWeg;
+  void vorher;
+  /* Bei null lässt sich nichts senken - dann darf auch nichts dastehen. */
+  if (!weg.length) return P.dieBelagerung.bedrohung === 0 ? true : 'kein Grund vermerkt';
+  return weg[weg.length - 1].wert < 0 ? true : 'der letzte Schritt ging hoch';
+});
+
+pruefe('Die Vorschau eines Zuges rechnet, ohne zu bezahlen', () => {
+  P.neuerLauf();
+  P.derLauf.wappen = P.WAPPEN_LISTE.slice(5, 10);
+  const r = P.waehle(P.offeneWahlen().find(x => x.kampf));
+  const k = P.beginneSchlacht(r.kampf);
+  for (let i = 0; i < 5 && k.hand.length; i++) P.setzeEinheit(i, k.hand[0]);
+  const drang = k.tatendrang;
+  const reihe = k.wappen.join();
+  let gesehen = 0;
+  for (let a = 0; a < 5; a++) {
+    for (let b = 0; b < 5; b++) {
+      const v = P.ordnungsVorschau(a, b);
+      if (a === b) { if (v) return 'ein Zug auf denselben Platz gilt als Zug'; continue; }
+      if (!v) continue;
+      gesehen++;
+      if (v.unterschied !== v.nachher.wucht - v.vorher.wucht) return 'der Unterschied rechnet falsch';
+      if (v.gleich !== (v.unterschied === 0)) return '"gleich" stimmt nicht mit der Zahl überein';
+    }
+  }
+  if (!gesehen) return 'keine einzige Vorschau';
+  if (k.tatendrang !== drang) return 'die Vorschau hat Tatendrang gekostet';
+  return k.wappen.join() === reihe ? true : 'die Reihe hat sich verschoben';
+});
+
+pruefe('Die Vorschau sagt dasselbe wie das Umhängen selbst', () => {
+  P.neuerLauf();
+  P.derLauf.wappen = P.WAPPEN_LISTE.slice(5, 10);
+  const r = P.waehle(P.offeneWahlen().find(x => x.kampf));
+  const k = P.beginneSchlacht(r.kampf);
+  for (let i = 0; i < 5 && k.hand.length; i++) P.setzeEinheit(i, k.hand[0]);
+  const v = P.ordnungsVorschau(0, 3);
+  if (!v) return 'keine Vorschau';
+  k.tatendrang = 99;
+  const erg = P.ordneWappen(0, 3);
+  if (!erg.ok) return erg.grund;
+  const echt = Math.round(P.berechneWucht(k.tuerme, k.wappen, true).wucht);
+  return echt === v.nachher.wucht
+    ? true : 'versprochen ' + v.nachher.wucht + ', geworden ' + echt;
+});
+
 pruefe('Jeder Begriff hat einen Satz, ein Kapitel und eine Erklärung', () => {
   for (const id of P.BEGRIFF_LISTE) {
     const b = P.begriff(id);
