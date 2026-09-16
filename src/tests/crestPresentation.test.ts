@@ -8,7 +8,8 @@ import { newSession, resolve } from '@/crests/CrestPipeline';
 import { EFFECT_KINDS } from '@/crests/effects';
 import { NO_RESOURCES, type CrestId, type CrestRow } from '@/crests/types';
 import {
-  PROFILE_FOR_EFFECT, PROFILE_VISUALS, TRIGGER_PROFILES, presentIgnitions, profileFor,
+  MAX_CHAIN_SECONDS, PROFILE_FOR_EFFECT, PROFILE_VISUALS, TRIGGER_PROFILES,
+  presentIgnitions, profileFor,
 } from '@/rendering/crests/triggerProfiles';
 import { crestRackLayout, slotCentre } from '@/rendering/crests/crestRack';
 import {
@@ -103,6 +104,35 @@ describe('a crest looks like what it DID', () => {
     for (let i = 1; i < shown.length; i++) {
       expect(shown[i]!.at).toBeGreaterThan(shown[i - 1]!.at);
     }
+  });
+
+  /**
+   * A rack whose crests retrigger each other can produce forty ignitions, and
+   * forty times an eighth of a second is five seconds of badges blinking
+   * before anything happens on the wall. The chain compresses, like the salvo.
+   */
+  it('never runs long, however deep the chain', () => {
+    const long = Array.from({ length: 60 }, (_, nr) => ({
+      nr, eventNumber: 0, round: 1, slot: nr % 5, id: 'x', displayName: 'x',
+      event: 'volleyPlanned' as const, source: 'original' as const, enemyRule: false,
+      depth: 0, causedBy: null, effects: [], rejected: null,
+    }));
+    const shown = presentIgnitions(long);
+    expect(shown[shown.length - 1]!.at).toBeLessThanOrEqual(MAX_CHAIN_SECONDS);
+    // Still in order, and still one motif per ignition.
+    expect(shown).toHaveLength(60);
+    for (let i = 1; i < shown.length; i++) {
+      expect(shown[i]!.at).toBeGreaterThan(shown[i - 1]!.at);
+    }
+  });
+
+  it('shows a single ignition immediately rather than after a delay', () => {
+    const one = presentIgnitions([{
+      nr: 0, eventNumber: 0, round: 1, slot: 2, id: 'x', displayName: 'x',
+      event: 'volleyPlanned', source: 'original', enemyRule: false,
+      depth: 0, causedBy: null, effects: [], rejected: null,
+    }]);
+    expect(one[0]!.at).toBe(0);
   });
 });
 

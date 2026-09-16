@@ -178,12 +178,25 @@ export interface TriggerPresentation {
  * which is what actually happened, and is the thing the player most needs to
  * see to understand the machine they built.
  */
+export const MAX_CHAIN_SECONDS = 0.9;
+
 export function presentIgnitions(
   protocol: readonly Ignition[],
   stagger = 0.12,
 ): readonly TriggerPresentation[] {
   const byNr = new Map<number, Ignition>();
   for (const ignition of protocol) byNr.set(ignition.nr, ignition);
+
+  /*
+   * A long chain COMPRESSES rather than running long — the same rule the
+   * salvo presentation follows, for the same reason. A rack whose crests
+   * retrigger each other can produce forty ignitions, and forty times an
+   * eighth of a second is five seconds of the player watching badges blink
+   * before anything happens on the wall.
+   */
+  const step = protocol.length > 1
+    ? Math.min(stagger, MAX_CHAIN_SECONDS / (protocol.length - 1))
+    : 0;
 
   return protocol.map((ignition, i) => {
     const profile = profileFor(ignition);
@@ -199,7 +212,7 @@ export function presentIgnitions(
       slot: ignition.slot,
       profile,
       visual,
-      at: i * stagger,
+      at: i * step,
       target: visual.directed && cause ? cause.slot : null,
       rejected: ignition.rejected,
       depth: ignition.depth,

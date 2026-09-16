@@ -1,6 +1,7 @@
 import type { BranchId, CombatState } from '@/core/types';
 import { GAME_REGISTRY } from '@/content/crests/registry';
 import { resolve } from '@/crests/CrestPipeline';
+import type { CrestEventName, Ignition } from '@/crests/types';
 import {
   buildTableau, cardsFromTowers, recogniseFormations, volleyCount,
 } from '@/simulation/FormationEngine';
@@ -24,6 +25,8 @@ import { presentFormation } from '@/rendering/formations/formationPresentation';
 import { fieldJourney, journeyLine, replayChain, reversedOrder, valueUnderOrder }
   from '@/rendering/crests/crestChain';
 import { presentIgnitions } from '@/rendering/crests/triggerProfiles';
+import { DEFAULT_RACK_GEOMETRY, crestRackLayout } from '@/rendering/crests/crestRack';
+import { hudLayout } from '@/rendering/hud/layout';
 import { PerfMeter, perfLine } from '@/rendering/perf';
 import {
   UNIT_SCALE_PROBES, withReducedMotion, type PresentationSettings,
@@ -36,6 +39,7 @@ import {
 } from './bench';
 import { benchHand as freshHand } from './bench';
 import { hudSignature, renderHud } from './hudView';
+import { MOTIF_CSS, playMotifs, seekMotifs } from './crestMotifs';
 
 /**
  * THE VISUAL WORKBENCH.
@@ -54,6 +58,17 @@ import { hudSignature, renderHud } from './hudView';
 const canvas = document.getElementById('world') as HTMLCanvasElement;
 const hudHost = document.getElementById('hud') as HTMLElement;
 const readout = document.getElementById('readout') as HTMLElement;
+
+/* The eight motifs need their keyframes; they live with the code that uses them. */
+const motifStyle = document.createElement('style');
+motifStyle.textContent = MOTIF_CSS;
+document.head.append(motifStyle);
+
+/* The motifs draw over the rack, above the HUD and below nothing. */
+const motifHost = document.createElement('div');
+motifHost.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+hudHost.after(motifHost);
+motifHost.style.zIndex = '5';
 
 const camera = originFor(STAGE_WIDTH, STAGE_HEIGHT);
 const art = new ArtRegister('development');
@@ -137,6 +152,7 @@ const setSettings = (patch: Partial<PresentationSettings>): void => {
 };
 
 function rebuild(): void {
+  motifHost.replaceChildren();
   state = buildState(bench);
   director = null;
   ambient = emptyField('ambient');
@@ -261,6 +277,67 @@ function fire(): void {
   });
   ticker = `${director.plan.caption} · Stufe ${director.plan.tier.id}`
     + ` · ${director.shots.length} gezeichnete Schüsse`;
+
+  showCrestMotifs();
+}
+
+/**
+ * The rack, firing.
+ *
+ * A DRY RUN of the same event the rules send: the protocol that comes back is
+ * exactly what the row would do, and asking it costs the player nothing — no
+ * powder spent, nothing written to the combat log. Which matters, because the
+ * interface asks this question every time anybody looks at the rack.
+ */
+function showCrestMotifs(): void {
+  const settlement = currentForce(state, { registry: GAME_REGISTRY });
+
+  /*
+   * THE WHOLE ROUND'S EVENTS, in the order the rules report them.
+   *
+   * The first version asked only `volleyPlanned`, and the rack stayed almost
+   * dark: four of the five crests in the demonstration chain listen to
+   * `tableauRead` and never heard the question. A crest that ignites and shows
+   * nothing is indistinguishable from a crest that is broken — so the
+   * workbench replays the sequence a real volley produces instead of the one
+   * event it happened to be convenient to ask.
+   */
+  const protocol: Ignition[] = [];
+  let session = state.crests;
+  const send = (event: CrestEventName, data: Record<string, unknown>): void => {
+    const result = resolve(GAME_REGISTRY, session, event, data, { dryRun: true });
+    session = result.session;
+    protocol.push(...result.protocol);
+  };
+
+  state.towers.forEach((tower, i) => {
+    if (!tower.unit) return;
+    send('tableauRead',
+      { tower: i, rank: tower.unit.rank, branch: tower.unit.branch, copies: 0 });
+  });
+  send('formationsRecognised', { volleys: settlement.volleys, towers: state.towers });
+  send('volleyPlanned', {
+    perVolley: settlement.perVolley, volleys: settlement.volleys,
+    factor: 1, bonus: 0, towers: state.towers,
+  });
+  send('volleyFired', { force: settlement.force, towers: state.towers });
+
+  const layout = hudLayout({ width: STAGE_WIDTH, height: STAGE_HEIGHT });
+  const rack = crestRackLayout(state.crests.row, GAME_REGISTRY, state.crests, {
+    ...DEFAULT_RACK_GEOMETRY,
+    slotWidth: Math.floor((layout.rack.width - 4 * 14) / 5),
+    slotHeight: layout.rack.height,
+    gap: 14,
+    originX: layout.rack.x,
+    originY: layout.rack.y,
+  });
+
+  playMotifs(motifHost, rack, presentIgnitions(protocol), {
+    // The supplies sit under the rack, in the ticker. A TRANSFER with no slot
+    // to point at points there.
+    shelf: { x: layout.ticker.x + 20, y: layout.ticker.y + 20 },
+    reducedMotion: bench.settings.reducedMotion,
+  });
 }
 
 /* ============================================================
@@ -567,6 +644,9 @@ window.WERKBANK = {
       ambient = compress(step(ambient, dt));
     }
     formationSince = performance.now() / 1000 - seconds;
+    // The rack seeks to the same moment. Otherwise it would be the one thing
+    // in the picture running on the wall clock.
+    seekMotifs(motifHost, seconds);
     drawFrame(dt);
     writeReadout();
   },

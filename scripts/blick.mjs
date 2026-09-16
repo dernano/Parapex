@@ -118,6 +118,21 @@ const SAETZE = {
         + ' was der Zug wert wäre?' },
   ],
 
+  /*
+   * Die Wappenkette, während sie zündet. Die Aufnahme entsteht mitten in der
+   * Staffelung — ein Bild danach zeigte fünf abgelaufene Bewegungen, also
+   * nichts.
+   */
+  wappen: [
+    { name: 'kette-zuendet', bench: { crests: 'chain', volleys: 3, powder: 0 },
+      feuern: true, zeit: 0.22,
+      frage: 'Acht Motive, eines je Profil — und die gerichteten zeigen auf'
+        + ' das Fach, das sie ausgelöst hat.' },
+    { name: 'kette-pulver', bench: { crests: 'powderDead', volleys: 3, powder: 10 },
+      feuern: true, zeit: 0.22,
+      frage: 'Übertrag zur Ablage, und die Warnung darunter.' },
+  ],
+
   diagnose: [
     { name: 'diagnose-sockel',
       bench: {
