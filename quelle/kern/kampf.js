@@ -78,8 +78,17 @@ export function neuerKampf({ feind, deck, wappen = [], turmTypen = TURM_START, s
 
 /** Rundenanfang an einer Stelle: Wappen duerfen sagen, wie viel gezogen wird. */
 function beginneRunde(runde) {
+  const k = derKampf;
   setzeRunde(runde);
-  const lage = loeseAus(EREIGNIS.rundeBeginnt, { runde, ziehen: KERN.handGroesse });
+  /*
+   * Auch der Tatendrang steht hier zur Verhandlung. Er ist die knappste
+   * Waehrung des Kampfes - eine Bossregel, die ihn angreift, trifft den
+   * Spieler haerter als jede Zahl am Gegner, und ein Wappen, das ihn hebt,
+   * ist mehr wert als eines, das Wucht gibt.
+   */
+  const lage = loeseAus(EREIGNIS.rundeBeginnt,
+    { runde, ziehen: KERN.handGroesse, tatendrang: k.tatendrangMax });
+  k.tatendrang = Math.max(1, Math.round(lage.daten.tatendrang));
   zieheAuf(Math.max(1, Math.round(lage.daten.ziehen)));
 }
 
@@ -333,7 +342,6 @@ export function beendeRunde() {
   k.ablage.push(...k.hand);
   k.hand = [];
   k.runde++;
-  k.tatendrang = k.tatendrangMax;
   k.tauschInRunde = 0;
   beginneRunde(k.runde);
   return { ende: null, abrechnung, runde: k.runde };

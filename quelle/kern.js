@@ -51,17 +51,26 @@ export { BEGEGNUNGEN, ziehBegegnung, waehleInBegegnung } from './kern/begegnunge
 export { BOSSREGELN, BOSSREGEL_LISTE, ROTER_KOENIG_AB, baueRegeln } from './feldzug/bossregeln.js';
 export {
   ANTEN, VORHUTEN, DIVISIONEN, HEERFUEHRER, JE_BEDROHUNG, JE_ANTE, BEDROHUNG_MAX, dieAnte,
+  BEDROHUNGSSTUFEN, bedrohungsstufe, bedrohungsRegeln,
 } from './feldzug/gegner.js';
 export {
   KAEMPFE_MIN, KAEMPFE_MAX, ABSCHNITTE, SPERRE, dieBelagerung, neueBelagerung,
   raeumeBelagerung, darfDurchlassen, kaempfeNochHoechstens, kaempfeNochMindestens,
   offeneWahlen, waehle, meldeAusgang, baueHeerfuehrer, belagerungslage,
+  heerfuehrerRegeln, heerfuehrerStaerke, folgenDerWahl,
   sichereBelagerung, ladeBelagerung,
 } from './feldzug/belagerung.js';
 export {
   DIENSTE, LAGER_FOLGE, LAGER_PREISE, dasLager, oeffneLager, raeumeLager,
+  VORBEREITUNGSPOSTEN, vorbereitungslage,
   dienstOffen, kasse, lagerAngebote, nimmLagerangebot,
 } from './feldzug/heerlager.js';
 export {
   STAND_FASSUNG, sichereFeldzug, ladeFeldzug, beschreibeStand,
 } from './feldzug/speicher.js';
+
+/* ---------- Das Kriegsbuch: ein Ort fuer jede Erklaerung ---------- */
+export {
+  KAPITEL, BEGRIFFE, BEGRIFF_LISTE, begriff, begriffJetzt, kapitelBegriffe,
+  vorratsBegriffe, liestVorrat,
+} from './kern/begriffe.js';

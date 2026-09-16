@@ -27,6 +27,7 @@
 import { baueRegeln } from './bossregeln.js';
 import {
   DIVISIONEN, HEERFUEHRER, VORHUTEN, dieAnte, JE_BEDROHUNG, BEDROHUNG_MAX,
+  bedrohungsstufe, bedrohungsRegeln,
 } from './gegner.js';
 
 /* Das Budget. Beide Zahlen sind hart und werden geprueft, nicht gehofft. */
@@ -125,7 +126,7 @@ export function offeneWahlen() {
       { art: 'abfangen', ziel: 'vorhut', name: v.name, zeichen: v.zeichen,
         text: v.text, wirkung: v.abfangen, kampf: true,
         bedrohung: -1, vorbereitung: 0 },
-      { art: 'durchlassen', ziel: 'vorhut', name: 'Ziehen lassen', zeichen: '⌛',
+      { art: 'durchlassen', ziel: 'vorhut', name: v.name, zeichen: '⌛',
         text: v.ziehenLassen, wirkung: 'Zwei Vorbereitung, aber das Heer weiss, was es erwartet.',
         kampf: false, bedrohung: +1, vorbereitung: +2,
         gesperrt: durchlassenGeht ? null : SPERRE },
@@ -141,8 +142,10 @@ export function offeneWahlen() {
       wahlen.push({ art: 'abfangen', ziel: 'division', nr: i, name: def.name, zeichen: def.zeichen,
         text: def.text, wirkung: def.nimmt,
         kampf: true, bedrohung: 0, vorbereitung: 0 });
-      wahlen.push({ art: 'durchlassen', ziel: 'division', nr: i, name: def.name + ' durchlassen',
-        zeichen: '⌛', text: def.text, wirkung: def.gibt,
+      wahlen.push({ art: 'durchlassen', ziel: 'division', nr: i, name: def.name,
+        zeichen: '⌛',
+        text: 'Sie ziehen an der Burg vorbei und stehen später neben dem Heerführer.',
+        wirkung: def.gibt,
         kampf: false, bedrohung: +1, vorbereitung: +1,
         gesperrt: durchlassenGeht ? null : SPERRE });
     });
@@ -277,12 +280,84 @@ function baueGegner(wahl) {
 export function baueHeerfuehrer() {
   const b = dieBelagerung;
   if (!b) return null;
+  return gegnerAus(HEERFUEHRER[dieAnte(b.nr).heerfuehrer],
+    heerfuehrerStaerke(b), heerfuehrerRegeln(b), dieAnte(b.nr));
+}
+
+/*
+ * Woraus der Heerfuehrer besteht - an EINER Stelle, damit die Vorschau auf der
+ * Karte und der Gegner im Kampf nicht auseinanderlaufen koennen. Genau das ist
+ * der Sinn der Vorschau: dass dort steht, was kommt, und nicht etwas
+ * Aehnliches.
+ *
+ * Doppelte Regeln fallen heraus. Wer eine Division durchlaesst, deren Merkmal
+ * die Bedrohung ohnehin mitbringt, soll sie nicht zweimal abbekommen - er
+ * soll gar nichts Zusaetzliches abbekommen, und das muss man auch sehen.
+ */
+export function heerfuehrerRegeln(b = dieBelagerung) {
+  if (!b) return [];
   const ante = dieAnte(b.nr);
   const h = HEERFUEHRER[ante.heerfuehrer];
   const durch = b.divisionen.filter(d => d.zustand === 'durch').map(d => DIVISIONEN[d.id].merkmal);
-  const regeln = [h.grundregel, ...durch, ...(ante.regeln || [])];
-  const hp = Math.round(ante.grund * h.staerke * (1 + JE_BEDROHUNG * b.bedrohung));
-  return gegnerAus(h, hp, regeln, ante);
+  return [...new Set([h.grundregel, ...durch, ...bedrohungsRegeln(b.bedrohung),
+    ...(ante.regeln || [])])];
+}
+
+/** @param {any} [b] */
+export function heerfuehrerStaerke(b = dieBelagerung) {
+  if (!b) return 0;
+  const ante = dieAnte(b.nr);
+  return Math.round(ante.grund * HEERFUEHRER[ante.heerfuehrer].staerke
+    * (1 + JE_BEDROHUNG * b.bedrohung));
+}
+
+/*
+ * Was DIESE Wahl am Heerfuehrer aendern wuerde - bevor sie getroffen ist.
+ *
+ * Der Spieler darf nie nach dem Klicken erfahren, dass er eine Schwelle
+ * ueberschritten hat. Hier wird darum probeweise gerechnet: der Zustand wird
+ * kurz veraendert, gefragt, und wiederhergestellt.
+ *
+ * @param {any} wahl eine der Rueckgaben von `offeneWahlen`
+ */
+export function folgenDerWahl(wahl) {
+  const b = dieBelagerung;
+  if (!b || !wahl) return null;
+  const vorher = {
+    bedrohung: b.bedrohung, vorbereitung: b.vorbereitung,
+    regeln: heerfuehrerRegeln(b), hp: heerfuehrerStaerke(b),
+    stufe: bedrohungsstufe(b.bedrohung),
+  };
+  // Probeweise anwenden ...
+  const gemerkt = JSON.parse(JSON.stringify({ b: { bedrohung: b.bedrohung,
+    vorbereitung: b.vorbereitung, vorhut: b.vorhut, divisionen: b.divisionen } }));
+  if (wahl.art === 'durchlassen') {
+    b.bedrohung = Math.min(BEDROHUNG_MAX, b.bedrohung + (wahl.bedrohung || 0));
+    b.vorbereitung += wahl.vorbereitung || 0;
+    setzeZustand(b, wahl, 'durch');
+  } else if (wahl.art === 'abfangen') {
+    // Ein Sieg wird angenommen - danach gefragt wird ohnehin nur vorher.
+    b.bedrohung = Math.max(0, b.bedrohung + (wahl.bedrohung || 0));
+    b.vorbereitung += wahl.vorbereitung || 0;
+    setzeZustand(b, wahl, 'geschlagen');
+  }
+  const nachher = {
+    bedrohung: b.bedrohung, vorbereitung: b.vorbereitung,
+    regeln: heerfuehrerRegeln(b), hp: heerfuehrerStaerke(b),
+    stufe: bedrohungsstufe(b.bedrohung),
+  };
+  // ... und wieder zuruecknehmen.
+  b.bedrohung = gemerkt.b.bedrohung;
+  b.vorbereitung = gemerkt.b.vorbereitung;
+  b.vorhut = gemerkt.b.vorhut;
+  b.divisionen = gemerkt.b.divisionen;
+
+  return {
+    vorher, nachher,
+    neueRegeln: nachher.regeln.filter(r => !vorher.regeln.includes(r)),
+    wegfallendeRegeln: vorher.regeln.filter(r => !nachher.regeln.includes(r)),
+    neueStufe: nachher.stufe.stufe !== vorher.stufe.stufe ? nachher.stufe : null,
+  };
 }
 
 /** @param {any} vorlage @param {number} hp @param {string[]} regelIds @param {any} ante */
@@ -304,7 +379,6 @@ export function belagerungslage() {
   if (!b) return null;
   const ante = dieAnte(b.nr);
   const h = HEERFUEHRER[ante.heerfuehrer];
-  const durch = b.divisionen.filter(d => d.zustand === 'durch');
   return {
     ante: { id: ante.id, nr: ante.nr, name: ante.name, text: ante.text },
     abschnitt: b.abschnitt,
@@ -315,10 +389,12 @@ export function belagerungslage() {
     nochHoechstens: kaempfeNochHoechstens(),
     vorhut: { ...b.vorhut, ...VORHUTEN[b.vorhut.id] },
     divisionen: b.divisionen.map(d => ({ ...d, ...DIVISIONEN[d.id] })),
+    stufe: bedrohungsstufe(b.bedrohung),
+    naechsteStufe: b.bedrohung < BEDROHUNG_MAX ? bedrohungsstufe(b.bedrohung + 1) : null,
     heerfuehrer: {
       ...h,
-      regeln: [h.grundregel, ...durch.map(d => DIVISIONEN[d.id].merkmal), ...(ante.regeln || [])],
-      hp: Math.round(ante.grund * h.staerke * (1 + JE_BEDROHUNG * b.bedrohung)),
+      regeln: heerfuehrerRegeln(b),
+      hp: heerfuehrerStaerke(b),
     },
     ende: b.ende,
   };

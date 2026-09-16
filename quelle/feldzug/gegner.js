@@ -89,6 +89,51 @@ export const ANTEN = [
   },
 ];
 
+/* ============================================================
+ *  D I E   B E D R O H U N G
+ * ============================================================
+ *
+ * Eine Zahl von null bis fuenf sagt einem Spieler nichts. `BEDROHUNG 3` ist
+ * keine Auskunft - es ist eine Vokabel, die man auswendig lernen soll.
+ *
+ * Darum hat jede Stufe einen NAMEN, einen SATZ und, ab vier, eine REGEL, die
+ * der Heerfuehrer dazubekommt. Damit laesst sich immer sagen:
+ *
+ *   was gilt JETZT
+ *   was kommt bei der NAECHSTEN Stufe
+ *
+ * Und der Spieler entscheidet mit offenen Karten, statt eine Anzeige zu
+ * beobachten, deren Bedeutung er nicht kennt.
+ *
+ * Die Regeln der Bedrohung sind bewusst ANDERE als die der Divisionen. Wer
+ * alles durchlaesst, soll nicht dieselbe Regel doppelt bekommen, sondern eine
+ * MEHR - sonst waere die hoechste Stufe nur eine groessere Zahl.
+ */
+export const BEDROHUNGSSTUFEN = [
+  { stufe: 0, name: 'Unbemerkt', regel: null,
+    text: 'Das Heer weiss nicht, was es erwartet.' },
+  { stufe: 1, name: 'Gemeldet', regel: null,
+    text: 'Die Späher haben deine Türme gezählt.' },
+  { stufe: 2, name: 'Alarmiert', regel: null,
+    text: 'Im Lager wird gerüstet. Der Heerführer schlägt härter zu.' },
+  { stufe: 3, name: 'Gerüstet', regel: null,
+    text: 'Belagerungsgerät wird aufgefahren. Der Heerführer schlägt deutlich härter zu.' },
+  { stufe: 4, name: 'Entschlossen', regel: 'weisseKoenigin',
+    text: 'Der Heerführer führt selbst und bringt seine Herolde mit.' },
+  { stufe: 5, name: 'Totaler Sturm', regel: 'sturmlauf',
+    text: 'Alles, was marschieren kann, marschiert. Es gibt keine Schonung mehr.' },
+];
+
+/** @param {number} n */
+export function bedrohungsstufe(n) {
+  return BEDROHUNGSSTUFEN[Math.max(0, Math.min(BEDROHUNGSSTUFEN.length - 1, Math.round(n)))];
+}
+
+/** Welche Regeln eine Bedrohung von n dem Heerfuehrer mitgibt. */
+export function bedrohungsRegeln(n) {
+  return BEDROHUNGSSTUFEN.filter(st => st.stufe <= n && st.regel).map(st => st.regel);
+}
+
 /*
  * Was die Bedrohung dem Heerfuehrer an Staerke zulegt. Sie aendert vor allem
  * seine ZUSAMMENSETZUNG - jede durchgelassene Division gibt ihm eine Regel -,

@@ -112,6 +112,17 @@ export const BOSSREGELN = {
     },
   },
 
+  sturmlauf: {
+    id: 'sturmlauf', name: 'Der Sturmlauf', zeichen: '⚡', tinktur: '#8a4a1a',
+    text: 'Jede Runde beginnt mit einem Tatendrang weniger.',
+    antwort: 'Weniger Züge, die mehr wiegen. Ersetzen kostet dasselbe wie Einsetzen.',
+    hoert: {
+      [EREIGNIS.rundeBeginnt]: (lage) => {
+        wirke(lage, 'tatendrang', -1, 'Sturmlauf');
+      },
+    },
+  },
+
   roterKoenig: {
     id: 'roterKoenig', name: 'Der Rote König', zeichen: '♔', tinktur: '#7a2a2a',
     text: 'Über zwölf Salven zählt jede weitere nur halb.',

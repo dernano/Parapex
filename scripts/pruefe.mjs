@@ -85,7 +85,13 @@ const doppelt = [];
 }
 
 const browser = await chromium.launch(existsSync(pfad) ? { executablePath: pfad } : {});
-const seite = await browser.newPage();
+/*
+ * Ein Fenster in der Groesse, fuer die das Spiel gebaut ist. Playwrights
+ * Voreinstellung (1280x720) ist kleiner als jeder Schirm, auf dem jemand
+ * dieses Spiel spielen wuerde - und Lesbarkeit wird an der Groesse geprueft,
+ * die gilt, nicht an der zufaelligen.
+ */
+const seite = await browser.newPage({ viewport: { width: 1440, height: 940 } });
 const fehlerAufDerSeite = [];
 seite.on('pageerror', e => fehlerAufDerSeite.push('' + e));
 await seite.goto(SEITE, { waitUntil: 'load' });
@@ -1079,6 +1085,181 @@ const ergebnis = await seite.evaluate(() => {
     pkVorratsleiste();
     if (leiste.children.length !== 1) return 'sie zeigt ' + leiste.children.length + ' Posten statt einem';
     return leiste.textContent.includes('4') ? true : 'die Menge fehlt: ' + leiste.textContent;
+  });
+
+  /* ---------- Die Ante-Seite: sie muss lesbar sein, nicht nur richtig ---------- */
+  /*
+   * Zweimal ist diese Seite unbrauchbar geworden, ohne dass etwas abstuerzte:
+   * einmal stand das Banner der Vorhut auf der Burg, einmal lagen die
+   * Wahlkarten unter dem unteren Rand. Beides sieht man nur, wenn man
+   * nachmisst - also wird hier nachgemessen.
+   */
+  const kastenSchneidet = (a, b, luft = 0) =>
+    a.left < b.right - luft && b.left < a.right - luft
+    && a.top < b.bottom - luft && b.top < a.bottom - luft;
+
+  pruefe('Die Ante-Seite passt auf den Schirm', () => {
+    P.neuerLauf();
+    pkBetreteAbschnitt();
+    const i = document.querySelector('.pk-tafel-inhalt');
+    if (!i) return 'keine Tafel';
+    if (!document.querySelector('.pk-feldbuch')) return 'kein Feldbuch';
+    return i.scrollHeight <= i.clientHeight ? true
+      : 'sie ist ' + (i.scrollHeight - i.clientHeight) + ' px zu hoch fuer '
+        + i.clientHeight + ' px Platz';
+  });
+
+  pruefe('Die Wahlkarten stehen vollständig im Bild', () => {
+    P.neuerLauf();
+    pkBetreteAbschnitt();
+    const i = document.querySelector('.pk-tafel-inhalt').getBoundingClientRect();
+    const karten = document.querySelectorAll('.pk-wahlkarte');
+    if (karten.length < 2) return 'nur ' + karten.length + ' Wahlkarte(n)';
+    for (const k of karten) {
+      const r = k.getBoundingClientRect();
+      if (r.bottom > i.bottom + 1) return 'eine Karte reicht ' + Math.round(r.bottom - i.bottom)
+        + ' px unter den Rand';
+      if (r.height < 60) return 'eine Karte ist nur ' + Math.round(r.height) + ' px hoch';
+    }
+    return true;
+  });
+
+  pruefe('Auf der Karte steht kein Banner auf der Burg', () => {
+    P.neuerLauf();
+    pkBetreteAbschnitt();
+    const svg = document.querySelector('.pk-skizze');
+    if (!svg) return 'keine Karte';
+    const burg = svg.querySelector('.fp-burg');
+    if (!burg) return 'keine Burg';
+    const b = burg.getBoundingClientRect();
+    for (const g of svg.querySelectorAll('.fp-banner')) {
+      if (kastenSchneidet(g.getBoundingClientRect(), b, 1)) return 'ein Banner liegt auf der Burg';
+    }
+    for (const t of svg.querySelectorAll('.fp-name')) {
+      if (kastenSchneidet(t.getBoundingClientRect(), b, 1)) return 'eine Beschriftung liegt auf der Burg';
+    }
+    return true;
+  });
+
+  pruefe('Die Karte bleibt in ihrem Rahmen', () => {
+    P.neuerLauf();
+    pkBetreteAbschnitt();
+    const svg = document.querySelector('.pk-skizze');
+    const r = svg.getBoundingClientRect();
+    for (const t of svg.querySelectorAll('text')) {
+      const tr = t.getBoundingClientRect();
+      if (tr.left < r.left - 1 || tr.right > r.right + 1) return 'die Beschrift "'
+        + t.textContent + '" haengt heraus';
+      if (tr.top < r.top - 1 || tr.bottom > r.bottom + 1) return 'die Beschrift "'
+        + t.textContent + '" steht ausserhalb';
+    }
+    return true;
+  });
+
+  pruefe('Das Lager wächst mit der Bedrohung', () => {
+    P.neuerLauf();
+    const zaehle = () => {
+      pkBetreteAbschnitt();
+      const svg = document.querySelector('.pk-skizze');
+      return svg.querySelectorAll('.fp-flaeche, .fp-glut').length;
+    };
+    const klein = zaehle();
+    const w = P.offeneWahlen().find(x => x.art === 'durchlassen' && !x.gesperrt);
+    if (!w) return 'nichts zum Durchlassen';
+    P.waehle(w);
+    const gross = zaehle();
+    return gross > klein ? true : 'bei mehr Bedrohung stehen ' + gross + ' statt ' + klein + ' Zeichen';
+  });
+
+  pruefe('Wer durchgelassen wird, steht danach beim Heerführer', () => {
+    P.neuerLauf();
+    pkBetreteAbschnitt();
+    const vorher = document.querySelectorAll('.pk-skizze .fp-gewandert').length;
+    const w = P.offeneWahlen().find(x => x.art === 'durchlassen' && !x.gesperrt);
+    P.waehle(w);
+    pkBetreteAbschnitt();
+    const nachher = document.querySelectorAll('.pk-skizze .fp-gewandert').length;
+    return nachher === vorher + 1 ? true
+      : 'neben dem Heerfuehrer stehen ' + nachher + ' statt ' + (vorher + 1) + ' Banner';
+  });
+
+  /* Bis zu den Divisionen: dort stehen sechs Auswege gleichzeitig offen. */
+  const bisDivisionen = () => {
+    P.neuerLauf();
+    P.waehle(P.offeneWahlen().find(x => x.art === 'durchlassen' && !x.gesperrt));
+    P.waehle(P.offeneWahlen()[0]);          // Lager: aufbrechen
+    pkBetreteAbschnitt();
+  };
+
+  pruefe('Sechs Auswege werden eine Musterrolle, keine Kartenwand', () => {
+    bisDivisionen();
+    if (P.offeneWahlen().length !== 6) return 'es sind ' + P.offeneWahlen().length + ' Wahlen';
+    if (document.querySelectorAll('.pk-wahlkarte').length) return 'es stehen grosse Karten da';
+    const reihen = document.querySelectorAll('.pk-mr-reihe');
+    if (reihen.length !== 3) return 'die Rolle hat ' + reihen.length + ' Zeilen';
+    for (const r of reihen) {
+      if (!r.querySelector('.pk-mr-wer b')) return 'eine Zeile nennt die Truppe nicht';
+      const wahlen = r.querySelectorAll('.pk-mr-wahl');
+      if (wahlen.length !== 2) return 'eine Zeile hat ' + wahlen.length + ' Auswege';
+      if (!r.querySelector('.pk-mr-wahl.kampf') || !r.querySelector('.pk-mr-wahl.durch')) {
+        return 'eine Zeile stellt nicht abfangen gegen ziehen lassen';
+      }
+      for (const w of wahlen) if (!w.querySelector('.pk-mr-danach')) {
+        return 'ein Ausweg sagt nicht, wie der Heerfuehrer danach steht';
+      }
+    }
+    return true;
+  });
+
+  pruefe('Die Musterrolle passt auf den Schirm', () => {
+    bisDivisionen();
+    const i = document.querySelector('.pk-tafel-inhalt');
+    return i.scrollHeight <= i.clientHeight ? true
+      : 'sie ist ' + (i.scrollHeight - i.clientHeight) + ' px zu hoch';
+  });
+
+  pruefe('Ein Klick in der Musterrolle wählt genau diesen Ausweg', () => {
+    bisDivisionen();
+    const wahlen = P.offeneWahlen();
+    const durch = [...document.querySelectorAll('.pk-mr-reihe')][1]
+      .querySelector('.pk-mr-wahl.durch');
+    if (!durch) return 'kein Ausweg zum Durchlassen';
+    const w = wahlen[+durch.dataset.i];
+    if (!w || w.art !== 'durchlassen') return 'der Knopf zeigt auf ' + (w && w.art);
+    return w.name === wahlen.filter(x => x.ziel === 'division')[2].name
+      ? true : 'der Knopf gehoert zur falschen Truppe: ' + w.name;
+  });
+
+  pruefe('Das Lageband sagt Stand, Folge und nächste Stufe', () => {
+    P.neuerLauf();
+    pkBetreteAbschnitt();
+    const felder = document.querySelectorAll('.pk-lage-feld');
+    if (felder.length !== 2) return 'es sind ' + felder.length + ' Felder';
+    for (const f of felder) {
+      if (!f.querySelector('.pk-lage-wert')) return 'ein Feld nennt keinen Stand';
+      if (!f.querySelector('.pk-lage-text b')) return 'ein Feld nennt keine Lage';
+      if (!f.querySelector('.pk-lage-text > span')) return 'ein Feld nennt keine Folge';
+      if (!f.querySelector('.pk-begriff')) return 'ein Feld erklaert seinen Begriff nicht';
+    }
+    const v = felder[1].textContent;
+    return v.includes('Halt') ? true : 'die Vorbereitung sagt nicht, wofuer sie reicht: ' + v;
+  });
+
+  pruefe('Jede Wahl sagt, was sie einbringt und was sie kostet', () => {
+    P.neuerLauf();
+    pkBetreteAbschnitt();
+    for (const k of document.querySelectorAll('.pk-wahlkarte')) {
+      const kopf = k.querySelector('.pk-wk-kopf b');
+      if (!kopf) return 'eine Karte hat keine Ueberschrift';
+      if (/^(Weiter|Übernehmen|Bestätigen|Überspringen|OK)$/i.test(kopf.textContent.trim())) {
+        return 'die Ueberschrift sagt nur "' + kopf.textContent + '"';
+      }
+      if (!k.querySelector('.pk-wk-block')) return '"' + kopf.textContent + '" sagt keine Folge';
+      if (!k.querySelector('.pk-wk-block.danach')) {
+        return '"' + kopf.textContent + '" sagt nicht, wie der Heerfuehrer danach steht';
+      }
+    }
+    return true;
   });
 
   return raus;

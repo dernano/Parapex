@@ -156,6 +156,52 @@ export function lagerAngebote(id) {
   }));
 }
 
+/*
+ * WOFUER REICHT DIE VORBEREITUNG GERADE?
+ *
+ * Vorbereitung bekommt man nur, indem man etwas durchlaesst. Der Spieler
+ * entscheidet das aber auf der Feldzugsseite - also muss er SCHON DORT sehen,
+ * was die Punkte wert sind. Sonst ist "+2 Vorbereitung" eine Zahl ohne Sache
+ * dahinter, und die Entscheidung zerfaellt zu einem Ratespiel.
+ *
+ * Welche zwei Dienste am naechsten Halt stehen, ist keine Frage des Zufalls
+ * (LAGER_FOLGE), und die Preise sind fest. Also laesst sich das hier
+ * ausrechnen, lange bevor das Lager aufgeht.
+ */
+export const VORBEREITUNGSPOSTEN = [
+  { dienst: 'herold', name: 'Ein Wappen ablegen', preis: LAGER_PREISE.wappenTauschen },
+  { dienst: 'herold', name: 'Ein Wappen holen', preis: LAGER_PREISE.wappenHolen },
+  { dienst: 'schmiede', name: 'Eine Stellung ausbauen', preis: LAGER_PREISE.turmAusbauen },
+  { dienst: 'kriegsrat', name: 'Eine Formation heben', preis: LAGER_PREISE.formationHeben },
+];
+
+export function vorbereitungslage() {
+  const b = dieBelagerung;
+  if (!b) return null;
+  const punkte = b.vorbereitung;
+  /* Steht das Lager gerade offen, ist es der Halt; sonst der naechste. */
+  const offen = dasLager && dasLager.dienste.some(id => !dasLager.genutzt.includes(id));
+  const halt = offen ? dasLager.nr : b.kaempfe + 1;
+  const paar = offen
+    ? dasLager.dienste.filter(id => !dasLager.genutzt.includes(id))
+    : LAGER_FOLGE[(halt - 1) % LAGER_FOLGE.length];
+
+  const dienste = paar.filter(id => DIENSTE[id].waehrung === 'vorbereitung').map(id => ({
+    id, name: DIENSTE[id].name, zeichen: DIENSTE[id].zeichen,
+    posten: VORBEREITUNGSPOSTEN.filter(p => p.dienst === id)
+      .map(p => ({ name: p.name, preis: p.preis, reicht: punkte >= p.preis })),
+  }));
+  const alle = dienste.reduce((a, d) => a.concat(d.posten), []);
+  const reicht = alle.filter(p => p.reicht);
+  const zuTeuer = alle.filter(p => !p.reicht).sort((a, c) => a.preis - c.preis);
+  return {
+    punkte, halt, dienste, reicht,
+    haendler: paar.includes('haendler'),
+    naechstes: zuTeuer[0] ? { name: zuTeuer[0].name, preis: zuTeuer[0].preis,
+      fehlt: zuTeuer[0].preis - punkte } : null,
+  };
+}
+
 /**
  * Einen Posten nehmen. Ein Dienst gilt einmal je Halt - danach ist er
  * abgeraeumt, auch wenn noch Vorbereitung uebrig waere.

@@ -3178,8 +3178,17 @@
 
   /** Rundenanfang an einer Stelle: Wappen duerfen sagen, wie viel gezogen wird. */
   function beginneRunde(runde) {
+    const k = derKampf;
     setzeRunde(runde);
-    const lage = loeseAus(EREIGNIS.rundeBeginnt, { runde, ziehen: KERN.handGroesse });
+    /*
+     * Auch der Tatendrang steht hier zur Verhandlung. Er ist die knappste
+     * Waehrung des Kampfes - eine Bossregel, die ihn angreift, trifft den
+     * Spieler haerter als jede Zahl am Gegner, und ein Wappen, das ihn hebt,
+     * ist mehr wert als eines, das Wucht gibt.
+     */
+    const lage = loeseAus(EREIGNIS.rundeBeginnt,
+      { runde, ziehen: KERN.handGroesse, tatendrang: k.tatendrangMax });
+    k.tatendrang = Math.max(1, Math.round(lage.daten.tatendrang));
     zieheAuf(Math.max(1, Math.round(lage.daten.ziehen)));
   }
 
@@ -3433,7 +3442,6 @@
     k.ablage.push(...k.hand);
     k.hand = [];
     k.runde++;
-    k.tatendrang = k.tatendrangMax;
     k.tauschInRunde = 0;
     beginneRunde(k.runde);
     return { ende: null, abrechnung, runde: k.runde };
@@ -3566,6 +3574,17 @@
       },
     },
 
+    sturmlauf: {
+      id: 'sturmlauf', name: 'Der Sturmlauf', zeichen: '⚡', tinktur: '#8a4a1a',
+      text: 'Jede Runde beginnt mit einem Tatendrang weniger.',
+      antwort: 'Weniger Züge, die mehr wiegen. Ersetzen kostet dasselbe wie Einsetzen.',
+      hoert: {
+        [EREIGNIS.rundeBeginnt]: (lage) => {
+          wirke(lage, 'tatendrang', -1, 'Sturmlauf');
+        },
+      },
+    },
+
     roterKoenig: {
       id: 'roterKoenig', name: 'Der Rote König', zeichen: '♔', tinktur: '#7a2a2a',
       text: 'Über zwölf Salven zählt jede weitere nur halb.',
@@ -3681,6 +3700,51 @@
       regeln: [],                 // Regeln, die in JEDEM Kampf dieser Ante gelten
     },
   ];
+
+  /* ============================================================
+   *  D I E   B E D R O H U N G
+   * ============================================================
+   *
+   * Eine Zahl von null bis fuenf sagt einem Spieler nichts. `BEDROHUNG 3` ist
+   * keine Auskunft - es ist eine Vokabel, die man auswendig lernen soll.
+   *
+   * Darum hat jede Stufe einen NAMEN, einen SATZ und, ab vier, eine REGEL, die
+   * der Heerfuehrer dazubekommt. Damit laesst sich immer sagen:
+   *
+   *   was gilt JETZT
+   *   was kommt bei der NAECHSTEN Stufe
+   *
+   * Und der Spieler entscheidet mit offenen Karten, statt eine Anzeige zu
+   * beobachten, deren Bedeutung er nicht kennt.
+   *
+   * Die Regeln der Bedrohung sind bewusst ANDERE als die der Divisionen. Wer
+   * alles durchlaesst, soll nicht dieselbe Regel doppelt bekommen, sondern eine
+   * MEHR - sonst waere die hoechste Stufe nur eine groessere Zahl.
+   */
+  const BEDROHUNGSSTUFEN = [
+    { stufe: 0, name: 'Unbemerkt', regel: null,
+      text: 'Das Heer weiss nicht, was es erwartet.' },
+    { stufe: 1, name: 'Gemeldet', regel: null,
+      text: 'Die Späher haben deine Türme gezählt.' },
+    { stufe: 2, name: 'Alarmiert', regel: null,
+      text: 'Im Lager wird gerüstet. Der Heerführer schlägt härter zu.' },
+    { stufe: 3, name: 'Gerüstet', regel: null,
+      text: 'Belagerungsgerät wird aufgefahren. Der Heerführer schlägt deutlich härter zu.' },
+    { stufe: 4, name: 'Entschlossen', regel: 'weisseKoenigin',
+      text: 'Der Heerführer führt selbst und bringt seine Herolde mit.' },
+    { stufe: 5, name: 'Totaler Sturm', regel: 'sturmlauf',
+      text: 'Alles, was marschieren kann, marschiert. Es gibt keine Schonung mehr.' },
+  ];
+
+  /** @param {number} n */
+  function bedrohungsstufe(n) {
+    return BEDROHUNGSSTUFEN[Math.max(0, Math.min(BEDROHUNGSSTUFEN.length - 1, Math.round(n)))];
+  }
+
+  /** Welche Regeln eine Bedrohung von n dem Heerfuehrer mitgibt. */
+  function bedrohungsRegeln(n) {
+    return BEDROHUNGSSTUFEN.filter(st => st.stufe <= n && st.regel).map(st => st.regel);
+  }
 
   /*
    * Was die Bedrohung dem Heerfuehrer an Staerke zulegt. Sie aendert vor allem
@@ -3832,7 +3896,7 @@
         { art: 'abfangen', ziel: 'vorhut', name: v.name, zeichen: v.zeichen,
           text: v.text, wirkung: v.abfangen, kampf: true,
           bedrohung: -1, vorbereitung: 0 },
-        { art: 'durchlassen', ziel: 'vorhut', name: 'Ziehen lassen', zeichen: '⌛',
+        { art: 'durchlassen', ziel: 'vorhut', name: v.name, zeichen: '⌛',
           text: v.ziehenLassen, wirkung: 'Zwei Vorbereitung, aber das Heer weiss, was es erwartet.',
           kampf: false, bedrohung: +1, vorbereitung: +2,
           gesperrt: durchlassenGeht ? null : SPERRE },
@@ -3848,8 +3912,10 @@
         wahlen.push({ art: 'abfangen', ziel: 'division', nr: i, name: def.name, zeichen: def.zeichen,
           text: def.text, wirkung: def.nimmt,
           kampf: true, bedrohung: 0, vorbereitung: 0 });
-        wahlen.push({ art: 'durchlassen', ziel: 'division', nr: i, name: def.name + ' durchlassen',
-          zeichen: '⌛', text: def.text, wirkung: def.gibt,
+        wahlen.push({ art: 'durchlassen', ziel: 'division', nr: i, name: def.name,
+          zeichen: '⌛',
+          text: 'Sie ziehen an der Burg vorbei und stehen später neben dem Heerführer.',
+          wirkung: def.gibt,
           kampf: false, bedrohung: +1, vorbereitung: +1,
           gesperrt: durchlassenGeht ? null : SPERRE });
       });
@@ -3984,12 +4050,84 @@
   function baueHeerfuehrer() {
     const b = dieBelagerung;
     if (!b) return null;
+    return gegnerAus(HEERFUEHRER[dieAnte(b.nr).heerfuehrer],
+      heerfuehrerStaerke(b), heerfuehrerRegeln(b), dieAnte(b.nr));
+  }
+
+  /*
+   * Woraus der Heerfuehrer besteht - an EINER Stelle, damit die Vorschau auf der
+   * Karte und der Gegner im Kampf nicht auseinanderlaufen koennen. Genau das ist
+   * der Sinn der Vorschau: dass dort steht, was kommt, und nicht etwas
+   * Aehnliches.
+   *
+   * Doppelte Regeln fallen heraus. Wer eine Division durchlaesst, deren Merkmal
+   * die Bedrohung ohnehin mitbringt, soll sie nicht zweimal abbekommen - er
+   * soll gar nichts Zusaetzliches abbekommen, und das muss man auch sehen.
+   */
+  function heerfuehrerRegeln(b = dieBelagerung) {
+    if (!b) return [];
     const ante = dieAnte(b.nr);
     const h = HEERFUEHRER[ante.heerfuehrer];
     const durch = b.divisionen.filter(d => d.zustand === 'durch').map(d => DIVISIONEN[d.id].merkmal);
-    const regeln = [h.grundregel, ...durch, ...(ante.regeln || [])];
-    const hp = Math.round(ante.grund * h.staerke * (1 + JE_BEDROHUNG * b.bedrohung));
-    return gegnerAus(h, hp, regeln, ante);
+    return [...new Set([h.grundregel, ...durch, ...bedrohungsRegeln(b.bedrohung),
+      ...(ante.regeln || [])])];
+  }
+
+  /** @param {any} [b] */
+  function heerfuehrerStaerke(b = dieBelagerung) {
+    if (!b) return 0;
+    const ante = dieAnte(b.nr);
+    return Math.round(ante.grund * HEERFUEHRER[ante.heerfuehrer].staerke
+      * (1 + JE_BEDROHUNG * b.bedrohung));
+  }
+
+  /*
+   * Was DIESE Wahl am Heerfuehrer aendern wuerde - bevor sie getroffen ist.
+   *
+   * Der Spieler darf nie nach dem Klicken erfahren, dass er eine Schwelle
+   * ueberschritten hat. Hier wird darum probeweise gerechnet: der Zustand wird
+   * kurz veraendert, gefragt, und wiederhergestellt.
+   *
+   * @param {any} wahl eine der Rueckgaben von `offeneWahlen`
+   */
+  function folgenDerWahl(wahl) {
+    const b = dieBelagerung;
+    if (!b || !wahl) return null;
+    const vorher = {
+      bedrohung: b.bedrohung, vorbereitung: b.vorbereitung,
+      regeln: heerfuehrerRegeln(b), hp: heerfuehrerStaerke(b),
+      stufe: bedrohungsstufe(b.bedrohung),
+    };
+    // Probeweise anwenden ...
+    const gemerkt = JSON.parse(JSON.stringify({ b: { bedrohung: b.bedrohung,
+      vorbereitung: b.vorbereitung, vorhut: b.vorhut, divisionen: b.divisionen } }));
+    if (wahl.art === 'durchlassen') {
+      b.bedrohung = Math.min(BEDROHUNG_MAX, b.bedrohung + (wahl.bedrohung || 0));
+      b.vorbereitung += wahl.vorbereitung || 0;
+      setzeZustand(b, wahl, 'durch');
+    } else if (wahl.art === 'abfangen') {
+      // Ein Sieg wird angenommen - danach gefragt wird ohnehin nur vorher.
+      b.bedrohung = Math.max(0, b.bedrohung + (wahl.bedrohung || 0));
+      b.vorbereitung += wahl.vorbereitung || 0;
+      setzeZustand(b, wahl, 'geschlagen');
+    }
+    const nachher = {
+      bedrohung: b.bedrohung, vorbereitung: b.vorbereitung,
+      regeln: heerfuehrerRegeln(b), hp: heerfuehrerStaerke(b),
+      stufe: bedrohungsstufe(b.bedrohung),
+    };
+    // ... und wieder zuruecknehmen.
+    b.bedrohung = gemerkt.b.bedrohung;
+    b.vorbereitung = gemerkt.b.vorbereitung;
+    b.vorhut = gemerkt.b.vorhut;
+    b.divisionen = gemerkt.b.divisionen;
+
+    return {
+      vorher, nachher,
+      neueRegeln: nachher.regeln.filter(r => !vorher.regeln.includes(r)),
+      wegfallendeRegeln: vorher.regeln.filter(r => !nachher.regeln.includes(r)),
+      neueStufe: nachher.stufe.stufe !== vorher.stufe.stufe ? nachher.stufe : null,
+    };
   }
 
   /** @param {any} vorlage @param {number} hp @param {string[]} regelIds @param {any} ante */
@@ -4011,7 +4149,6 @@
     if (!b) return null;
     const ante = dieAnte(b.nr);
     const h = HEERFUEHRER[ante.heerfuehrer];
-    const durch = b.divisionen.filter(d => d.zustand === 'durch');
     return {
       ante: { id: ante.id, nr: ante.nr, name: ante.name, text: ante.text },
       abschnitt: b.abschnitt,
@@ -4022,10 +4159,12 @@
       nochHoechstens: kaempfeNochHoechstens(),
       vorhut: { ...b.vorhut, ...VORHUTEN[b.vorhut.id] },
       divisionen: b.divisionen.map(d => ({ ...d, ...DIVISIONEN[d.id] })),
+      stufe: bedrohungsstufe(b.bedrohung),
+      naechsteStufe: b.bedrohung < BEDROHUNG_MAX ? bedrohungsstufe(b.bedrohung + 1) : null,
       heerfuehrer: {
         ...h,
-        regeln: [h.grundregel, ...durch.map(d => DIVISIONEN[d.id].merkmal), ...(ante.regeln || [])],
-        hp: Math.round(ante.grund * h.staerke * (1 + JE_BEDROHUNG * b.bedrohung)),
+        regeln: heerfuehrerRegeln(b),
+        hp: heerfuehrerStaerke(b),
       },
       ende: b.ende,
     };
@@ -4847,6 +4986,52 @@
     }));
   }
 
+  /*
+   * WOFUER REICHT DIE VORBEREITUNG GERADE?
+   *
+   * Vorbereitung bekommt man nur, indem man etwas durchlaesst. Der Spieler
+   * entscheidet das aber auf der Feldzugsseite - also muss er SCHON DORT sehen,
+   * was die Punkte wert sind. Sonst ist "+2 Vorbereitung" eine Zahl ohne Sache
+   * dahinter, und die Entscheidung zerfaellt zu einem Ratespiel.
+   *
+   * Welche zwei Dienste am naechsten Halt stehen, ist keine Frage des Zufalls
+   * (LAGER_FOLGE), und die Preise sind fest. Also laesst sich das hier
+   * ausrechnen, lange bevor das Lager aufgeht.
+   */
+  const VORBEREITUNGSPOSTEN = [
+    { dienst: 'herold', name: 'Ein Wappen ablegen', preis: LAGER_PREISE.wappenTauschen },
+    { dienst: 'herold', name: 'Ein Wappen holen', preis: LAGER_PREISE.wappenHolen },
+    { dienst: 'schmiede', name: 'Eine Stellung ausbauen', preis: LAGER_PREISE.turmAusbauen },
+    { dienst: 'kriegsrat', name: 'Eine Formation heben', preis: LAGER_PREISE.formationHeben },
+  ];
+
+  function vorbereitungslage() {
+    const b = dieBelagerung;
+    if (!b) return null;
+    const punkte = b.vorbereitung;
+    /* Steht das Lager gerade offen, ist es der Halt; sonst der naechste. */
+    const offen = dasLager && dasLager.dienste.some(id => !dasLager.genutzt.includes(id));
+    const halt = offen ? dasLager.nr : b.kaempfe + 1;
+    const paar = offen
+      ? dasLager.dienste.filter(id => !dasLager.genutzt.includes(id))
+      : LAGER_FOLGE[(halt - 1) % LAGER_FOLGE.length];
+
+    const dienste = paar.filter(id => DIENSTE[id].waehrung === 'vorbereitung').map(id => ({
+      id, name: DIENSTE[id].name, zeichen: DIENSTE[id].zeichen,
+      posten: VORBEREITUNGSPOSTEN.filter(p => p.dienst === id)
+        .map(p => ({ name: p.name, preis: p.preis, reicht: punkte >= p.preis })),
+    }));
+    const alle = dienste.reduce((a, d) => a.concat(d.posten), []);
+    const reicht = alle.filter(p => p.reicht);
+    const zuTeuer = alle.filter(p => !p.reicht).sort((a, c) => a.preis - c.preis);
+    return {
+      punkte, halt, dienste, reicht,
+      haendler: paar.includes('haendler'),
+      naechstes: zuTeuer[0] ? { name: zuTeuer[0].name, preis: zuTeuer[0].preis,
+        fehlt: zuTeuer[0].preis - punkte } : null,
+    };
+  }
+
   /**
    * Einen Posten nehmen. Ein Dienst gilt einmal je Halt - danach ist er
    * abgeraeumt, auch wenn noch Vorbereitung uebrig waere.
@@ -4974,39 +5159,411 @@
   /** Nur fuer Pruefungen: steht der Vorrat? */
   function vorratSteht() { return Boolean(derVorrat); }
 
+  // ===== quelle/kern/begriffe.js =====
+  /*
+   * Das Kriegsbuch: EINE Stelle, an der jeder Begriff erklaert wird.
+   *
+   * Der teuerste Fehler, den eine Oberflaeche machen kann, ist eine Zahl ohne
+   * Bedeutung. `BEDROHUNG 3` ist keine Auskunft - es ist eine Vokabel, die der
+   * Spieler auswendig lernen soll, und wer sie nicht auswendig kann, klickt
+   * eben irgendwas. Dasselbe gilt fuer Vorbereitung, Salven, Tatendrang und
+   * jedes Wappen.
+   *
+   * Darum hat hier jeder Begriff drei Stufen, und die dritte ist die wichtigste:
+   *
+   *   SATZ    was es ist, in einem Satz
+   *   LANG    warum es so ist, in drei bis vier Zeilen
+   *   JETZT   was es GERADE BEI DIESEM SPIELER bedeutet
+   *
+   * Die dritte Stufe ist der Grund, warum das hier im Kern steht und nicht in
+   * der Oberflaeche: nur der Kern weiss, was ein Heerfuehrer bei Bedrohung 4
+   * dazubekommt, wie viele Salven diese Aufstellung gerade schiesst und welches
+   * Wappen in der letzten Runde nichts getan hat. Die Oberflaeche malt, was
+   * hier herauskommt; sie rechnet nichts nach.
+   *
+   * Und es steht an EINER Stelle, weil derselbe Begriff an fuenf Stellen
+   * auftaucht - in der Kopfleiste, im Hinweis, auf der Belagerungskarte, im
+   * Heerlager, im Kriegsbuch. Fuenf Erklaerungen desselben Wortes sind vier zu
+   * viel, und drei davon sind nach dem naechsten Umbau falsch.
+   */
+
+
+  /** Die Kapitel des Kriegsbuchs. Mehr als vier waeren ein Nachschlagewerk. */
+  const KAPITEL = {
+    kampf:      { id: 'kampf',      name: 'Kampf',      zeichen: '⚔' },
+    wappen:     { id: 'wappen',     name: 'Wappen',     zeichen: '⚜' },
+    belagerung: { id: 'belagerung', name: 'Belagerung', zeichen: '⛫' },
+    vorraete:   { id: 'vorraete',   name: 'Vorräte',    zeichen: '✸' },
+  };
+
+  /** Wie viel Wucht die Burg gerade schiesst, ohne etwas zu veraendern. */
+  function jetzigeSalve() {
+    const k = derKampf;
+    if (!k || k.ende) return null;
+    return berechneWucht(k.tuerme, k.wappen);
+  }
+
+  const BEGRIFFE = {
+
+    /* ---------------- Kampf ---------------- */
+    wucht: {
+      id: 'wucht', name: 'Wucht', kapitel: 'kampf',
+      satz: 'Die Zahl, mit der du den Gegner niederringst.',
+      lang: 'Jede Einheit hat einen Rang, und der Rang IST ihre Wucht. Was auf '
+        + 'deinen fünf Türmen steht, wird zusammengezählt, mit der Salvenzahl '
+        + 'vervielfacht und von der Stärke des Gegners abgezogen. Es gibt keine '
+        + 'Verteidigung und keine Obergrenze — nur die Frage, ob es in fünf '
+        + 'Runden reicht.',
+      jetzt: () => {
+        const r = jetzigeSalve();
+        if (!r) return null;
+        return {
+          wert: String(r.wucht),
+          zeilen: [r.jeSalve + ' Wucht je Salve × ' + r.salven + ' Salven'],
+        };
+      },
+    },
+
+    salven: {
+      id: 'salven', name: 'Salven', kapitel: 'kampf',
+      satz: 'Wie oft deine Burg feuert. Jede Salve ist ein Schuss, den du siehst.',
+      lang: 'Eine Grundsalve hat jede besetzte Stellung. Alles Weitere kommt aus '
+        + 'Formationen und Wappen. Salven sind kein Rechentrick: wer «7 Salven» '
+        + 'liest, sieht sieben Mal feuern.',
+      jetzt: () => {
+        const r = jetzigeSalve();
+        if (!r) return null;
+        const aus = r.formationen.map(f => f.name + ' +' + f.salven);
+        return { wert: String(r.salven), zeilen: aus.length ? aus : ['Nur die Grundsalve.'] };
+      },
+    },
+
+    tatendrang: {
+      id: 'tatendrang', name: 'Tatendrang', kapitel: 'kampf',
+      satz: 'Die einzige Währung im Kampf. Fünf je Runde, und was übrig bleibt, verfällt.',
+      lang: 'Eine Einheit setzen kostet 1, eine ersetzen kostet 1, eine Handkarte '
+        + 'tauschen kostet 1, ein Wappen umhängen kostet 1. Es gibt kein freies '
+        + 'Abwerfen — genau deshalb ist eine mittelmäßige Hand eine Entscheidung '
+        + 'und kein Ärgernis.',
+      jetzt: () => {
+        const k = derKampf;
+        if (!k || k.ende) return null;
+        return {
+          wert: k.tatendrang + ' / ' + k.tatendrangMax,
+          zeilen: [
+            'Einsetzen ' + KERN.kosten.einsetzen + ' · Ersetzen ' + KERN.kosten.ersetzen
+              + ' · Tauschen ' + KERN.kosten.tauschen + ' · Umhängen ' + KERN.kosten.umhaengen,
+          ],
+        };
+      },
+    },
+
+    formation: {
+      id: 'formation', name: 'Formation', kapitel: 'kampf',
+      satz: 'Ein Muster in deinen fünf Stellungen. Formationen geben Salven.',
+      lang: 'Gleiche Gattungen, gleiche Ränge, eine Rangfolge. DIE STELLUNG DER '
+        + 'TÜRME ZÄHLT NICHT — 7/3/6/12/5 ist dieselbe Folge wie 5/6/7. Aus jeder '
+        + 'der drei Familien gilt nur die höchste erreichte; fünf gleiche '
+        + 'Gattungen sind eine Reine Garde und nicht zusätzlich ein Regiment.',
+      jetzt: () => {
+        const r = jetzigeSalve();
+        if (!r) return null;
+        if (!r.formationen.length) return { wert: 'keine', zeilen: ['Noch kein Muster steht.'] };
+        return {
+          wert: r.formationen.length + ' erkannt',
+          zeilen: r.formationen.map(f => f.name + ' · +' + f.salven + ' Salven'),
+        };
+      },
+    },
+
+    formationsstufe: {
+      id: 'formationsstufe', name: 'Formationsstufe', kapitel: 'kampf',
+      satz: 'Wie weit eine Formation ausgebaut ist. Jede Stufe gibt ihr mehr Salven.',
+      lang: 'Der Kriegsrat im Heerlager hebt Stufen, und sie halten den ganzen '
+        + 'Feldzug. Das ist die langsame Achse: eine Stufe auf einer Formation, '
+        + 'die du ohnehin jede Runde triffst, ist mehr wert als eine bessere Karte.',
+      jetzt: () => {
+        if (!derLauf) return null;
+        const erhoben = FORMATIONEN
+          .filter(f => (derLauf.formationsStufen[f.id] || 1) > 1)
+          .map(f => f.name + ' · Stufe ' + derLauf.formationsStufen[f.id]
+            + ' (+' + (formationsSalven(f, derLauf.formationsStufen[f.id]) - f.salven) + ' Salven)');
+        return {
+          wert: erhoben.length ? erhoben.length + ' erhoben' : 'alle auf Stufe 1',
+          zeilen: erhoben.length ? erhoben : ['Der Kriegsrat im Heerlager hebt Stufen.'],
+        };
+      },
+    },
+
+    /* ---------------- Wappen ---------------- */
+    wappen: {
+      id: 'wappen', name: 'Wappen', kapitel: 'wappen',
+      satz: 'Fünf Plätze. Wappen brechen Regeln, statt Zahlen zu heben.',
+      lang: 'Ein Wappen gibt selten einfach mehr Wucht. Es schafft Vorräte, es '
+        + 'verdoppelt, was ein anderes tut, es zündet einen Platz noch einmal. '
+        + 'Ein einzelnes Wappen ist deshalb oft schwach — fünf, die ineinander '
+        + 'greifen, sind eine Maschine.',
+      jetzt: () => {
+        if (!derLauf) return null;
+        const w = derLauf.wappen;
+        return {
+          wert: w.length + ' / ' + WAPPEN_PLAETZE,
+          zeilen: w.length
+            ? w.map((id, i) => 'Platz ' + (i + 1) + ': ' + WAPPEN[id].name.replace('Wappen ', ''))
+            : ['Noch keines. Wappen kommen als Belohnung nach einem Kampf.'],
+        };
+      },
+    },
+
+    wappenreihe: {
+      id: 'wappenreihe', name: 'Wappenreihenfolge', kapitel: 'wappen',
+      satz: 'Wappen wirken von links nach rechts. Ihre Reihenfolge ändert ihre Wirkung.',
+      lang: 'Ein Ereignis läuft durch die fünf Plätze, einen nach dem anderen. '
+        + 'Jeder Platz sieht die Lage so, wie der Platz vor ihm sie hinterlassen '
+        + 'hat. Ein Wappen, das verdoppelt, was links von ihm geschah, ist auf '
+        + 'Platz 4 etwas ganz anderes als auf Platz 2 — (s+10)×3 ist nicht '
+        + 's×3+10. Zieh die Schilde, um sie umzuhängen.',
+      jetzt: () => {
+        if (!derLauf || derLauf.wappen.length < 2) return null;
+        const w = derLauf.wappen;
+        return {
+          wert: w.map((_, i) => i + 1).join(' → '),
+          zeilen: [w.map(id => WAPPEN[id].name.replace('Wappen ', '')).join('  →  ')],
+        };
+      },
+    },
+
+    /* ---------------- Belagerung ---------------- */
+    bedrohung: {
+      id: 'bedrohung', name: 'Bedrohung', kapitel: 'belagerung',
+      satz: 'Wie gut sich der Heerführer auf den finalen Sturm vorbereiten konnte.',
+      lang: 'Je mehr Teile des feindlichen Heeres du abfängst, desto weniger '
+        + 'erreicht ihn — aber desto weniger Zeit hast du selbst. Jede Truppe, '
+        + 'die du ziehen lässt, hebt die Bedrohung: der Heerführer wird stärker, '
+        + 'und ab einer gewissen Stufe bekommt er zusätzliche Regeln.',
+      jetzt: () => {
+        const b = dieBelagerung;
+        if (!b) return null;
+        const st = bedrohungsstufe(b.bedrohung);
+        const naechst = b.bedrohung < BEDROHUNG_MAX ? bedrohungsstufe(b.bedrohung + 1) : null;
+        const zeilen = [st.text,
+          'Der Heerführer schlägt um ' + Math.round(JE_BEDROHUNG * b.bedrohung * 100)
+            + ' % härter zu.'];
+        for (const id of heerfuehrerRegeln(b)) {
+          if (BOSSREGELN[id]) zeilen.push('☠ ' + BOSSREGELN[id].name + ': ' + BOSSREGELN[id].text);
+        }
+        return {
+          wert: b.bedrohung + ' / ' + BEDROHUNG_MAX,
+          titel: st.name,
+          zeilen,
+          naechste: naechst ? {
+            titel: 'Nächste Stufe — ' + naechst.stufe + ' · ' + naechst.name,
+            zeilen: [naechst.text].concat(naechst.regel && BOSSREGELN[naechst.regel]
+              ? ['☠ Der Heerführer erhält: ' + BOSSREGELN[naechst.regel].name]
+              : []),
+          } : null,
+        };
+      },
+    },
+
+    vorbereitung: {
+      id: 'vorbereitung', name: 'Vorbereitung', kapitel: 'belagerung',
+      satz: 'Zeit, die du gewinnst, wenn du nicht jede feindliche Truppe angreifst.',
+      lang: 'Du gibst sie im Heerlager aus — beim Herold für Wappen, in der '
+        + 'Feldschmiede für Türme, beim Kriegsrat für Formationsstufen. '
+        + 'Vorbereitung und Bedrohung sind dieselbe Münze von zwei Seiten: du '
+        + 'kaufst die eine mit der anderen.',
+      jetzt: () => {
+        const v = vorbereitungslage();
+        if (!v) return null;
+        const zeilen = [];
+        if (v.dienste.length) {
+          zeilen.push('Am nächsten Halt: ' + v.dienste.map(d => d.name).join(' und ') + '.');
+        } else if (v.haendler) {
+          zeilen.push('Am nächsten Halt steht nur der Händler — der nimmt Sold, keine Vorbereitung.');
+        }
+        if (v.reicht.length) {
+          zeilen.push('Reicht für: ' + v.reicht.map(p => p.name + ' (' + p.preis + ')').join(', ') + '.');
+        } else {
+          zeilen.push('Reicht noch für nichts davon.');
+        }
+        return {
+          wert: String(v.punkte),
+          zeilen,
+          naechste: v.naechstes ? { titel: 'Noch ' + v.naechstes.fehlt + ' mehr',
+            zeilen: [v.naechstes.name + ' kostet ' + v.naechstes.preis + '.'] } : null,
+        };
+      },
+    },
+
+    division: {
+      id: 'division', name: 'Division', kapitel: 'belagerung',
+      satz: 'Eine Abteilung des anrückenden Heeres. Jede trägt ein Merkmal.',
+      lang: 'Schlägst du sie, nimmt das dem Heerführer ihr Merkmal. Lässt du sie '
+        + 'durch, gibt es ihm — dafür gewinnst du Vorbereitung und sparst eine '
+        + 'Schlacht. Was du ziehen lässt, kämpft später an seiner Seite.',
+      jetzt: () => {
+        const l = belagerungslage();
+        if (!l) return null;
+        return {
+          wert: l.divisionen.filter(d => d.zustand === 'offen').length + ' offen',
+          zeilen: l.divisionen.map(d => d.name + ' — '
+            + (d.zustand === 'geschlagen' ? 'geschlagen'
+              : d.zustand === 'durch' ? 'durchgekommen: ' + DIVISIONEN[d.id].gibt
+              : 'rückt an')),
+        };
+      },
+    },
+
+    heerfuehrer: {
+      id: 'heerfuehrer', name: 'Heerführer', kapitel: 'belagerung',
+      satz: 'Der Anführer des Heeres. Die letzte Schlacht dieser Ante.',
+      lang: 'Er wird nicht gewürfelt, er wird GEBAUT — von dir. Er hat eine eigene '
+        + 'Regel, dazu jede Division, die du hast durchkommen lassen, und was die '
+        + 'Bedrohung ihm mitbringt. Er steht vom ersten Augenblick an sichtbar da.',
+      jetzt: () => {
+        const l = belagerungslage();
+        if (!l) return null;
+        return {
+          wert: l.heerfuehrer.name,
+          zeilen: l.heerfuehrer.regeln
+            .map(id => (BOSSREGELN[id] ? '☠ ' + BOSSREGELN[id].name + ': ' + BOSSREGELN[id].text : id)),
+        };
+      },
+    },
+
+    finalerSturm: {
+      id: 'finalerSturm', name: 'Finaler Sturm', kapitel: 'belagerung',
+      satz: 'Die letzte Schlacht einer Ante — gegen alles, was du hast durchkommen lassen.',
+      lang: 'Was in der Vorschau steht, ist kein Ausblick, sondern der Gegner. '
+        + 'Jede Wahl auf der Belagerungskarte schreibt ihn um, und zwar sofort.',
+      jetzt: () => {
+        const l = belagerungslage();
+        if (!l) return null;
+        return {
+          wert: l.heerfuehrer.name + ' · ' + l.heerfuehrer.hp + ' Stärke',
+          zeilen: [l.heerfuehrer.regeln.length + ' Regeln · Bedrohung ' + l.bedrohung
+            + ' von ' + l.bedrohungMax],
+        };
+      },
+    },
+
+    /* ---------------- Vorräte ---------------- */
+    veteran: vorratBegriff('veteran',
+      'Marken für überlebte Runden und geschlagene Heere. Sie bleiben den ganzen Feldzug.',
+      'Es gibt sie nur, weil ein Wappen sie schafft — der Hirsch, die Kriegskasse, '
+      + 'die Pflugschar. Und sie nützen nur, weil ein anderes sie liest.'),
+    pulver: vorratBegriff('pulver',
+      'Wird im Kampf gemacht und im Kampf verbraucht. Nach dem Kampf ist es weg.',
+      'Der Hammer macht Pulver beim Setzen, das Mühlrad beim Tauschen, der '
+      + 'Hetzhund bei jedem Treffer. Das Pulverhorn verbrennt alles auf einmal.'),
+    verwuestung: vorratBegriff('verwuestung',
+      'Was über die Stärke des Gegners hinausging. Sie wächst über den ganzen Feldzug.',
+      'Nur die Brandschatzung sammelt sie ein, und nur Kerbholz und Triumphbogen '
+      + 'lesen sie. Ohne die Brandschatzung verpufft jeder Überschlag.'),
+    befehl: vorratBegriff('befehl',
+      'Wird zu Kampfbeginn und am Rundenende ausgegeben und nicht verbraucht.',
+      'Kriegshorn und Glocke geben Befehle, der Fahnenträger macht Salven daraus. '
+      + 'Anders als Pulver bleiben sie den Kampf über liegen.'),
+  };
+
+  /** Die vier Vorraete sind gleich gebaut - also auch gleich erklaert. */
+  function vorratBegriff(art, satz, lang) {
+    const v = VORRAT_ARTEN[art];
+    return {
+      id: art, name: v.name, kapitel: 'vorraete', zeichen: v.zeichen,
+      satz, lang,
+      jetzt: () => {
+        const n = bestand(art);
+        const leser = derLauf
+          ? derLauf.wappen.filter(id => liestVorrat(id, art)).map(id => WAPPEN[id].name.replace('Wappen ', ''))
+          : [];
+        return {
+          wert: String(n),
+          zeilen: leser.length
+            ? ['In deinem Gestell: ' + leser.join(', ') + '.']
+            : ['Kein Wappen in deinem Gestell liest das gerade.'],
+        };
+      },
+    };
+  }
+
+  /*
+   * Welche Wappen einen Vorrat ueberhaupt anfassen. Gelesen wird aus Text und
+   * Hinweis - die stehen ohnehin da, und sie sind die einzige Beschreibung, die
+   * garantiert mit der Wirkung mitwandert. Eine zweite Liste von Hand gepflegt
+   * waere nach dem naechsten neuen Wappen falsch.
+   */
+  function liestVorrat(wappenId, art) {
+    const w = WAPPEN[wappenId];
+    if (!w) return false;
+    const name = VORRAT_ARTEN[art].name.toLowerCase();
+    const stamm = name.slice(0, Math.min(6, name.length));
+    return (w.text + ' ' + (w.hinweis || '')).toLowerCase().includes(stamm);
+  }
+
+  const BEGRIFF_LISTE = Object.keys(BEGRIFFE);
+
+  /** @param {string} id */
+  function begriff(id) { return BEGRIFFE[id] || null; }
+
+  /**
+   * Was ein Begriff GERADE bedeutet - oder null, wenn er hier nichts zu sagen
+   * hat (kein Kampf, kein Feldzug, kein Vorrat).
+   * @param {string} id
+   */
+  function begriffJetzt(id) {
+    const b = BEGRIFFE[id];
+    if (!b || !b.jetzt) return null;
+    try { return b.jetzt(); } catch (e) { return null; }
+  }
+
+  /** Alle Begriffe eines Kapitels - fuer das Kriegsbuch. */
+  function kapitelBegriffe(kapitel) {
+    return BEGRIFF_LISTE.filter(id => BEGRIFFE[id].kapitel === kapitel).map(id => BEGRIFFE[id]);
+  }
+
+  /** Was gerade an Vorraeten dasteht, mit Erklaerung - fuer die Leiste. */
+  function vorratsBegriffe() {
+    return sichtbarerVorrat().map(v => ({ ...v, begriff: BEGRIFFE[v.id] || null }));
+  }
+
   /*
    * Der Kern von aussen: dieselbe Flaeche, die `quelle/kern.js` hergibt. Sie wird
    * beim Bauen aus dem Dach abgeleitet und kann deshalb nicht davon abweichen.
    */
   if (typeof window !== 'undefined') {
     window.PARAPEX = {
-      ABSCHNITTE, ANTEN, BEDROHUNG_MAX, BEGEGNUNGEN, BOSSREGELN, BOSSREGEL_LISTE,
-      DIENSTE, DIVISIONEN, EINHEITEN_POOL, EREIGNIS, EREIGNIS_LISTE, FAMILIEN_ZEICHEN,
-      FEIND_STAERKE, FORMATIONEN, FORMATIONS_FAMILIEN, GATTUNGEN, GATTUNG_LISTE,
-      GRENZEN, HEERFUEHRER, JE_ANTE, JE_BEDROHUNG, KAEMPFE_MAX, KAEMPFE_MIN, KERN,
-      KOENIGSRAENGE, LAGER_FOLGE, LAGER_PREISE, LAUF, PLAETZE, RANG_NAMEN, ROTER_KOENIG_AB,
-      SCHLACHT_ARTEN, SELTENHEITEN, SPERRE, STAND_FASSUNG, START_DECK, TURMTYPEN,
-      TURM_START, VORHUTEN, VORRAT_ARTEN, WAPPEN, WAPPEN_ANGEBOT, WAPPEN_LISTE,
-      WAPPEN_PLAETZE, WAPPEN_REGISTER, ZUENDART, abgewiesene, abweisungen, angebotKarte,
-      angebotWappen, aufAllem, baueBelohnung, baueBlatt, baueFeind, baueHeerfuehrer,
-      baueRegeln, baueTurmAus, beendeRunde, beginneSchlacht, belagerungslage, berechneWucht,
-      beschreibeStand, bestand, bewerteWappen, bonusWucht, darfDurchlassen, get
-      dasBand() { return dasBand; }, get dasLager() { return dasLager; }, get derKampf()
-      { return derKampf; }, get derLauf() { return derLauf; }, get derVorrat()
-      { return derVorrat; }, dieAnte, get dieBelagerung() { return dieBelagerung;
-      }, dienstOffen, entferneKarte, entsiegle, erkenneFormationen, fasseZusammen,
-      feindStaerke, formationsSalven, frischerKampfvorrat, fuegeWappenHinzu, grundwucht,
-      kaempfeNochHoechstens, kaempfeNochMindestens, kampfNrJetzt, kasse, kaufe,
-      kopiere, ladeBelagerung, ladeFeldzug, lagerAngebote, lautesterPlatz, lege,
-      loeseAus, meldeAusgang, meldeWappen, mitReihe, naechsteAnte, neueBelagerung,
-      neueEinheit, neuerKampf, neuerLauf, neuerVorrat, neuesBand, nimmAngebot,
-      nimmLagerangebot, oeffneHaendler, oeffneLager, offeneWahlen, ordneWappen,
-      raeumeBand, raeumeBelagerung, raeumeKampf, raeumeLager, reicht, reihe, salvenZahl,
-      schleifeKarte, setzeEinheit, setzeLauf, setzeRunde, sichereBelagerung, sichereFeldzug,
-      sichtbarerVorrat, siegelePlatz, tauschKosten, tauschKostenFuer, tauscheHandkarte,
-      tauscheHandkarten, turmFaktor, verbessereEinheit, verschiebePlatz, vertauschePlaetze,
-      vorschau, waehle, waehleInBegegnung, wappenNach, werteKampfAus, wirkwucht,
-      zehre, ziehBegegnung, ziehe, zieheAuf, zuendeErneut,
+      ABSCHNITTE, ANTEN, BEDROHUNGSSTUFEN, BEDROHUNG_MAX, BEGEGNUNGEN, BEGRIFFE,
+      BEGRIFF_LISTE, BOSSREGELN, BOSSREGEL_LISTE, DIENSTE, DIVISIONEN, EINHEITEN_POOL,
+      EREIGNIS, EREIGNIS_LISTE, FAMILIEN_ZEICHEN, FEIND_STAERKE, FORMATIONEN, FORMATIONS_FAMILIEN,
+      GATTUNGEN, GATTUNG_LISTE, GRENZEN, HEERFUEHRER, JE_ANTE, JE_BEDROHUNG, KAEMPFE_MAX,
+      KAEMPFE_MIN, KAPITEL, KERN, KOENIGSRAENGE, LAGER_FOLGE, LAGER_PREISE, LAUF,
+      PLAETZE, RANG_NAMEN, ROTER_KOENIG_AB, SCHLACHT_ARTEN, SELTENHEITEN, SPERRE,
+      STAND_FASSUNG, START_DECK, TURMTYPEN, TURM_START, VORBEREITUNGSPOSTEN, VORHUTEN,
+      VORRAT_ARTEN, WAPPEN, WAPPEN_ANGEBOT, WAPPEN_LISTE, WAPPEN_PLAETZE, WAPPEN_REGISTER,
+      ZUENDART, abgewiesene, abweisungen, angebotKarte, angebotWappen, aufAllem,
+      baueBelohnung, baueBlatt, baueFeind, baueHeerfuehrer, baueRegeln, baueTurmAus,
+      bedrohungsRegeln, bedrohungsstufe, beendeRunde, beginneSchlacht, begriff,
+      begriffJetzt, belagerungslage, berechneWucht, beschreibeStand, bestand, bewerteWappen,
+      bonusWucht, darfDurchlassen, get dasBand() { return dasBand; }, get dasLager()
+      { return dasLager; }, get derKampf() { return derKampf; }, get derLauf()
+      { return derLauf; }, get derVorrat() { return derVorrat; }, dieAnte, get
+      dieBelagerung() { return dieBelagerung; }, dienstOffen, entferneKarte, entsiegle,
+      erkenneFormationen, fasseZusammen, feindStaerke, folgenDerWahl, formationsSalven,
+      frischerKampfvorrat, fuegeWappenHinzu, grundwucht, heerfuehrerRegeln, heerfuehrerStaerke,
+      kaempfeNochHoechstens, kaempfeNochMindestens, kampfNrJetzt, kapitelBegriffe,
+      kasse, kaufe, kopiere, ladeBelagerung, ladeFeldzug, lagerAngebote, lautesterPlatz,
+      lege, liestVorrat, loeseAus, meldeAusgang, meldeWappen, mitReihe, naechsteAnte,
+      neueBelagerung, neueEinheit, neuerKampf, neuerLauf, neuerVorrat, neuesBand,
+      nimmAngebot, nimmLagerangebot, oeffneHaendler, oeffneLager, offeneWahlen,
+      ordneWappen, raeumeBand, raeumeBelagerung, raeumeKampf, raeumeLager, reicht,
+      reihe, salvenZahl, schleifeKarte, setzeEinheit, setzeLauf, setzeRunde, sichereBelagerung,
+      sichereFeldzug, sichtbarerVorrat, siegelePlatz, tauschKosten, tauschKostenFuer,
+      tauscheHandkarte, tauscheHandkarten, turmFaktor, verbessereEinheit, verschiebePlatz,
+      vertauschePlaetze, vorbereitungslage, vorratsBegriffe, vorschau, waehle,
+      waehleInBegegnung, wappenNach, werteKampfAus, wirkwucht, zehre, ziehBegegnung,
+      ziehe, zieheAuf, zuendeErneut,
       kampf: () => derKampf,
       lauf: () => derLauf,
       ueberlauf: () => abgewiesene(),
@@ -12491,6 +13048,130 @@ function pkVerbergHinweis() {
   pkHinweisEl = null;
 }
 
+/* ============================================================
+ *  E R K L A E R E N :   B E G R I F F E   U N D   K R I E G S B U C H
+ * ============================================================
+ *
+ * Kein Spieler soll eine Zahl sehen, deren Bedeutung er sich merken muss.
+ * `BEDROHUNG 3` ist keine Auskunft. Jeder wichtige Begriff wird deshalb im
+ * Text markiert und traegt drei Stufen bei sich:
+ *
+ *   was es IST      ein Satz
+ *   was es BEDEUTET drei bis vier Zeilen (im Kriegsbuch)
+ *   was es JETZT    der Wert BEI DIESEM SPIELER, samt Folge und naechster
+ *   heisst          Schwelle
+ *
+ * Die dritte Stufe ist die, die den Unterschied macht - und sie kommt aus
+ * dem Kern (`quelle/kern/begriffe.js`), nicht von hier. Die Oberflaeche malt,
+ * sie rechnet nicht nach.
+ */
+
+/** Ein Begriff im Fliesstext: markiert, anfassbar, mit einem kleinen Zeichen. */
+function pkBegriffHtml(id, text) {
+  const b = begriff(id);
+  if (!b) return text || id;
+  return '<span class="pk-begriff" data-begriff="' + id + '" tabindex="0" role="button">'
+    + (text === undefined ? b.name : text) + '<i>ⓘ</i></span>';
+}
+
+/** Was beim Ueberfahren eines Begriffs steht - die drei Stufen untereinander. */
+function pkBegriffHinweis(id) {
+  const b = begriff(id);
+  if (!b) return null;
+  const j = begriffJetzt(id);
+  const teile = ['<span class="pk-h-satz">' + b.satz + '</span>'];
+  if (j) {
+    teile.push('<span class="pk-h-block"><em>Jetzt' + (j.titel ? ' — ' + j.titel : '') + '</em>'
+      + (j.zeilen || []).map(z => '<span>' + z + '</span>').join('') + '</span>');
+    if (j.naechste) {
+      teile.push('<span class="pk-h-block naechste"><em>' + j.naechste.titel + '</em>'
+        + (j.naechste.zeilen || []).map(z => '<span>' + z + '</span>').join('') + '</span>');
+    }
+  }
+  return {
+    titel: b.name + (j && j.wert ? '  ·  ' + j.wert : ''),
+    text: teile.join(''),
+    fuss: 'Klicken für das Kriegsbuch',
+  };
+}
+
+/** Alle markierten Begriffe in einem Teilbaum anschliessen. */
+function pkBegriffeBinden(wurzel) {
+  if (!wurzel) return;
+  for (const el of wurzel.querySelectorAll('.pk-begriff[data-begriff]')) {
+    if (el.dataset.gebunden) continue;
+    el.dataset.gebunden = '1';
+    const id = el.dataset.begriff;
+    pkHefteHinweis(el, () => pkBegriffHinweis(id));
+    // Tastatur und Beruehrung: der Hinweis geht auch ohne Maus auf.
+    el.addEventListener('focus', () => pkZeigeHinweis(el, pkBegriffHinweis(id)));
+    el.addEventListener('blur', pkVerbergHinweis);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pkVerbergHinweis();
+      pkZeigeKriegsbuch(begriff(id) ? begriff(id).kapitel : 'kampf', id);
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      el.click();
+    });
+  }
+}
+
+/*
+ * Das Kriegsbuch. KEIN Nachschlagewerk - vier Kapitel, ein Eintrag je Begriff,
+ * und in jedem Eintrag steht, was er GERADE bedeutet. Wer hier landet, hat
+ * eine Frage; er soll sie beantwortet bekommen und weiterspielen, nicht lesen.
+ */
+let pkBuchKapitel = 'kampf';
+function pkZeigeKriegsbuch(kapitel, hervor, zurueck) {
+  pkBuchKapitel = kapitel || pkBuchKapitel;
+  // Vor dem ersten `pkTafel` merken, wohin zurueck - danach steht dort das Buch.
+  const heim = zurueck !== undefined ? zurueck : pkTafelNeu;
+  const zeichne = () => {
+    const eintraege = kapitelBegriffe(pkBuchKapitel).map(b => {
+      const j = begriffJetzt(b.id);
+      return '<div class="pk-buch-eintrag' + (b.id === hervor ? ' hervor' : '') + '">' +
+        '<div class="pk-buch-kopf"><b>' + (b.zeichen ? b.zeichen + ' ' : '') + b.name + '</b>' +
+          (j && j.wert ? '<span class="pk-buch-wert">' + j.wert + '</span>' : '') + '</div>' +
+        '<p class="pk-buch-satz">' + b.satz + '</p>' +
+        '<p class="pk-buch-lang">' + b.lang + '</p>' +
+        (j && j.zeilen && j.zeilen.length
+          ? '<div class="pk-buch-jetzt"><em>Jetzt' + (j.titel ? ' — ' + j.titel : '') + '</em>'
+            + j.zeilen.map(z => '<span>' + z + '</span>').join('') + '</div>'
+          : '') +
+        '</div>';
+    }).join('');
+
+    const reiter = Object.values(KAPITEL).map(k =>
+      '<button class="pk-buch-reiter' + (k.id === pkBuchKapitel ? ' an' : '') +
+      '" data-kapitel="' + k.id + '">' + k.zeichen + ' ' + k.name + '</button>').join('');
+
+    const t = pkTafel(
+      '<h2>Kriegsbuch</h2>' +
+      '<p class="pk-vor">Das Feldbuch eines Kommandanten. Was hier steht, gilt für '
+        + 'deinen Feldzug — nicht für irgendeinen.</p>' +
+      '<div class="pk-buch-reiter-reihe">' + reiter + '</div>' +
+      '<div class="pk-buch">' + eintraege + '</div>' +
+      '<div class="pk-tafel-fuss">' +
+        '<button class="pk-knopf haupt" id="pk-zurueck">Zurück</button>' +
+      '</div>', { breit: true, neu: zeichne });
+    t.querySelectorAll('.pk-buch-reiter').forEach(el => el.addEventListener('click', () => {
+      pkBuchKapitel = el.dataset.kapitel;
+      hervor = null;
+      zeichne();
+    }));
+    t.querySelector('#pk-zurueck').addEventListener('click', () => {
+      pkRaeumeTafel();
+      if (heim) heim();
+    });
+    const hoch = t.querySelector('.pk-buch-eintrag.hervor');
+    if (hoch) hoch.scrollIntoView({ block: 'center' });
+  };
+  zeichne();
+}
+
 // ---------- Formationen und Vorschau ----------
 /*
  * Die Leiste zeigt drei Dinge zugleich: was gilt, was DURCH DEN ZUG DAZUKAEME
@@ -14225,6 +14906,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 #pk .pk-schritt b { color: #f3d283; }
 #pk .pk-schritt.ende { border-bottom: none; font-size: 15px; font-weight: 700; padding-top: 7px; }
 #pk .pk-tafel-inhalt.breit { width: min(860px, 94vw); }
+#pk .pk-tafel-inhalt:has(.pk-feldbuch) { max-height: 96vh; }
 #pk .pk-tafel p.pk-vor { color: #c9b998; font-size: 13px; line-height: 1.5; margin: 0 0 14px; }
 #pk .pk-angebote { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 4px 0 14px; }
 #pk .pk-angebot { width: 210px; border: 2px solid #4a3a22; border-radius: 6px; cursor: pointer;
@@ -14297,7 +14979,335 @@ html, body { max-width: 100%; overflow-x: hidden; }
 #pk .pk-angebote.pk-lagewahlen .pk-siegel { width: 38px; height: 38px; font-size: 18px; }
 #pk .pk-angebote.pk-lagewahlen .pk-angebot-name { font-size: 12.5px; }
 #pk .pk-weg.pk-bedrohung i.hier { background: #c4483c; }
-#pk .pk-vorbereitung b { color: #f3d283; }
+#pk .pk-kopf-begriff { display: inline-flex; align-items: baseline; gap: 4px; }
+#pk .pk-kopf-begriff b { color: #f3d283; }
+
+/* ============================================================
+ *  D A S   F E L D B U C H :   P E R G A M E N T   U N D   T I N T E
+ * ============================================================
+ *
+ * Die Belagerungskarte ist die einzige Flaeche im ganzen Spiel, die HELL ist.
+ * Das ist Absicht und keine Laune: alles andere ist Nacht auf einer Burg,
+ * dies hier ist eine Seite bei Kerzenlicht. Der Bruch markiert den Wechsel
+ * von HANDELN zu PLANEN - man merkt am Licht, dass man jetzt nachdenkt.
+ *
+ * Geschrieben wird in einer Serifenschrift. Die Pixelschrift des Spiels waere
+ * hier falsch: ein Feldbuch ist mit der Hand geschrieben, nicht gerastert.
+ */
+#pk .pk-feldbuch {
+  --tinte: #2e2418;
+  --tinte-blass: #6a5a42;
+  --tinte-rot: #8a2a20;
+  --tinte-gruen: #3f5a2a;
+  --pergament: #e6d8b8;
+  font-family: Georgia, "Times New Roman", "Iowan Old Style", serif;
+  color: var(--tinte);
+  margin: -14px -16px -16px;
+  padding: 15px 26px 17px;
+  border-radius: 6px;
+  background:
+    radial-gradient(ellipse 60% 40% at 18% 12%, rgba(160,124,68,0.16), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 88% 78%, rgba(120,88,44,0.2), transparent 70%),
+    radial-gradient(ellipse 30% 22% at 72% 20%, rgba(150,110,60,0.14), transparent 70%),
+    linear-gradient(176deg, #ece0c2, #dfd0ac 55%, #d3c29c);
+  box-shadow: inset 0 0 40px rgba(110,80,40,0.28), inset 0 0 0 1px rgba(90,66,34,0.35);
+}
+/* Die Fasern des Papiers - eine Spur, mehr nicht. */
+#pk .pk-feldbuch::before {
+  content: ''; position: absolute; inset: 0; border-radius: 6px; pointer-events: none;
+  opacity: 0.09; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23f)'/%3E%3C/svg%3E");
+}
+#pk .pk-feldbuch > * { position: relative; }
+
+#pk .pk-fb-kopf { text-align: center; margin-bottom: 11px;
+  border-bottom: 1px solid rgba(90,66,34,0.3); padding-bottom: 8px; }
+#pk .pk-feldbuch h2 { font-family: inherit; font-size: 24px; font-weight: 400; font-style: italic;
+  letter-spacing: 0.04em; color: var(--tinte); text-shadow: none; margin: 0; }
+#pk .pk-feldbuch h3 { font-family: inherit; font-size: 11.5px; font-weight: 400;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--tinte-blass);
+  margin: 0 0 6px; text-align: center; }
+#pk .pk-fb-text { margin: 3px 0 0; font-size: 13px; font-style: italic; color: var(--tinte-blass); }
+#pk .pk-fb-mitte { display: grid; grid-template-columns: minmax(0, 1fr) 244px; gap: 18px;
+  align-items: start; }
+#pk .pk-fb-karte { min-width: 0; }
+#pk .pk-fb-regel { margin: 6px 0 0; font-size: 12.5px; font-style: italic; text-align: center;
+  color: var(--tinte-blass); line-height: 1.5; }
+#pk .pk-feldbuch .pk-begriff { border-bottom-color: rgba(46,36,24,0.45); }
+#pk .pk-feldbuch .pk-begriff:hover, #pk .pk-feldbuch .pk-begriff:focus-visible {
+  color: var(--tinte-rot); }
+
+/* ---------- Die gezeichnete Karte ---------- */
+#pk .pk-skizze { width: 100%; height: auto; max-height: min(35vh, 328px); display: block; }
+#pk .pk-skizze .fp-linie { fill: none; stroke: var(--tinte); stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round; }
+#pk .pk-skizze .fp-linie-fuell { fill: var(--tinte); }
+#pk .pk-skizze .fp-flaeche { fill: rgba(70,54,32,0.09); stroke: var(--tinte); stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round; }
+#pk .pk-skizze .fp-tuch { fill: rgba(138,42,32,0.18); stroke: var(--tinte); stroke-width: 1.4;
+  stroke-linejoin: round; }
+#pk .pk-skizze .fp-schraffur { fill: none; stroke: rgba(46,36,24,0.34); stroke-width: 0.9; }
+#pk .pk-skizze .fp-strich { fill: none; stroke: var(--tinte-rot); stroke-width: 2.6;
+  stroke-linecap: round; }
+#pk .pk-skizze .fp-glut { fill: rgba(170,70,20,0.35); stroke: var(--tinte-rot); stroke-width: 1.2; }
+#pk .pk-skizze .fp-rauch { fill: none; stroke: rgba(46,36,24,0.4); stroke-width: 1.1;
+  stroke-linecap: round; }
+#pk .pk-skizze .fp-boden { fill: none; stroke: var(--tinte); stroke-width: 2.2; stroke-linecap: round; }
+#pk .pk-skizze .fp-tor { fill: rgba(46,36,24,0.55); stroke: var(--tinte); stroke-width: 1.1; }
+#pk .pk-skizze .fp-zeichen { font-size: 11px; fill: var(--tinte); }
+#pk .pk-skizze .fp-name { font-family: Georgia, serif; font-size: 11.5px; font-style: italic;
+  fill: var(--tinte); text-anchor: middle; }
+#pk .pk-skizze .fp-name.links { text-anchor: start; }
+#pk .pk-skizze .fp-name.gross { font-size: 14px; font-style: normal; letter-spacing: 0.06em; }
+#pk .pk-skizze .fp-name.klein { font-size: 10px; fill: var(--tinte-rot); }
+#pk .pk-skizze .fp-band { font-family: Georgia, serif; font-size: 9.5px; letter-spacing: 0.3em;
+  fill: var(--tinte-blass); text-anchor: middle; }
+#pk .pk-skizze .fp-banner.fuehrer .fp-tuch { fill: rgba(138,42,32,0.42); stroke-width: 1.8; }
+#pk .pk-skizze .fp-banner.durch .fp-tuch { fill: rgba(138,42,32,0.3); }
+#pk .pk-skizze .fp-geschlagen { opacity: 0.4; }
+#pk .pk-skizze .fp-banner.geschlagen .fp-tuch { fill: none; }
+/* Ein Banner, das gerade zum Heerführer gewandert ist, kommt von unten. */
+@keyframes fp-wandern {
+  from { transform: translateY(96px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+#pk .pk-skizze .fp-gewandert[data-neu] { animation: fp-wandern .55s cubic-bezier(.3,.9,.4,1) both; }
+
+/* ---------- Das Bildnis ---------- */
+#pk .pk-portrait { margin: 0 0 8px; position: relative; text-align: center; }
+#pk .pk-portrait svg { display: block; margin: 0 auto;
+  background: radial-gradient(ellipse 70% 60% at 50% 42%, rgba(255,250,235,0.75), rgba(214,196,158,0.3));
+  border: 1px solid rgba(90,66,34,0.45); border-radius: 3px;
+  box-shadow: 0 2px 7px rgba(60,44,22,0.25), inset 0 0 22px rgba(120,92,50,0.2); }
+#pk .pk-portrait .fp-flaeche { fill: rgba(80,62,38,0.1); stroke: #2e2418; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round; }
+#pk .pk-portrait .fp-linie { fill: none; stroke: #2e2418; stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round; }
+#pk .pk-portrait .fp-linie-fuell { fill: #2e2418; }
+#pk .pk-portrait .fp-dunkel { fill: #2e2418; }
+#pk .pk-portrait .fp-punkte circle { fill: rgba(46,36,24,0.72); }
+#pk .pk-portrait .fp-schraffur { fill: none; stroke: rgba(46,36,24,0.32); stroke-width: 0.8; }
+#pk .pk-portrait .fp-hintergrund .fp-schraffur { stroke: rgba(46,36,24,0.14); }
+#pk .pk-portrait .fp-flaeche.hell { fill: rgba(255,250,236,0.55); }
+#pk .pk-portrait .fp-ringe circle { fill: rgba(46,36,24,0.3); }
+#pk .pk-portrait .fp-linie.dick { stroke-width: 2.2; }
+#pk .pk-portrait .fp-haar { fill: none; stroke: rgba(46,36,24,0.5); stroke-width: 1.1;
+  stroke-linecap: round; }
+#pk .pk-portrait .fp-fehlt { font-family: Georgia, serif; font-size: 11px; font-style: italic;
+  fill: rgba(46,36,24,0.55); text-anchor: middle; }
+#pk .pk-portrait figcaption { margin-top: 5px; }
+#pk .pk-portrait figcaption b { display: block; font-size: 14.5px; letter-spacing: 0.04em; }
+#pk .pk-portrait figcaption span { display: block; font-size: 11.5px; font-style: italic;
+  color: var(--tinte-blass); font-variant-numeric: tabular-nums; }
+/* Ein Siegel aus Wachs in der Ecke - die Marke des Heeres. */
+#pk .pk-siegel-wachs { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px;
+  border-radius: 50%; background: radial-gradient(circle at 35% 32%, #b8462f, #6d2015 70%, #571810);
+  box-shadow: 0 1px 3px rgba(40,20,10,0.5); opacity: 0.85; }
+
+/* ---------- Der finale Sturm ---------- */
+#pk .pk-sturm { border-left: 1px solid rgba(90,66,34,0.32); padding-left: 16px; }
+#pk .pk-sturm-regeln { display: flex; flex-direction: column; gap: 6px; margin-top: 3px; }
+#pk .pk-sturm-regel { border-top: 1px solid rgba(90,66,34,0.22); padding-top: 6px; }
+#pk .pk-sturm-regel b { display: block; font-size: 12.5px; color: var(--tinte-rot); }
+#pk .pk-sturm-regel span { display: block; font-size: 11.5px; line-height: 1.4; }
+#pk .pk-sturm-regel i { display: block; font-size: 10.5px; color: var(--tinte-blass); margin-top: 2px; }
+
+/* ---------- Die Lage: zwei Felder, gleich gelesen ---------- */
+#pk .pk-fb-lage { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 10px; }
+#pk .pk-lage-feld { display: flex; gap: 12px; align-items: flex-start;
+  padding: 6px 12px 7px; border: 1px solid rgba(90,66,34,0.3); border-radius: 3px;
+  background: linear-gradient(180deg, rgba(255,250,236,0.45), rgba(224,208,174,0.24)); }
+#pk .pk-lage-feld.bedrohung { border-left: 3px solid var(--tinte-rot); }
+#pk .pk-lage-feld.vorbereitung { border-left: 3px solid var(--tinte-gruen); }
+#pk .pk-lage-wert { flex: 0 0 auto; min-width: 42px; text-align: center;
+  font-size: 27px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+#pk .pk-lage-wert small { font-size: 13px; color: var(--tinte-blass); }
+#pk .pk-lage-text { min-width: 0; text-align: left; }
+#pk .pk-lage-text em { display: block; font-style: normal; font-size: 9px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--tinte-blass); }
+#pk .pk-lage-text b { display: block; font-size: 12.5px; font-weight: 400; font-style: italic; }
+#pk .pk-lage-text > span { display: block; font-size: 11.5px; line-height: 1.35; }
+#pk .pk-lage-text i { display: block; font-size: 11px; line-height: 1.3; margin-top: 2px; }
+#pk .pk-lage-feld.bedrohung i { color: var(--tinte-rot); }
+#pk .pk-lage-feld.vorbereitung i { color: var(--tinte-gruen); }
+
+/* ---------- Die Wahlkarten ---------- */
+#pk .pk-fb-wahl { margin-top: 10px; border-top: 1px solid rgba(90,66,34,0.3); padding-top: 9px; }
+#pk .pk-wahlkarten { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+#pk .pk-wahlkarte { font: inherit; font-family: Georgia, serif; color: var(--tinte);
+  text-align: left; cursor: pointer; width: 268px; padding: 9px 12px 11px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: linear-gradient(180deg, rgba(255,250,236,0.5), rgba(224,208,174,0.35));
+  border: 1px solid rgba(90,66,34,0.45); border-radius: 3px;
+  box-shadow: 0 2px 0 rgba(90,66,34,0.18);
+  transition: transform .12s, box-shadow .12s, border-color .12s; }
+#pk .pk-wahlkarte:hover:not(:disabled) { transform: translateY(-3px);
+  border-color: var(--tinte-rot); box-shadow: 0 5px 10px rgba(60,44,22,0.22); }
+#pk .pk-wahlkarte:disabled { opacity: 0.45; cursor: not-allowed; }
+#pk .pk-wahlkarte.kampf { border-left: 3px solid var(--tinte-rot); }
+#pk .pk-wahlkarte.durch { border-left: 3px solid rgba(90,66,34,0.5); }
+#pk .pk-wk-kopf { display: flex; align-items: center; gap: 7px; }
+#pk .pk-wk-kopf i { font-style: normal; font-size: 17px; }
+#pk .pk-wk-kopf b { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--tinte-blass); }
+#pk .pk-wk-name { font-size: 15px; font-style: italic; }
+#pk .pk-wk-text { font-size: 11.5px; color: var(--tinte-blass); line-height: 1.35; }
+#pk .pk-wk-block { display: block; margin-top: 3px; padding-top: 4px;
+  border-top: 1px dashed rgba(90,66,34,0.3); font-size: 11.5px; line-height: 1.38; }
+#pk .pk-wk-block em { display: block; font-style: normal; font-size: 9px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--tinte-blass); margin-bottom: 2px; }
+#pk .pk-wk-block span { display: block; }
+#pk .pk-wk-block.kostet em { color: var(--tinte-rot); }
+#pk .pk-wk-block.danach { border-top-style: solid; border-top-color: rgba(138,42,32,0.35); }
+#pk .pk-wk-block .schlimm { color: var(--tinte-rot); }
+#pk .pk-wk-block .gut { color: var(--tinte-gruen); }
+#pk .pk-wk-sperre { font-size: 11px; font-style: italic; color: var(--tinte-rot); margin-top: 4px; }
+
+/* ---------- Die Musterrolle: eine Zeile je Truppe ---------- */
+#pk .pk-musterrolle { display: flex; flex-direction: column; gap: 5px; }
+#pk .pk-mr-kopf, #pk .pk-mr-reihe { display: grid; gap: 8px;
+  grid-template-columns: minmax(0, 168px) minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+#pk .pk-mr-kopf b { font-size: 10px; font-weight: 400; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--tinte-blass); padding-left: 10px; }
+#pk .pk-mr-kopf b.kampf { color: var(--tinte-rot); }
+#pk .pk-mr-wer { display: flex; flex-direction: column; justify-content: center;
+  padding: 5px 8px 5px 0; border-right: 1px solid rgba(90,66,34,0.28); text-align: left; }
+#pk .pk-mr-wer i { font-style: normal; font-size: 15px; line-height: 1; }
+#pk .pk-mr-wer b { font-size: 13.5px; font-weight: 400; font-style: italic; }
+#pk .pk-mr-wer span { font-size: 10.5px; line-height: 1.3; color: var(--tinte-blass); }
+#pk .pk-mr-wahl { font: inherit; font-family: Georgia, serif; color: var(--tinte);
+  text-align: left; cursor: pointer; padding: 6px 9px 7px;
+  display: flex; flex-direction: column; gap: 3px;
+  background: linear-gradient(180deg, rgba(255,250,236,0.45), rgba(224,208,174,0.3));
+  border: 1px solid rgba(90,66,34,0.4); border-radius: 3px;
+  transition: transform .1s, border-color .1s, box-shadow .1s; }
+#pk .pk-mr-wahl.kampf { border-left: 3px solid var(--tinte-rot); }
+#pk .pk-mr-wahl.durch { border-left: 3px solid rgba(90,66,34,0.5); }
+#pk .pk-mr-wahl:hover:not(:disabled) { transform: translateY(-2px);
+  border-color: var(--tinte-rot); box-shadow: 0 3px 7px rgba(60,44,22,0.2); }
+#pk .pk-mr-wahl:disabled { opacity: 0.42; cursor: not-allowed; }
+#pk .pk-mr-folgen span, #pk .pk-mr-danach span { display: block; font-size: 11px; line-height: 1.32; }
+#pk .pk-mr-danach { display: block; margin-top: 2px; padding-top: 4px;
+  border-top: 1px dashed rgba(90,66,34,0.32); }
+#pk .pk-mr-folgen .gut { color: var(--tinte); }
+#pk .pk-mr-folgen .schlimm { color: var(--tinte-rot); }
+#pk .pk-mr-danach .schlimm { color: var(--tinte-rot); }
+#pk .pk-mr-danach .gut { color: var(--tinte-gruen); }
+#pk .pk-mr-sperre { font-size: 10.5px; font-style: italic; color: var(--tinte-rot); }
+#pk .pk-feldbuch .pk-tafel-fuss { margin-top: 8px; }
+#pk .pk-feldbuch .pk-knopf { font-family: Georgia, serif; }
+
+/*
+ * KURZE SCHIRME.
+ *
+ * Diese Seite ist die dichteste des Spiels, und Bildschirme sind
+ * unterschiedlich hoch. Statt einer Bruchkante gibt es zwei Stufen: erst gibt
+ * die Karte Platz ab, dann das Bildnis und die Randbemerkungen. Weggelassen
+ * wird nie etwas, was zum Entscheiden gebraucht wird - lieber wird gerollt.
+ */
+@media (max-height: 960px) {
+  #pk .pk-feldbuch { padding: 12px 24px 14px; }
+  #pk .pk-feldbuch h2 { font-size: 22px; }
+  #pk .pk-fb-kopf { margin-bottom: 9px; padding-bottom: 7px; }
+  #pk .pk-fb-text { font-size: 12.5px; }
+  #pk .pk-feldbuch .pk-skizze { max-height: min(26vh, 250px); }
+  #pk .pk-feldbuch.viele .pk-skizze { max-height: min(21vh, 200px); }
+  #pk .pk-feldbuch .pk-portrait svg { width: 100px; height: 136px; }
+  #pk .pk-feldbuch.viele .pk-portrait svg { width: 84px; height: 114px; }
+  #pk .pk-feldbuch.viele .pk-musterrolle { gap: 4px; }
+  #pk .pk-feldbuch.viele .pk-mr-wahl { padding: 5px 8px 6px; }
+  #pk .pk-lage-wert { font-size: 23px; min-width: 38px; }
+  #pk .pk-lage-text > span, #pk .pk-lage-text i { font-size: 11px; }
+  #pk .pk-wahlkarte { padding: 8px 11px 9px; }
+  #pk .pk-wk-text { line-height: 1.3; }
+  #pk .pk-wk-block { line-height: 1.32; }
+}
+@media (max-height: 820px) {
+  #pk .pk-feldbuch { padding: 10px 20px 12px; }
+  #pk .pk-feldbuch h2 { font-size: 20px; }
+  #pk .pk-feldbuch .pk-skizze,
+  #pk .pk-feldbuch.viele .pk-skizze { max-height: 22vh; }
+  #pk .pk-feldbuch .pk-portrait svg,
+  #pk .pk-feldbuch.viele .pk-portrait svg { width: 82px; height: 111px; }
+  #pk .pk-lage-wert { font-size: 21px; }
+  #pk .pk-lage-text b { font-size: 12px; }
+  #pk .pk-wk-text, #pk .pk-wk-block { font-size: 11px; }
+  #pk .pk-portrait figcaption b { font-size: 13px; }
+  #pk .pk-sturm-regel i { display: none; }
+  #pk .pk-mr-wahl { padding: 5px 8px 6px; }
+  #pk .pk-mr-folgen span, #pk .pk-mr-danach span { font-size: 10.5px; }
+}
+
+/* ---------- Der Zettel am Rand ---------- */
+/*
+ * Eine Notiz, wie sie jemand an den Rand einer Seite klebt. Sie erscheint
+ * einmal, wenn eine Sache zum ersten Mal ansteht, und verschwindet von selbst.
+ */
+#pk .pk-zettel { position: absolute; right: 16px; bottom: 62px;
+  max-width: 330px; z-index: 45; display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 12px 11px 14px; border-radius: 2px;
+  font-family: Georgia, serif; font-size: 12.5px; line-height: 1.5; color: #2e2418;
+  background: linear-gradient(176deg, #f0e4c6, #ddcca4);
+  border: 1px solid rgba(90,66,34,0.5); border-left: 3px solid #8a2a20;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+  animation: pk-zettel-an .4s cubic-bezier(.2,1.2,.4,1) both; }
+@keyframes pk-zettel-an {
+  from { opacity: 0; transform: translateY(14px) rotate(-1.5deg); }
+  to   { opacity: 1; transform: rotate(-0.6deg); }
+}
+#pk .pk-zettel button { font: inherit; font-size: 13px; line-height: 1; cursor: pointer;
+  background: none; border: none; color: rgba(46,36,24,0.55); padding: 0 2px; }
+#pk .pk-zettel button:hover { color: #8a2a20; }
+
+/* ---------- Begriffe: anfassbare Erklärungen ---------- */
+/*
+ * Eine gepunktete Linie und ein kleines Zeichen. Mehr braucht es nicht -
+ * und mehr waere schaedlich: ein Begriff, der im Satz aufblinkt, zieht die
+ * Aufmerksamkeit auf das Wort statt auf die Sache.
+ */
+#pk .pk-begriff { border-bottom: 1px dotted currentColor; cursor: help;
+  white-space: nowrap; }
+#pk .pk-begriff i { font-style: normal; font-size: 0.78em; opacity: 0.55;
+  margin-left: 2px; vertical-align: 0.25em; }
+#pk .pk-begriff:hover, #pk .pk-begriff:focus-visible { color: var(--gold, #e8c464); outline: none; }
+#pk .pk-begriff:hover i, #pk .pk-begriff:focus-visible i { opacity: 1; }
+
+/* Der Hinweis dazu: drei Stufen untereinander, jede abgesetzt. */
+#pk .pk-hinweis .pk-h-satz { display: block; margin-bottom: 6px; }
+#pk .pk-hinweis .pk-h-block { display: block; margin-top: 7px; padding-top: 6px;
+  border-top: 1px solid rgba(255,235,190,0.14); }
+#pk .pk-hinweis .pk-h-block em { display: block; font-style: normal; font-size: 9.5px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: #a8977a; margin-bottom: 3px; }
+#pk .pk-hinweis .pk-h-block span { display: block; }
+#pk .pk-hinweis .pk-h-block.naechste em { color: #d08a72; }
+#pk .pk-hinweis .pk-h-block.naechste span { color: #e0b9a4; }
+
+/* ---------- Das Kriegsbuch ---------- */
+#pk .pk-buch-reiter-reihe { display: flex; gap: 5px; justify-content: center; margin: 2px 0 12px;
+  flex-wrap: wrap; }
+#pk .pk-buch-reiter { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+  padding: 5px 12px; border-radius: 4px; color: #c9b998;
+  background: linear-gradient(180deg, #322920, #221b14); border: 1px solid #4e3d26; }
+#pk .pk-buch-reiter:hover { color: #f0e6d2; border-color: #6b5535; }
+#pk .pk-buch-reiter.an { color: #241a0c; border-color: #e6c46f;
+  background: linear-gradient(180deg, #f0cd7a, #c79a37); }
+#pk .pk-buch { text-align: left; max-height: 58vh; overflow-y: auto; padding-right: 6px;
+  display: flex; flex-direction: column; gap: 10px; }
+#pk .pk-buch-eintrag { border: 1px solid #3f3120; border-radius: 6px; padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(48,38,24,0.5), rgba(20,15,9,0.5)); }
+#pk .pk-buch-eintrag.hervor { border-color: var(--gold, #d9a435);
+  box-shadow: 0 0 0 1px rgba(217,164,53,0.35); }
+#pk .pk-buch-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+#pk .pk-buch-kopf b { font-size: 14px; color: #f3d283; }
+#pk .pk-buch-wert { font-size: 12px; font-weight: 700; color: #b7e08f;
+  font-variant-numeric: tabular-nums; }
+#pk .pk-buch-satz { margin: 4px 0 0; font-size: 12.5px; color: #e8dcc0; }
+#pk .pk-buch-lang { margin: 5px 0 0; font-size: 11.5px; color: #9a8a6a; line-height: 1.5; }
+#pk .pk-buch-jetzt { margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(255,235,190,0.1);
+  font-size: 11.5px; color: #c9b998; }
+#pk .pk-buch-jetzt em { display: block; font-style: normal; font-size: 9.5px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: #a8977a; margin-bottom: 3px; }
+#pk .pk-buch-jetzt span { display: block; }
 
 /* ---------- Das Kampfprotokoll ---------- */
 #pk .pk-protokoll { text-align: left; margin: 8px 0 12px; max-height: 44vh; overflow-y: auto;
@@ -14363,7 +15373,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
  * stapeln sich unsichtbare Schichten über dem Spiel.
  */
 let pkOffeneTafel = null;
-function pkTafel(inhalt, { breit = false } = {}) {
+/*
+ * `neu` ist die Funktion, die DIESE Tafel noch einmal zeichnet. Sie wird
+ * gebraucht, sobald etwas dazwischenkommt - das Kriegsbuch etwa muss
+ * zurueckfinden, wo es aufgerufen wurde. Ohne sie verliert der Spieler seinen
+ * Platz, weil er eine Frage hatte.
+ */
+let pkTafelNeu = null;
+function pkTafel(inhalt, { breit = false, neu = null } = {}) {
   pkRaeumeTafel();
   pkRaeumeAufschluss();
   const t = document.createElement('div');
@@ -14371,6 +15388,10 @@ function pkTafel(inhalt, { breit = false } = {}) {
   t.innerHTML = '<div class="pk-tafel-inhalt' + (breit ? ' breit' : '') + '">' + inhalt + '</div>';
   document.getElementById('pk').appendChild(t);
   pkOffeneTafel = t;
+  pkTafelNeu = neu;
+  // Jede Tafel bekommt ihre Begriffe angeschlossen - an einer Stelle, damit
+  // kein Bildschirm es vergessen kann.
+  pkBegriffeBinden(t);
   return t;
 }
 function pkRaeumeTafel() {
@@ -14483,13 +15504,20 @@ function pkRenderLauf() {
   if (!lage) { el.innerHTML = '<span class="pk-sold">SOLD <b>' + l.sold + '</b></span>'; return; }
   const kette = Array.from({ length: lage.bedrohungMax }, (_, i) =>
     '<i class="' + (i < lage.bedrohung ? 'hier' : '') + '"></i>').join('');
+  /*
+   * Die Kopfleiste nennt drei Zahlen, und zwei davon sind ohne Erklaerung
+   * sinnlos. Sie sind deshalb Begriffe: ueberfahren sagt, was sie JETZT
+   * bedeuten, anklicken schlaegt im Kriegsbuch nach.
+   */
   el.innerHTML =
-    '<span class="pk-weg pk-bedrohung" title="Bedrohung ' + lage.bedrohung + ' von ' +
-      lage.bedrohungMax + ' — sie entscheidet, wie der Heerführer dasteht.">' + kette + '</span>' +
+    '<span class="pk-weg pk-bedrohung">' + kette + '</span>' +
+    '<span class="pk-kopf-begriff">' + pkBegriffHtml('bedrohung', 'BEDROHUNG')
+      + ' <b>' + lage.bedrohung + '</b></span>' +
     '<span>ANTE <b>' + l.ante + '</b>/' + l.anten + '</span>' +
-    '<span class="pk-vorbereitung" title="Vorbereitung — die Währung des Heerlagers.">⌛ <b>'
-      + lage.vorbereitung + '</b></span>' +
+    '<span class="pk-kopf-begriff">' + pkBegriffHtml('vorbereitung', '⌛')
+      + ' <b>' + lage.vorbereitung + '</b></span>' +
     '<span class="pk-sold">SOLD <b>' + l.sold + '</b></span>';
+  pkBegriffeBinden(el);
 }
 
 // ---------- Belohnung ----------
@@ -14771,6 +15799,270 @@ function pkZeigeProtokoll(zurueck = null) {
 }
 
 /* ============================================================
+ *  D I E   F E D E R :   G E Z E I C H N E T E S   P E R G A M E N T
+ * ============================================================
+ *
+ * Die Belagerungskarte soll keine Oberflaeche sein, sondern eine SEITE aus dem
+ * Feldbuch eines Kommandanten: Pergament, Bleistift, Tinte, ein paar
+ * Wachsflecken. Alles hier ist gezeichnet - es gibt keine Bilddateien, und es
+ * soll auch keine geben.
+ *
+ * Zwei Regeln halten das zusammen:
+ *
+ *   1. JEDE LINIE WACKELT EIN WENIG. Eine Gerade, die wirklich gerade ist,
+ *      sieht gedruckt aus. `zittern` gibt jedem Punkt einen kleinen Versatz -
+ *      aber einen BERECHENBAREN: dieselbe Zeichnung sieht immer gleich aus,
+ *      sonst flimmert die Karte bei jedem Neuzeichnen.
+ *   2. NICHTS IST SCHWARZ. Tinte auf Pergament ist braunschwarz und an den
+ *      Raendern heller. Reines Schwarz auf hellem Grund liest sich als
+ *      Bildschirm, nicht als Papier.
+ */
+
+/* Ein berechenbarer Zufall: gleicher Same, gleiche Zeichnung. */
+function federZufall(same) {
+  let x = same * 9301 + 49297;
+  return () => {
+    x = (x * 9301 + 49297) % 233280;
+    return x / 233280;
+  };
+}
+
+/** Ein Pfad aus Punkten, mit zittriger Hand gezogen. */
+function federPfad(punkte, same = 1, staerke = 1.4) {
+  const z = federZufall(same);
+  return punkte.map((pt, i) => {
+    const dx = (z() - 0.5) * staerke, dy = (z() - 0.5) * staerke;
+    return (i ? 'L' : 'M') + (pt[0] + dx).toFixed(1) + ' ' + (pt[1] + dy).toFixed(1);
+  }).join(' ');
+}
+
+/*
+ * Ein Pfeil, wie man ihn mit dem Bleistift auf eine Karte zieht: leicht
+ * gebogen, mit einer offenen Spitze aus zwei Strichen. Keine gefuellte
+ * Dreiecksspitze - die sieht nach Werkzeugleiste aus.
+ */
+function federPfeil(x1, y1, x2, y2, same = 1, bogen = 0.18) {
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const kx = mx - dy * bogen, ky = my + dx * bogen;
+  const z = federZufall(same);
+  const w = Math.atan2(y2 - ky, x2 - kx);
+  const sp = 7 + z() * 3;
+  const f1 = [x2 - Math.cos(w - 0.42) * sp, y2 - Math.sin(w - 0.42) * sp];
+  const f2 = [x2 - Math.cos(w + 0.42) * sp, y2 - Math.sin(w + 0.42) * sp];
+  void len;
+  return '<path d="M' + x1 + ' ' + y1 + ' Q' + kx.toFixed(1) + ' ' + ky.toFixed(1)
+    + ' ' + x2 + ' ' + y2 + '" class="fp-linie"/>'
+    + '<path d="M' + f1[0].toFixed(1) + ' ' + f1[1].toFixed(1) + ' L' + x2 + ' ' + y2
+    + ' L' + f2[0].toFixed(1) + ' ' + f2[1].toFixed(1) + '" class="fp-linie"/>';
+}
+
+/**
+ * Schraffur in einem Rechteck - je dichter, desto dunkler die Flaeche.
+ *
+ * Sie beschneidet sich SELBST auf ihr Rechteck. Ohne das laufen die Striche
+ * schraeg ueber den Rand hinaus, und aus einer Schattierung wird ein
+ * Gekritzel quer ueber das Blatt - genau so sah die erste Fassung des
+ * Bildnisses aus.
+ */
+let federSchraffurNr = 0;
+function federSchraffur(x, y, b, h, dichte, same = 1, winkel = 0.6) {
+  const z = federZufall(same);
+  const schritt = Math.max(2.2, 9 - dichte * 6);
+  const striche = [];
+  for (let i = -h * 2; i < b + h; i += schritt) {
+    const x1 = x + i + (z() - 0.5) * 1.6;
+    const y1 = y + h;
+    const x2 = x1 + h / Math.tan(winkel + (z() - 0.5) * 0.12);
+    striche.push('M' + x1.toFixed(1) + ' ' + y1.toFixed(1)
+      + 'L' + x2.toFixed(1) + ' ' + y.toFixed(1));
+  }
+  const id = 'fp-sch-' + (++federSchraffurNr);
+  return '<clipPath id="' + id + '"><rect x="' + x + '" y="' + y + '" width="' + b
+    + '" height="' + h + '"/></clipPath>'
+    + '<path d="' + striche.join(' ') + '" class="fp-schraffur" clip-path="url(#' + id + ')"/>';
+}
+
+/* ---------- Die Bausteine der Karte ---------- */
+
+/** Ein Banner an einer Stange - das Zeichen einer Truppe. */
+function federBanner(x, y, zeichen, same, art) {
+  const z = federZufall(same);
+  const b = 26, h = 20;
+  const wehen = (z() - 0.5) * 3;
+  return '<g class="fp-banner ' + (art || '') + '">'
+    + '<path d="' + federPfad([[x, y + 4], [x, y + 46]], same, 1.1) + '" class="fp-linie"/>'
+    + '<path d="' + federPfad([[x, y], [x + b + wehen, y + 3], [x + b - 4 + wehen, y + h / 2],
+        [x + b + wehen, y + h], [x, y + h - 1]], same + 3, 1.2) + ' Z" class="fp-tuch"/>'
+    + '<text x="' + (x + 9) + '" y="' + (y + h - 5) + '" class="fp-zeichen">' + zeichen + '</text>'
+    + '</g>';
+}
+
+/** Ein durchgestrichenes Banner: geschlagen, und man sieht es. */
+function federStrich(x, y, b, h, same) {
+  return '<path d="' + federPfad([[x, y], [x + b, y + h]], same, 2.2) + '" class="fp-strich"/>'
+    + '<path d="' + federPfad([[x, y + h], [x + b, y]], same + 7, 2.2) + '" class="fp-strich"/>';
+}
+
+/** Ein Zelt im Lager - der Bleistiftstrich, an dem man ein Heer erkennt. */
+function federZelt(x, y, gr, same) {
+  const h = 16 * gr, b = 13 * gr;
+  return '<path d="' + federPfad([[x - b, y], [x, y - h], [x + b, y], [x - b, y]], same, 1.3)
+    + '" class="fp-flaeche"/>'
+    + '<path d="' + federPfad([[x, y - h], [x, y]], same + 2, 1) + '" class="fp-linie"/>';
+}
+
+/** Ein Lagerfeuer: drei Striche und ein Rauchfaden. */
+function federFeuer(x, y, same) {
+  const z = federZufall(same);
+  return '<path d="' + federPfad([[x - 5, y], [x + 5, y], [x, y - 9], [x - 5, y]], same, 1.2)
+    + '" class="fp-glut"/>'
+    + '<path d="M' + x + ' ' + (y - 11) + ' q' + (3 + z() * 4) + ' -7 ' + (-2 + z() * 3)
+    + ' -14" class="fp-rauch"/>';
+}
+
+/** Ein Belagerungsgeraet, angedeutet: Rahmen und Wurfarm. */
+function federGeraet(x, y, same) {
+  return '<g>'
+    + '<path d="' + federPfad([[x - 13, y], [x + 13, y], [x + 9, y - 9], [x - 9, y - 9],
+        [x - 13, y]], same, 1.2) + '" class="fp-flaeche"/>'
+    + '<path d="' + federPfad([[x - 6, y - 9], [x + 14, y - 26]], same + 4, 1.4) + '" class="fp-linie"/>'
+    + '<circle cx="' + (x + 15) + '" cy="' + (y - 27) + '" r="3.2" class="fp-flaeche"/>'
+    + '</g>';
+}
+
+/** Die Burg: der feste Punkt der ganzen Karte, unten in der Mitte. */
+function federBurg(x, y, breit) {
+  const b = breit / 2;
+  const turm = (tx, hoehe, same) =>
+    '<path d="' + federPfad([[tx - 9, y], [tx - 9, y - hoehe], [tx - 9, y - hoehe - 5],
+      [tx - 4, y - hoehe - 5], [tx - 4, y - hoehe], [tx + 4, y - hoehe], [tx + 4, y - hoehe - 5],
+      [tx + 9, y - hoehe - 5], [tx + 9, y - hoehe], [tx + 9, y]], same, 1.3) + '" class="fp-flaeche"/>';
+  return '<g class="fp-burg">'
+    + '<path d="' + federPfad([[x - b, y], [x - b, y - 22], [x + b, y - 22], [x + b, y]], 11, 1.4)
+    + '" class="fp-flaeche"/>'
+    + turm(x - b + 11, 36, 12) + turm(x, 46, 13) + turm(x + b - 11, 36, 14)
+    + '<path d="' + federPfad([[x - b - 18, y], [x + b + 18, y]], 15, 1.8) + '" class="fp-boden"/>'
+    + '<path d="' + federPfad([[x - 5, y], [x - 5, y - 13], [x + 5, y - 13], [x + 5, y]], 16, 1)
+    + '" class="fp-tor"/>'
+    + '</g>';
+}
+
+/* ============================================================
+ *  D E R   H E E R F U E H R E R :   E I N E   Z E I C H N U N G
+ * ============================================================
+ *
+ * Der Heerfuehrer ist der Anker der ganzen Seite. Er ist deshalb GEZEICHNET,
+ * nicht zusammengesetzt: eine Federzeichnung mit Schraffur, wie eine Skizze
+ * am Rand eines Feldbuchs.
+ *
+ * Und er ist AUTORISIERT. Wer kein eigenes Bild hat, bekommt kein
+ * zusammengewuerfeltes - er bekommt ein leeres Blatt mit seinem Namen und dem
+ * Vermerk, dass die Skizze noch fehlt. Ein erfundenes Gesicht, das bei jedem
+ * Neuladen anders aussieht, ist schlimmer als gar keines: es sagt dem Spieler,
+ * dass hier niemand hingesehen hat.
+ */
+const HEERFUEHRER_BILDER = {
+  /*
+   * MARKGRAF OTHAR. Ein Topfhelm mit Kettenkapuze und Waffenrock, von vorn,
+   * das Licht von rechts oben.
+   *
+   * Die Schraffur liegt IN den Formen, nicht daneben. Das ist der ganze
+   * Unterschied zwischen einer Zeichnung und einem Gekritzel: unbeschnittene
+   * Striche laufen an der Figur vorbei und sehen aus, als haette jemand das
+   * Blatt verwackelt. Deshalb bekommt jede Flaeche ihren eigenen Ausschnitt.
+   */
+  markgrafOthar: () => {
+    const schulter = federPfad([[8, 182], [16, 142], [34, 126], [56, 118], [70, 116],
+      [84, 118], [106, 126], [124, 142], [132, 182]], 21, 1.5) + ' Z';
+    const kapuze = federPfad([[38, 128], [32, 104], [34, 76], [46, 56], [70, 48],
+      [94, 56], [106, 76], [108, 104], [102, 128], [70, 138], [38, 128]], 23, 1.3) + ' Z';
+    const helm = federPfad([[44, 104], [43, 52], [47, 40], [70, 36], [93, 40], [97, 52],
+      [96, 104], [70, 112], [44, 104]], 24, 1.2) + ' Z';
+    const wappen = federPfad([[57, 142], [83, 142], [83, 160], [70, 170], [57, 160],
+      [57, 142]], 30, 1) + ' Z';
+    return '<g class="fp-portrait-inhalt">'
+      + '<defs>'
+        + '<clipPath id="fp-c-schulter"><path d="' + schulter + '"/></clipPath>'
+        + '<clipPath id="fp-c-kapuze"><path d="' + kapuze + '"/></clipPath>'
+        + '<clipPath id="fp-c-helm"><path d="' + helm + '"/></clipPath>'
+      + '</defs>'
+      /* Ein paar lose Striche hinter der Figur - das Blatt, auf dem sie steht. */
+      + '<g class="fp-hintergrund">' + federSchraffur(8, 24, 34, 64, 0.2, 90, 0.95) + '</g>'
+      /* Der Waffenrock */
+      + '<path d="' + schulter + '" class="fp-flaeche"/>'
+      + '<g clip-path="url(#fp-c-schulter)">'
+        + federSchraffur(4, 116, 58, 70, 0.55, 22, 0.85)
+        + federSchraffur(4, 116, 26, 70, 0.8, 32, 0.85)
+      + '</g>'
+      /* Die Kettenkapuze, darauf ein feines Punktraster als Ringgeflecht */
+      + '<path d="' + kapuze + '" class="fp-flaeche"/>'
+      + '<g clip-path="url(#fp-c-kapuze)">'
+        + federSchraffur(28, 46, 40, 94, 0.62, 33, 0.9)
+        + '<g class="fp-ringe">'
+        + Array.from({ length: 9 }, (_, r) => Array.from({ length: 11 }, (_, c) =>
+            '<circle cx="' + (30 + c * 7.5 + (r % 2) * 3.7) + '" cy="' + (54 + r * 9) + '" r="1.05"/>'
+          ).join('')).join('')
+        + '</g>'
+      + '</g>'
+      /* Der Helm */
+      + '<path d="' + helm + '" class="fp-flaeche hell"/>'
+      + '<g clip-path="url(#fp-c-helm)">'
+        + federSchraffur(40, 38, 26, 76, 0.72, 27, 1.0)
+        + federSchraffur(40, 92, 30, 24, 0.5, 28, 0.9)
+      + '</g>'
+      /* Der Reif oben und der Nasensteg */
+      + '<path d="' + federPfad([[45, 46], [95, 46]], 25, 0.9) + '" class="fp-linie"/>'
+      + '<path d="' + federPfad([[70, 46], [70, 62]], 26, 0.7) + '" class="fp-linie"/>'
+      /* Der Sehschlitz - das Auge des Helms, das Dunkelste im ganzen Bild */
+      + '<path d="M47 64 L93 62 L93 73 L47 75 Z" class="fp-dunkel"/>'
+      + '<path d="' + federPfad([[47, 64], [93, 62]], 31, 0.8) + '" class="fp-linie"/>'
+      /* Die Luftloecher in zwei Reihen unter dem Schlitz */
+      + '<g class="fp-punkte">'
+        + [0, 1, 2, 3, 4, 5].map(i => '<circle cx="' + (52 + i * 7.4) + '" cy="86" r="1.9"/>').join('')
+        + [0, 1, 2, 3, 4].map(i => '<circle cx="' + (56 + i * 7.4) + '" cy="95" r="1.7"/>').join('')
+      + '</g>'
+      /* Zwei Nieten am Reif */
+      + '<circle cx="70" cy="52" r="2.4" class="fp-linie-fuell"/>'
+      /* Der Rosshaarbusch: ein Bogen und ein paar Straehnen dahinter */
+      + '<path d="M70 36 Q78 12 104 6" class="fp-linie dick"/>'
+      + [0, 1, 2, 3, 4].map(i =>
+          '<path d="M' + (70 + i * 2.2) + ' ' + (34 - i * 1.2)
+          + ' Q' + (80 + i * 4) + ' ' + (14 - i * 2) + ' ' + (100 + i * 5) + ' ' + (10 + i * 7)
+          + '" class="fp-haar"/>').join('')
+      /* Das Schildchen auf der Brust: ein Turm, dreimal gezinnt */
+      + '<path d="' + wappen + '" class="fp-flaeche hell"/>'
+      + '<path d="M64 148 L64 160 M70 145 L70 160 M76 148 L76 160" class="fp-linie"/>'
+      + '<path d="' + federPfad([[62, 160], [78, 160]], 34, 0.8) + '" class="fp-linie"/>'
+      + '</g>';
+  },
+};
+
+/**
+ * Der Rahmen um eine Zeichnung: Papier, Vignette, Bildunterschrift, Siegel.
+ * Er steht auch dann, wenn es noch kein Bild gibt - dann ist er ehrlich leer.
+ */
+function pkPortraitHtml(id, name, unterschrift) {
+  const bild = HEERFUEHRER_BILDER[id];
+  const inhalt = bild
+    ? bild()
+    : '<g class="fp-portrait fp-leer">'
+      + '<path d="' + federPfad([[26, 40], [114, 40], [114, 150], [26, 150], [26, 40]], 41, 2.2)
+      + '" class="fp-linie"/>'
+      + '<path d="' + federPfad([[26, 40], [114, 150]], 42, 2.6) + '" class="fp-linie"/>'
+      + '<path d="' + federPfad([[114, 40], [26, 150]], 43, 2.6) + '" class="fp-linie"/>'
+      + '<text x="70" y="176" class="fp-fehlt">noch nicht gezeichnet</text>'
+      + '</g>';
+  return '<figure class="pk-portrait">'
+    + '<svg viewBox="0 0 140 190" width="116" height="157" aria-hidden="true">' + inhalt + '</svg>'
+    + '<figcaption><b>' + name + '</b>'
+      + (unterschrift ? '<span>' + unterschrift + '</span>' : '') + '</figcaption>'
+    + '<span class="pk-siegel-wachs" aria-hidden="true"></span>'
+    + '</figure>';
+}
+
+/* ============================================================
  *  D I E   B E L A G E R U N G S K A R T E
  * ============================================================
  *
@@ -14784,83 +16076,456 @@ function pkZeigeProtokoll(zurueck = null) {
  * Division durchlässt, soll VORHER lesen können, was er sich damit einhandelt,
  * nicht hinterher.
  */
+/* ============================================================
+ *  E R S T M A L S :   E R K L A E R E N ,   W E N N   E S   Z A E H L T
+ * ============================================================
+ *
+ * Keine Lehrstunde am Anfang. Niemand merkt sich eine Regel, die er noch
+ * nicht braucht - und ein Spiel, das mit vier Bildschirmen Erklaerung
+ * beginnt, hat die ersten drei Minuten verschenkt.
+ *
+ * Stattdessen: EIN Satz, genau dann, wenn die Sache zum ersten Mal ansteht.
+ * Er steht auf einem Zettel am Rand, verschwindet von selbst und kommt nicht
+ * wieder. Was gezeigt wurde, merkt sich der Browser - ueber den Lauf hinaus,
+ * denn ein zweiter Feldzug ist kein zweites erstes Mal.
+ */
+const PK_ERSTMALS_SCHLUESSEL = 'parapex.erstmals';
+let pkErstmalsGesehen = null;
+
+function pkErstmalsLaden() {
+  if (pkErstmalsGesehen) return pkErstmalsGesehen;
+  try {
+    pkErstmalsGesehen = JSON.parse(localStorage.getItem(PK_ERSTMALS_SCHLUESSEL) || '{}');
+  } catch (e) { pkErstmalsGesehen = {}; }
+  return pkErstmalsGesehen;
+}
+
+/** Alles wieder auf Anfang - fuer das Werkzeug und fuer die Einstellungen. */
+function pkErstmalsVergessen() {
+  pkErstmalsGesehen = {};
+  try { localStorage.removeItem(PK_ERSTMALS_SCHLUESSEL); } catch (e) { /* dann eben nicht */ }
+}
+
+/**
+ * @param {string} schluessel @param {boolean} wenn @param {string} text
+ */
+function pkErstmals(schluessel, wenn, text) {
+  if (!wenn) return false;
+  const gesehen = pkErstmalsLaden();
+  if (gesehen[schluessel]) return false;
+  gesehen[schluessel] = Date.now();
+  try { localStorage.setItem(PK_ERSTMALS_SCHLUESSEL, JSON.stringify(gesehen)); } catch (e) { /* egal */ }
+  pkZeigeZettel(text);
+  return true;
+}
+
+let pkZettelEl = null;
+function pkZeigeZettel(text) {
+  const ebene = document.getElementById('pk-ebene');
+  if (!ebene) return;
+  if (pkZettelEl) pkZettelEl.remove();
+  const z = document.createElement('div');
+  z.className = 'pk-zettel';
+  z.innerHTML = '<span>' + text + '</span><button type="button" aria-label="Verstanden">✕</button>';
+  ebene.appendChild(z);
+  pkZettelEl = z;
+  const weg = () => { if (pkZettelEl === z) { z.remove(); pkZettelEl = null; } };
+  z.querySelector('button').addEventListener('click', weg);
+  setTimeout(weg, 14000);
+  pkBegriffeBinden(z);
+}
+
+/*
+ * Die Karte liest sich von OBEN nach UNTEN: dort das Heer, hier die Burg.
+ * Die Burg steht fest in der Mitte unten; alles, was sich bewegt, kommt auf
+ * sie zu. Wer eine Division durchlaesst, sieht ihr Banner zum Heerfuehrer
+ * hinaufwandern - und danach steht es dort, neben ihm, bis zur letzten
+ * Schlacht.
+ */
+const SKIZZE_B = 600, SKIZZE_H = 358;
+const SKIZZE_REIHEN = { heer: 52, marsch: 150, vorhut: 228, burg: 334 };
+/*
+ * Feste Plaetze im Lager. Die Mitte bleibt frei - dort steht der Heerfuehrer,
+ * und sein Banner soll nicht zwischen Zelten verschwinden.
+ */
+const LAGER_FEUER = [136, 464, 240, 360];
+const LAGER_GERAET = [88, 512, 192];
+/* Die Spalte vor dem Tor gehoert der Vorhut. Kein Pfeil laeuft hindurch. */
+const VORHUT_SPALTE = 24;
+
+function pkKampagnenSkizze(lage, gerade) {
+  const teile = [];
+  const mitte = SKIZZE_B / 2;
+
+  /* --- Das Lager des Heeres. Es waechst mit der Bedrohung. --- */
+  const bed = lage.bedrohung;
+  const zelte = 2 + bed;
+  for (let i = 0; i < zelte; i++) {
+    const x = 66 + (i * 468) / Math.max(1, zelte - 1) + ((i % 2) * 16 - 8);
+    teile.push(federZelt(x, 38 + (i % 2) * 7, 0.8 + (i % 3) * 0.12, 60 + i));
+  }
+  for (let i = 0; i < Math.min(LAGER_FEUER.length, Math.max(0, bed - 1)); i++) {
+    teile.push(federFeuer(LAGER_FEUER[i], 44 + (i % 2) * 5, 80 + i));
+  }
+  for (let i = 0; i < Math.min(LAGER_GERAET.length, Math.max(0, bed - 2)); i++) {
+    teile.push(federGeraet(LAGER_GERAET[i], 48, 100 + i));
+  }
+  teile.push('<text x="' + mitte + '" y="14" class="fp-band">DAS HEER</text>');
+
+  /*
+   * Der Heerfuehrer, und was neben ihm steht. Die Vorhut zaehlt mit: wer sie
+   * hat ziehen lassen, soll sie beim letzten Sturm wiederfinden.
+   */
+  const durch = (lage.vorhut.zustand === 'durch'
+    ? [{ id: 'vorhut', name: 'Vorhut', zeichen: lage.vorhut.zeichen }] : [])
+    .concat(lage.divisionen.filter(d => d.zustand === 'durch'));
+  teile.push(federBanner(mitte - 13, SKIZZE_REIHEN.heer, lage.heerfuehrer.zeichen, 5, 'fuehrer'));
+  teile.push('<text x="' + mitte + '" y="' + (SKIZZE_REIHEN.heer + 62) + '" class="fp-name gross">'
+    + lage.heerfuehrer.name + '</text>');
+  durch.forEach((d, i) => {
+    const seite = i % 2 ? 1 : -1;
+    const x = mitte + seite * (98 + Math.floor(i / 2) * 60) - 13;
+    teile.push('<g class="fp-gewandert"' + (gerade === d.id ? ' data-neu="1"' : '') + '>'
+      + federBanner(x, SKIZZE_REIHEN.heer + 12, d.zeichen, 200 + i, 'durch')
+      + '<text x="' + (x + 13) + '" y="' + (SKIZZE_REIHEN.heer + 84) + '" class="fp-name klein">'
+      + d.name.replace('Die ', '').replace('Der ', '') + '</text></g>');
+  });
+
+  /* --- Was noch anrueckt --- */
+  const offen = lage.divisionen.filter(d => d.zustand !== 'durch');
+  offen.forEach((d, i) => {
+    const x = 90 + (i * (SKIZZE_B - 180)) / Math.max(1, offen.length - 1) - 13;
+    const geschlagen = d.zustand === 'geschlagen';
+    teile.push('<g class="' + (geschlagen ? 'fp-geschlagen' : 'fp-marschiert') + '">'
+      + federBanner(x, SKIZZE_REIHEN.marsch, d.zeichen, 300 + i, geschlagen ? 'geschlagen' : '')
+      + (geschlagen ? federStrich(x - 6, SKIZZE_REIHEN.marsch - 4, 40, 30, 310 + i) : '')
+      + '<text x="' + (x + 13) + '" y="' + (SKIZZE_REIHEN.marsch + 62) + '" class="fp-name">'
+      + d.name.replace('Die ', '').replace('Der ', '') + '</text></g>');
+    if (!geschlagen) {
+      /*
+       * Der Pfeil laeuft an der Vorhut VORBEI, nicht durch sie hindurch: er
+       * geht auf die Seite, auf der die Division ohnehin schon steht, und
+       * biegt sich nach aussen. So bleibt die Spalte vor dem Tor frei.
+       */
+      const seite = x + 13 <= mitte ? -1 : 1;
+      const zielX = mitte + seite * (VORHUT_SPALTE + 12 + (i % 2) * 22);
+      teile.push(federPfeil(x + 13 + seite * 10, SKIZZE_REIHEN.marsch + 66,
+        zielX, SKIZZE_REIHEN.burg - 62, 400 + i, seite * -0.22));
+    }
+  });
+
+  /* --- Die Vorhut. Ihr Name steht daneben, nicht darunter: darunter ist die Burg. --- */
+  const v = lage.vorhut;
+  const vx = mitte - 13;
+  if (v.zustand !== 'durch') {
+    teile.push('<g class="' + (v.zustand === 'geschlagen' ? 'fp-geschlagen' : 'fp-marschiert') + '">'
+      + federBanner(vx, SKIZZE_REIHEN.vorhut, v.zeichen, 7, v.zustand === 'geschlagen' ? 'geschlagen' : '')
+      + (v.zustand === 'geschlagen' ? federStrich(vx - 6, SKIZZE_REIHEN.vorhut - 4, 40, 30, 8) : '')
+      + '<text x="' + (vx + 34) + '" y="' + (SKIZZE_REIHEN.vorhut + 30)
+      + '" class="fp-name links">Vorhut</text>'
+      + '</g>');
+  }
+
+  /* --- Die Burg. Sie steht, und sie bewegt sich nicht. --- */
+  teile.push(federBurg(mitte, SKIZZE_REIHEN.burg, 96));
+  teile.push('<text x="' + mitte + '" y="' + (SKIZZE_H - 5) + '" class="fp-band">DEINE BURG</text>');
+
+  return '<svg class="pk-skizze" viewBox="0 0 ' + SKIZZE_B + ' ' + SKIZZE_H
+    + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + teile.join('') + '</svg>';
+}
+
+/*
+ * DER FINALE STURM. Das Wichtigste auf der ganzen Seite, und darum steht es
+ * nicht am Ende, sondern daneben: der Gegner, den der Spieler GERADE BAUT.
+ *
+ * Er wird nach jeder Wahl neu gezeichnet. Wer eine Division durchlaesst, soll
+ * im selben Augenblick sehen, dass hier eine Zeile dazugekommen ist - nicht
+ * vier Schlachten spaeter im Kampf.
+ */
+/*
+ * DIE LAGE IN ZWEI FELDERN.
+ *
+ * Beide Felder lesen sich gleich: WIE ES STEHT - WAS DAS HEISST - WAS ALS
+ * NAECHSTES KOMMT. Bedrohung und Vorbereitung sind dieselbe Muenze von zwei
+ * Seiten, und darum stehen sie nebeneinander, nicht in getrennten Ecken.
+ */
+function pkLageFeldHtml(art, wert, einheit, begriffId, titel, kopf, satz, naechst) {
+  return '<div class="pk-lage-feld ' + art + '">'
+    + '<span class="pk-lage-wert">' + wert
+      + (einheit ? '<small>' + einheit + '</small>' : '') + '</span>'
+    + '<div class="pk-lage-text"><em>' + pkBegriffHtml(begriffId, titel) + '</em>'
+      + '<b>' + kopf + '</b>'
+      + '<span>' + satz + '</span>'
+      + (naechst ? '<i>' + naechst + '</i>' : '')
+    + '</div></div>';
+}
+
+function pkLagebandHtml(lage) {
+  const v = vorbereitungslage();
+  const felder = [];
+
+  felder.push(pkLageFeldHtml('bedrohung', lage.bedrohung, '/' + lage.bedrohungMax,
+    'bedrohung', 'Bedrohung', lage.stufe.name,
+    lage.bedrohung
+      ? 'Der Heerführer schlägt um ' + Math.round(JE_BEDROHUNG * lage.bedrohung * 100)
+        + ' % härter zu.'
+      : 'Der Heerführer schlägt noch nicht härter zu.',
+    lage.naechsteStufe
+      ? 'Bei ' + lage.naechsteStufe.stufe + ': ' + lage.naechsteStufe.name + '.'
+      : 'Höher geht es nicht.'));
+
+  if (v) {
+    /* Part 4: die Punkte sind nichts wert, solange nicht dasteht, was sie kaufen. */
+    const kopf = v.dienste.length
+      ? 'Nächster Halt: ' + v.dienste.map(d => d.name.replace(/^(Der|Die) /, '')).join(' · ')
+      : (v.haendler ? 'Nächster Halt: nur der Händler' : 'Nächster Halt: nichts davon');
+    const satz = v.reicht.length
+      ? 'Reicht für: ' + v.reicht.map(p => p.name + ' (' + p.preis + ')').join(', ') + '.'
+      : (v.dienste.length ? 'Reicht noch für nichts davon.'
+        : 'Der Händler nimmt Sold, nicht Vorbereitung.');
+    felder.push(pkLageFeldHtml('vorbereitung', v.punkte, '', 'vorbereitung', 'Vorbereitung',
+      kopf, satz,
+      v.naechstes ? 'Noch ' + v.naechstes.fehlt + ': ' + v.naechstes.name + '.' : null));
+  }
+
+  return '<div class="pk-fb-lage">' + felder.join('') + '</div>';
+}
+
+function pkFinalerSturmHtml(lage) {
+  const regeln = lage.heerfuehrer.regeln.map(id => BOSSREGELN[id]).filter(Boolean);
+  return '<aside class="pk-sturm">'
+    + '<h3>' + pkBegriffHtml('finalerSturm', 'Finaler Sturm') + '</h3>'
+    + pkPortraitHtml(lage.heerfuehrer.id, lage.heerfuehrer.name,
+        pkZahl(lage.heerfuehrer.hp) + ' Stärke')
+    + '<div class="pk-sturm-regeln">'
+    + regeln.map(r => '<div class="pk-sturm-regel"><b>' + r.zeichen + ' ' + r.name + '</b>'
+        + '<span>' + r.text + '</span>'
+        + '<i>' + r.antwort + '</i></div>').join('')
+    + '</div>'
+    + '</aside>';
+}
+
+/*
+ * EINE WAHL ALS PERGAMENTKARTE.
+ *
+ * Der Spieler darf NIE nach dem Klicken erfahren, dass er eine Schwelle
+ * ueberschritten hat. Jede Karte traegt deshalb drei Bloecke, immer in
+ * derselben Ordnung:
+ *
+ *   DU BEKOMMST   was die Wahl einbringt
+ *   ES KOSTET     Bedrohung, Vorbereitung, eine Schlacht
+ *   DANACH        was am Heerfuehrer anders ist - GERECHNET, nicht behauptet
+ *
+ * Und niemals ein Knopf, auf dem `Überspringen` steht. Das klingt, als wuerde
+ * man Inhalt auslassen. Es heisst `Ziehen lassen`, und daneben steht, was
+ * derjenige spaeter anrichtet.
+ */
+/*
+ * Die Ueberschrift einer Wahlkarte sagt, was man TUT - nicht, wie der Knopf
+ * heisst. "Abfangen" und "Ziehen lassen" sind zwei Entschluesse, und beide
+ * muessen ohne Nachdenken auseinanderzuhalten sein.
+ */
+function pkWahlUeberschrift(w) {
+  if (w.art === 'aufbrechen') return 'Aufbrechen';
+  if (w.kampf) {
+    if (w.ziel === 'heerfuehrer') return 'Den Heerführer stellen';
+    if (w.ziel === 'vorhut') return 'Die Vorhut abfangen';
+    return 'Die Division abfangen';
+  }
+  return 'Zeit zur Vorbereitung nutzen';
+}
+
+/*
+ * WAS EINE WAHL BEDEUTET - einmal ausgerechnet.
+ *
+ * Dreierlei, immer in derselben Ordnung: was du bekommst, was es kostet, und
+ * wie der Heerfuehrer danach dasteht. Das Letzte ist das Wichtigste, denn es
+ * ist die einzige Folge, die noch da ist, wenn der Feldzug sich entscheidet.
+ */
+function pkWahlFolgen(w, knapp) {
+  const f = folgenDerWahl(w);
+  const kampf = Boolean(w.kampf);
+  const bekommt = [];
+  const kostet = [];
+
+  if (kampf) {
+    bekommt.push(knapp ? 'Schlacht — Sold und Belohnung' : 'Eine Schlacht — Sold und eine Belohnung');
+    if (w.ziel !== 'heerfuehrer') bekommt.push(w.wirkung);
+  } else {
+    if (!knapp) bekommt.push('Keine Schlacht');
+    if (w.vorbereitung) bekommt.push('+' + w.vorbereitung + ' Vorbereitung');
+  }
+  if (!knapp && w.bedrohung > 0) kostet.push('+' + w.bedrohung + ' Bedrohung');
+  if (!knapp && w.bedrohung < 0) bekommt.push(w.bedrohung + ' Bedrohung');
+  if (!kampf && w.wirkung) kostet.push(w.wirkung);
+
+  /*
+   * In der Musterrolle steht nur der NAME einer neuen Regel: was sie tut,
+   * steht dauerhaft im Finalen Sturm daneben. Und wo sich nichts aendert,
+   * steht das auch da - "bleibt bei" ist eine Auskunft, kein Leerraum.
+   */
+  const danach = [];
+  if (f) {
+    if (f.nachher.hp !== f.vorher.hp) {
+      const hoch = f.nachher.hp > f.vorher.hp;
+      danach.push('<span class="' + (hoch ? 'schlimm' : 'gut') + '">Heerführer '
+        + pkZahl(f.vorher.hp) + ' → ' + pkZahl(f.nachher.hp)
+        + (knapp ? '' : ' Stärke') + '</span>');
+    } else if (knapp) {
+      danach.push('<span class="gut">Heerführer bleibt bei ' + pkZahl(f.vorher.hp) + '</span>');
+    }
+    for (const id of f.neueRegeln) {
+      if (!BOSSREGELN[id]) continue;
+      danach.push('<span class="schlimm">☠ Er erhält: <b>' + BOSSREGELN[id].name + '</b>'
+        + (knapp ? '' : ' — ' + BOSSREGELN[id].text) + '</span>');
+    }
+    for (const id of f.wegfallendeRegeln) {
+      if (!BOSSREGELN[id]) continue;
+      danach.push('<span class="gut">✓ Er verliert: <b>' + BOSSREGELN[id].name + '</b></span>');
+    }
+    if (f.neueStufe) {
+      danach.push('<span class="' + (f.nachher.bedrohung > f.vorher.bedrohung ? 'schlimm' : 'gut')
+        + '">Bedrohung ' + f.vorher.bedrohung + ' → ' + f.nachher.bedrohung
+        + ' · ' + f.neueStufe.name + '</span>');
+    } else if (knapp) {
+      danach.push('<span class="gut">Bedrohung bleibt ' + f.vorher.bedrohung + '</span>');
+    }
+  }
+  return { kampf, bekommt, kostet, danach };
+}
+
+/*
+ * DIE MUSTERROLLE.
+ *
+ * Bei den Divisionen stehen drei Truppen gleichzeitig zur Wahl, und jede hat
+ * zwei Auswege - sechs grosse Karten. Sechs Karten sind keine Entscheidung
+ * mehr, sondern eine Wand, und sie passen auf keinen Schirm.
+ *
+ * Also wird daraus, was ein Hauptmann im Feld wirklich vor sich haette: eine
+ * gezogene Liste. EINE ZEILE JE TRUPPE, und daneben die beiden Spalten, in
+ * denen der Entschluss steht. So vergleicht man untereinander (welche Truppe?)
+ * und nebeneinander (abfangen oder ziehen lassen?) im selben Blick.
+ */
+function pkMusterZelleHtml(w, i) {
+  const { bekommt, kostet, danach } = pkWahlFolgen(w, true);
+  const zeilen = [];
+  for (const z of bekommt) zeilen.push('<span class="gut">' + z + '</span>');
+  for (const z of kostet) zeilen.push('<span class="schlimm">' + z + '</span>');
+  return '<button class="pk-mr-wahl ' + (w.kampf ? 'kampf' : 'durch')
+      + '" data-i="' + i + '"' + (w.gesperrt ? ' disabled' : '') + '>'
+    + '<span class="pk-mr-folgen">' + zeilen.join('') + '</span>'
+    + (danach.length ? '<span class="pk-mr-danach">' + danach.join('') + '</span>' : '')
+    + (w.gesperrt ? '<span class="pk-mr-sperre">' + w.gesperrt + '</span>' : '')
+    + '</button>';
+}
+
+function pkMusterrolleHtml(wahlen) {
+  /* Nach Ziel gruppieren - die Reihenfolge der Wahlen bleibt die des Kerns. */
+  const reihen = [];
+  wahlen.forEach((w, i) => {
+    const schluessel = w.ziel + ':' + (w.nr === undefined ? '' : w.nr);
+    let r = reihen.find(x => x.schluessel === schluessel);
+    if (!r) { r = { schluessel, w, zellen: [] }; reihen.push(r); }
+    r.zellen.push({ w, i });
+  });
+
+  return '<div class="pk-musterrolle">'
+    + '<div class="pk-mr-kopf"><span></span>'
+      + '<b class="kampf">Abfangen</b><b class="durch">Ziehen lassen</b></div>'
+    + reihen.map(r => '<div class="pk-mr-reihe">'
+        + '<div class="pk-mr-wer"><i>' + r.w.zeichen + '</i>'
+          + '<b>' + r.w.name + '</b>'
+          + '<span>' + r.w.text + '</span></div>'
+        + r.zellen.sort((a, b) => (b.w.kampf ? 1 : 0) - (a.w.kampf ? 1 : 0))
+            .map(z => pkMusterZelleHtml(z.w, z.i)).join('')
+      + '</div>').join('')
+    + '</div>';
+}
+
+function pkWahlKarteHtml(w, i) {
+  const { kampf, bekommt, kostet, danach } = pkWahlFolgen(w);
+  return '<button class="pk-wahlkarte' + (kampf ? ' kampf' : ' durch')
+      + (w.gesperrt ? ' aus' : '') + '" data-i="' + i + '"' + (w.gesperrt ? ' disabled' : '') + '>'
+    + '<span class="pk-wk-kopf"><i>' + w.zeichen + '</i><b>' + pkWahlUeberschrift(w) + '</b></span>'
+    + '<span class="pk-wk-name">' + w.name + '</span>'
+    + '<span class="pk-wk-text">' + w.text + '</span>'
+    + (bekommt.length ? '<span class="pk-wk-block"><em>Du bekommst</em>'
+        + bekommt.map(z => '<span>' + z + '</span>').join('') + '</span>' : '')
+    + (kostet.length ? '<span class="pk-wk-block kostet"><em>Es kostet</em>'
+        + kostet.map(z => '<span>' + z + '</span>').join('') + '</span>' : '')
+    + (danach.length ? '<span class="pk-wk-block danach"><em>Danach steht der Heerführer so</em>'
+        + danach.join('') + '</span>' : '')
+    + (w.gesperrt ? '<span class="pk-wk-sperre">' + w.gesperrt + '</span>' : '')
+    + '</button>';
+}
+
+/* ============================================================
+ *  D I E   B E L A G E R U N G S K A R T E
+ * ============================================================
+ *
+ * Kein Baum aus Knoten. Die Burg steht in der Mitte unten und bleibt, wo sie
+ * ist; was sich bewegt, ist das Heer. Die Seite liest sich von oben nach
+ * unten, weil die Welt in dieser Richtung auf die Burg zukommt.
+ *
+ * Und sie sieht aus wie eine Seite aus einem Feldbuch, nicht wie eine
+ * Oberflaeche. Das ist kein Schmuck: eine Entscheidung, die auf Pergament
+ * steht, wiegt anders als eine, die in einem Kasten steht.
+ */
+let pkZuletztGewandert = null;
+
 function pkZeigeBelagerung() {
   const lage = belagerungslage();
   if (!lage) { pkZeigeLaufEnde(); return; }
   const wahlen = offeneWahlen();
+  const gewandert = pkZuletztGewandert;
+  pkZuletztGewandert = null;
 
   const t = pkTafel(
-    '<h2>' + lage.ante.name + '</h2>' +
-    '<p class="pk-vor">' + lage.ante.text + '</p>' +
-    pkHeerHtml(lage) +
-    '<div class="pk-angebote pk-lagewahlen">' + wahlen.map((w, i) => pkWahlHtml(w, i)).join('') + '</div>' +
-    '<div class="pk-tafel-fuss">' +
-      '<button class="pk-knopf" id="pk-deck-ansehen">Deck ansehen</button>' +
-    '</div>', { breit: true });
+    '<div class="pk-feldbuch' + (wahlen.length > 2 ? ' viele' : '') + '">'
+    + '<div class="pk-fb-kopf">'
+      + '<h2>' + lage.ante.name + '</h2>'
+      + '<p class="pk-fb-text">' + lage.ante.text + '</p>'
+    + '</div>'
+    + pkLagebandHtml(lage)
+    + '<div class="pk-fb-mitte">'
+      + '<div class="pk-fb-karte">' + pkKampagnenSkizze(lage, gewandert) + '</div>'
+      + pkFinalerSturmHtml(lage)
+    + '</div>'
+    + '<p class="pk-fb-regel">' + pkBegriffHtml('division', 'Nicht alle Teile des Heeres')
+      + ' lassen sich abfangen. Was du ziehen lässt, kämpft später an der Seite des '
+      + pkBegriffHtml('heerfuehrer', 'Heerführers') + '.</p>'
+    + '<div class="pk-fb-wahl">'
+      + '<h3>Deine Wahl</h3>'
+      + (wahlen.length > 2
+        ? pkMusterrolleHtml(wahlen)
+        : '<div class="pk-wahlkarten">'
+          + wahlen.map((w, i) => pkWahlKarteHtml(w, i)).join('') + '</div>')
+    + '</div>'
+    + '<div class="pk-tafel-fuss">'
+      + '<button class="pk-knopf" id="pk-deck-ansehen">Deck ansehen</button>'
+      + '<button class="pk-knopf" id="pk-buch">Kriegsbuch</button>'
+    + '</div>'
+    + '</div>', { breit: true, neu: pkZeigeBelagerung });
 
-  t.querySelectorAll('.pk-angebot').forEach(el => el.addEventListener('click', () => {
+  t.querySelectorAll('.pk-wahlkarte, .pk-mr-wahl').forEach(el => el.addEventListener('click', () => {
     const w = wahlen[+el.dataset.i];
-    if (w.gesperrt) { pkSage(w.gesperrt); return; }
+    if (!w || w.gesperrt) { if (w) pkSage(w.gesperrt); return; }
     const r = waehle(w);
     if (!r.ok) { pkSage(r.grund); return; }
     if (r.kampf) { pkRaeumeTafel(); pkStarteKampf(w, r.kampf); return; }
+    // Ein Banner, das hinaufwandert - beim naechsten Zeichnen wird es bewegt.
+    if (w.art === 'durchlassen' && w.ziel === 'division') {
+      pkZuletztGewandert = (dieBelagerung.divisionen[w.nr] || {}).id;
+    }
     klang('karte');
     pkWeiter();
   }));
   t.querySelector('#pk-deck-ansehen').addEventListener('click', () => pkZeigeDeck(pkZeigeBelagerung));
-}
-
-/*
- * Das Heer, wie es gerade steht. Drei Reihen: die Vorhut, die drei
- * Divisionen, der Heerführer - und jede Marke sagt, ob sie geschlagen ist,
- * durchgekommen ist oder noch bevorsteht.
- */
-function pkHeerHtml(lage) {
-  const marke = (m, was) =>
-    '<div class="pk-marke ' + m.zustand + '" title="' + (m.text || '').replace(/"/g, '') + '">' +
-      '<span class="pk-marke-bild">' + m.zeichen + '</span>' +
-      '<span class="pk-marke-name">' + m.name + '</span>' +
-      '<span class="pk-marke-lage">' + was + '</span>' +
-    '</div>';
-  const zustandText = (z) => (z === 'geschlagen' ? 'geschlagen' : (z === 'durch' ? 'durchgekommen' : 'rückt an'));
-
-  const regeln = lage.heerfuehrer.regeln.map(id => BOSSREGELN[id]).filter(Boolean);
-  return '<div class="pk-heer">' +
-    '<div class="pk-heer-reihe">' + marke(lage.vorhut, zustandText(lage.vorhut.zustand)) + '</div>' +
-    '<div class="pk-heer-reihe">' +
-      lage.divisionen.map(d => marke(d, zustandText(d.zustand))).join('') + '</div>' +
-    '<div class="pk-heer-reihe">' +
-      '<div class="pk-fuehrer">' +
-        '<span class="pk-marke-bild">' + lage.heerfuehrer.zeichen + '</span>' +
-        '<div>' +
-          '<div class="pk-fuehrer-name">' + lage.heerfuehrer.name +
-            ' <small>' + pkZahl(lage.heerfuehrer.hp) + ' Stärke</small></div>' +
-          '<div class="pk-fuehrer-regeln">' +
-            regeln.map(r => '<span title="' + r.antwort.replace(/"/g, '') + '">' +
-              r.zeichen + ' ' + r.text + '</span>').join('') +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>' +
-  '</div>';
-}
-
-/** Eine Wahl als Karte - mit dem, was sie kostet, und dem, was sie bringt. */
-function pkWahlHtml(w, i) {
-  const preis = [];
-  if (w.bedrohung) preis.push((w.bedrohung > 0 ? '+' : '') + w.bedrohung + ' Bedrohung');
-  if (w.vorbereitung) preis.push('+' + w.vorbereitung + ' Vorbereitung');
-  return '<div class="pk-angebot' + (w.gesperrt ? ' aus' : '') + (w.kampf ? ' kampf' : '') +
-      '" data-i="' + i + '">' +
-    '<div class="pk-siegel">' + w.zeichen + '</div>' +
-    '<div class="pk-angebot-art">' + (w.kampf ? 'Stellen' : 'Ziehen lassen') + '</div>' +
-    '<div class="pk-angebot-name">' + w.name + '</div>' +
-    '<div class="pk-angebot-text">' + w.text + '</div>' +
-    (w.wirkung ? '<div class="pk-angebot-mit">↔ ' + w.wirkung + '</div>' : '') +
-    (preis.length ? '<div class="pk-angebot-wert' + (w.bedrohung > 0 ? ' schwach' : ' stark') + '">' +
-      preis.join(' · ') + '</div>' : '') +
-    (w.gesperrt ? '<div class="pk-angebot-wert schwach">' + w.gesperrt + '</div>' : '') +
-    '</div>';
+  t.querySelector('#pk-buch').addEventListener('click',
+    () => pkZeigeKriegsbuch('belagerung', null, pkZeigeBelagerung));
+  pkErstmals('durchlassen', wahlen.some(w => w.art === 'durchlassen' && !w.gesperrt),
+    'Truppen, die du ziehen lässt, kämpfen später an der Seite des Heerführers. '
+    + 'Dafür gewinnst du Zeit zur Vorbereitung.');
 }
 
 /* ============================================================

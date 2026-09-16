@@ -538,5 +538,109 @@ pruefe('Der geladene Feldzug lässt sich weiterspielen', () => {
   return gleich(P.dieBelagerung.ende, 'sieg', 'Ausgang');
 });
 
+/* ---------- Bedrohung, Vorbereitung, Erklaerungen ---------- */
+/*
+ * Was die Oberflaeche behauptet, muss im Kern nachweisbar sein. Die drei
+ * Auskuenfte hier - Stufe, Folge einer Wahl, wofuer die Vorbereitung reicht -
+ * sind der ganze Sinn der neuen Ante-Seite. Stimmen sie nicht, luegt die Seite.
+ */
+
+pruefe('Jede Bedrohungsstufe hat einen Namen und eine Folge', () => {
+  for (let n = 0; n <= P.BEDROHUNG_MAX; n++) {
+    const st = P.bedrohungsstufe(n);
+    if (!st || !st.name || !st.text) return 'Stufe ' + n + ' ist leer';
+    if (st.stufe !== n) return 'Stufe ' + n + ' nennt sich ' + st.stufe;
+  }
+  return P.bedrohungsstufe(P.BEDROHUNG_MAX + 9).stufe === P.BEDROHUNG_MAX
+    ? true : 'ueber dem Hoechstwert gibt es noch eine Stufe';
+});
+
+pruefe('Höhere Bedrohung nimmt keine Regel weg', () => {
+  let vorher = [];
+  for (let n = 0; n <= P.BEDROHUNG_MAX; n++) {
+    const jetzt = P.bedrohungsRegeln(n);
+    for (const id of vorher) if (!jetzt.includes(id)) return 'Stufe ' + n + ' verliert ' + id;
+    vorher = jetzt;
+  }
+  return true;
+});
+
+/* Der Zeitstempel im Stand tickt von selbst; alles andere darf es nicht. */
+const standOhneZeit = () => {
+  const st = P.sichereFeldzug();
+  return JSON.stringify({ ...st, zeit: 0 });
+};
+
+pruefe('Die Vorschau einer Wahl ändert den Feldzug nicht', () => {
+  P.neuerLauf();
+  const vorher = standOhneZeit();
+  for (const w of P.offeneWahlen()) {
+    const f = P.folgenDerWahl(w);
+    if (!f) return 'keine Folge fuer ' + w.name;
+    if (typeof f.nachher.hp !== 'number') return 'keine Staerke fuer ' + w.name;
+  }
+  return standOhneZeit() === vorher ? true : 'der Stand hat sich verschoben';
+});
+
+pruefe('Die Vorschau sagt dieselbe Stärke wie der Feldzug danach', () => {
+  P.neuerLauf();
+  const w = P.offeneWahlen().find(x => x.art === 'durchlassen' && !x.gesperrt);
+  if (!w) return 'nichts zum Durchlassen';
+  const f = P.folgenDerWahl(w);
+  P.waehle(w);
+  return gleich(P.belagerungslage().heerfuehrer.hp, f.nachher.hp, 'Staerke');
+});
+
+pruefe('Die Vorbereitung sagt, wofür sie reicht', () => {
+  P.neuerLauf();
+  const leer = P.vorbereitungslage();
+  if (!leer) return 'keine Lage';
+  if (leer.punkte !== 0) return 'der Feldzug beginnt mit ' + leer.punkte;
+  if (leer.reicht.length) return 'null Vorbereitung reicht angeblich fuer etwas';
+  const w = P.offeneWahlen().find(x => x.art === 'durchlassen' && !x.gesperrt);
+  P.waehle(w);
+  const v = P.vorbereitungslage();
+  if (v.punkte !== 2) return 'nach dem Durchlassen: ' + v.punkte;
+  for (const d of v.dienste) {
+    for (const po of d.posten) {
+      if (po.reicht !== (v.punkte >= po.preis)) return po.name + ' rechnet falsch';
+    }
+  }
+  return true;
+});
+
+pruefe('Was zu teuer ist, sagt genau, wie viel fehlt', () => {
+  P.neuerLauf();
+  const v = P.vorbereitungslage();
+  if (!v.naechstes) return 'bei null Vorbereitung fehlt angeblich nichts';
+  return gleich(v.naechstes.fehlt, v.naechstes.preis - v.punkte, 'Fehlbetrag');
+});
+
+pruefe('Jeder Begriff hat einen Satz, ein Kapitel und eine Erklärung', () => {
+  for (const id of P.BEGRIFF_LISTE) {
+    const b = P.begriff(id);
+    if (!b) return id + ' gibt es nicht';
+    if (b.id !== id) return id + ' nennt sich ' + b.id;
+    if (!b.name) return id + ' hat keinen Namen';
+    if (!b.satz) return id + ' hat keinen Satz';
+    if (!b.lang) return id + ' hat keine Erklaerung';
+    if (!P.KAPITEL[b.kapitel]) return id + ' zeigt auf das Kapitel ' + b.kapitel;
+    if (b.satz.length > 160) return id + ': der Satz ist ' + b.satz.length + ' Zeichen lang';
+  }
+  return P.BEGRIFF_LISTE.length >= 15 ? true : 'nur ' + P.BEGRIFF_LISTE.length + ' Begriffe';
+});
+
+pruefe('Jeder Begriff beantwortet auch "wie steht es gerade?"', () => {
+  P.neuerLauf();
+  P.waehle(P.offeneWahlen().find(x => x.kampf));
+  for (const id of P.BEGRIFF_LISTE) {
+    let j;
+    try { j = P.begriffJetzt(id); }
+    catch (e) { return id + ' wirft: ' + (e && e.message); }
+    if (j && j.zeilen && !Array.isArray(j.zeilen)) return id + ' liefert keine Zeilen';
+  }
+  return true;
+});
+
 console.log(`\n${gut} von ${gut + schlecht} Feldzugprüfungen bestanden.\n`);
 process.exit(schlecht ? 1 : 0);
