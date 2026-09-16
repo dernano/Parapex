@@ -92,7 +92,7 @@ Ranked by *how quietly they can break*.
 | # | Risk | Why it is dangerous | Mitigation |
 |---|---|---|---|
 | 1 | **Crest ordering** | `(s+10)×3 ≠ s×3+10`. Effects apply in place, strictly left to right. A reordering bug produces plausible-but-wrong numbers, not a crash. | Golden fixtures per crest **and per pair**, generated from legacy before any code moves. |
-| 2 | **Recursion guards** | Depth 6 / 12 per slot / 60 per event / 24 chains / circle detection. Off-by-one here changes late-run damage by orders of magnitude. | Fixtures that deliberately hit every guard, asserting the rejection reason. |
+| 2 | **Recursion guards** ◐ *4 of 6 covered* | Depth 6 / 12 per slot / 60 per event / 24 chains / circle detection. Off-by-one here changes late-run damage by orders of magnitude. | Fixtures now trip `kreis`, `siegel`, `jePlatz` and `jeEreignis`. `tiefe` and `ketten` are **unreachable** — see below. |
 | 3 | **Singleton → passed state** ◐ *combat done* | ~80 functions read an ambient binding. A missed one reads stale state and silently diverges. | `derKampf` has no counterpart in the new tree: `performAction` takes state and returns state, and a deep-frozen state survives every action. Five singletons remain in the legacy tree (`derLauf`, `dasBand`, `derVorrat`, `dieBelagerung`, `dasLager`) and fall in phases 3 and 8. |
 | 4 | **Removing `probe`** ✅ *done for combat* | Every call site must be classified as ask-or-apply. Getting one wrong burns resources during a hover. | Gone without replacement. `previewDeployment` and `computeForce` cannot mutate, so there is nothing to suppress. Proved by freezing the state and asking. |
 | 5 | **Shared tower objects** | Splitting rules and rendering into two objects can let them drift. | Renderer holds only `towerIndex`; it never owns tower data. |
@@ -153,7 +153,9 @@ Dependency order, not feature order. Each phase leaves the game playable.
 | **2b ✅** | Seeded `Rng` (sfc32, serialisable state) and the five draw algorithms, proven against the legacy inline code under a scripted stream | 47 draw fixtures; same seed deals the same hand; a saved state resumes the exact stream |
 | **2b′** | Wire the draws into the migrated systems — cannot happen before those systems move (2c for the deck, 8 for rewards/offers/encounters) | no `Math.random` left in `src/` — already enforced |
 | **2c ✅** | `CombatState` as data; `performAction(state, action) → {state, events}` for deploy / replace / exchange / endRound | 15 scripted combats, 55 actions, step-by-step parity; plus purity, determinism and no-card-lost properties |
-| **3** | Crest pipeline, typed events, recursion guards | per-crest and per-pair fixtures identical |
+| **3a ✅** | Golden fixtures for the crest system, captured before anything moves | 250 single-crest cases (50 crests × 5 combat shapes), 2450 ordered pairs, 50 guard rows; every crest ignites, 4 of 6 rejection reasons exercised |
+| **3b** | The typed pipeline itself: slots, order, trigger sources, guards, protocol | the machinery, unit-tested against the guards |
+| **3c** | The 50 crest definitions and the effect primitives | every fixture above reproduced |
 | **4** | Pixi renderer beside the old one: terrain, castle, five towers, one unit, one projectile | both renderers from one state, visually compared |
 | **5** | Unit visuals: atlas, `UnitVisualDefinition`, anchors, recoil | profile before/after |
 | **6** | `AnimationDirector` consumes the event list | simulation finishes before presentation starts |
@@ -220,3 +222,50 @@ correct expression. What can be done is to make the distinction structural:
 already right.
 
 A green suite that has never been seen to fail is a decoration.
+
+## 8. Two recursion guards cannot be tested, and that is the finding
+
+A brute-force sweep — 4,000 random five-crest rows across three combat shapes,
+12,000 combats — asked which of the five recursion guards any legal row can
+actually trip.
+
+| Guard | Limit | Reachable | Deepest / largest seen |
+|---|---|---|---|
+| `kreis` | — | **yes** | |
+| `siegel` | — | **yes** (needs a commander rule) | |
+| `jePlatz` | 12 per slot | **yes** | |
+| `jeEreignis` | 60 per event | **yes** | 65 ignitions |
+| `tiefe` | depth 6 | **no** | depth 2 |
+| `ketten` | 24 sub-events | **no** | — |
+
+The reason is structural. The only crest that generates a new event is the
+Ouroboros, and the circle guard stops it re-entering its own descendant — so
+every chain terminates at depth 1 or 2. `tiefe` and `ketten` are insurance
+against a crest that does not exist yet.
+
+That is not an argument for deleting them. It is an argument for saying plainly
+that they are **unproven**, rather than listing them as covered. When a
+future crest generates events from inside events, these two become live rules
+overnight, and the fixtures will need to grow with it.
+
+## 9. Building the crest fixtures took three attempts
+
+Worth recording, because each attempt looked finished.
+
+**First: a bare force calculation.** Clean, fast, and a nearly empty net — a
+force calculation fires 3 of the 18 events, so **10 of 50 crests** did anything
+at all. Everything listening for deployment, exchange, round start, a hit or a
+victory slept, and the fixtures were green without measuring.
+
+**Second: a scripted combat.** 47 of 50. Three crests still never ignited —
+and all three were gaps in the *script*, not dead crests: `pflugschar` needs
+the combat to end, `verwuester` needs overkill, and `muehlrad` never fired
+because deploying onto five towers spends all five momentum, leaving none to
+exchange with.
+
+**Third: five combat shapes.** Long, victory, defeat, sealed and swapped. 50 of
+50, every crest ignites, and the commander rules finally exercise `siegel`.
+
+The lesson is the same one as the weighted fallback: a fixture that runs
+without exercising the thing it names is worse than no fixture, because it
+reports confidence.

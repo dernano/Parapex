@@ -19,7 +19,8 @@
     "legacy:bot": "node scripts/bot.mjs",
     "legacy:style": "node scripts/stil.mjs",
     "golden:draws": "node scripts/goldenDraws.mjs",
-    "golden:combat": "node scripts/goldenCombat.mjs"
+    "golden:combat": "node scripts/goldenCombat.mjs",
+    "golden:crests": "node scripts/goldenCrests.mjs"
   },
   "engines": {
     "node": ">=20"
