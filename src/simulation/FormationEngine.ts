@@ -4,6 +4,20 @@ import type {
 } from '@/core/types';
 import { RULES } from '@/core/constants';
 import { FORMATIONS } from '@/content/formations/formations';
+import { resolve, type CrestRegistry, type CrestSession } from '@/crests/CrestPipeline';
+
+/**
+ * A crest row in use: who to look crests up in, where the session stands, and
+ * whether this is a question or the real thing.
+ *
+ * It is passed along rather than held anywhere, which is why two calculations
+ * can never contaminate one another.
+ */
+export interface CrestRun {
+  readonly registry: CrestRegistry;
+  readonly session: CrestSession;
+  readonly dryRun: boolean;
+}
 
 /**
  * Reading the tableau and recognising formations.
@@ -38,6 +52,41 @@ export function cardsFromTowers(towers: readonly Tower[]): readonly TableauCard[
     cards.push({ tower: i, rank: tower.unit.rank, branch: tower.unit.branch });
   });
   return cards;
+}
+
+/**
+ * The same, but every emplacement passes through the crest row first.
+ *
+ * This is where RANKS and the number of COPIES change — what used to be two
+ * bespoke hooks serving exactly two crests. And because it goes through the
+ * row, the order counts: a crest tripling the middle rank and one adding +2 to
+ * all of them give 3(r+2) or 3r+2 depending on the arrangement.
+ */
+export function readTableau(
+  towers: readonly Tower[],
+  run: CrestRun,
+): { cards: readonly TableauCard[]; run: CrestRun } {
+  const cards: TableauCard[] = [];
+  let session = run.session;
+
+  towers.forEach((tower, i) => {
+    if (!tower?.unit) return;
+    const result = resolve(
+      run.registry, session, 'tableauRead',
+      { tower: i, rank: tower.unit.rank, branch: tower.unit.branch, copies: 0 },
+      { dryRun: run.dryRun },
+    );
+    session = result.session;
+
+    const rank = Math.max(1, Math.round(result.data.rank as number));
+    const branch = result.data.branch as TableauCard['branch'];
+    cards.push({ tower: i, rank, branch });
+    // A copy carries the same tower, so the right emplacement lights up.
+    const copies = Math.round((result.data.copies as number) || 0);
+    for (let n = 0; n < copies; n++) cards.push({ tower: i, rank, branch, copy: true });
+  });
+
+  return { cards, run: { ...run, session } };
 }
 
 export function buildTableau(cards: readonly TableauCard[]): Tableau {

@@ -1,4 +1,5 @@
 import type { RngState } from '@/simulation/Rng';
+import type { CrestSession } from '@/crests/CrestPipeline';
 
 /**
  * The vocabulary of the game.
@@ -255,6 +256,8 @@ export interface CombatState {
   readonly enemy: Enemy;
   readonly outcome: CombatOutcome | null;
   readonly rng: RngState;
+  /** The crest row, its supplies and its protocol. Plain data, saves as-is. */
+  readonly crests: CrestSession;
 }
 
 /* ---------- Actions: what the interface may ask for ---------- */

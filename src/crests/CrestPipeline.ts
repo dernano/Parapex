@@ -48,15 +48,11 @@ export interface CrestSession {
   /** Running numbers, so ignitions stay orderable across events. */
   readonly nextNr: number;
   readonly nextEventNumber: number;
-  /** Not data — the game operations crests may invoke. Never serialised. */
-  readonly services: CrestServices;
 }
 
 export function newSession(
   row: CrestRow,
-  options: {
-    resources: Resources; enemy?: Enemy | null; round?: number; services?: CrestServices;
-  },
+  options: { resources: Resources; enemy?: Enemy | null; round?: number },
 ): CrestSession {
   return {
     row,
@@ -67,7 +63,6 @@ export function newSession(
     protocol: [],
     nextNr: 0,
     nextEventNumber: 0,
-    services: options.services ?? NO_SERVICES,
   };
 }
 
@@ -78,6 +73,13 @@ export interface CrestRegistry {
 }
 
 export interface ResolveOptions {
+  /**
+   * Game operations crests may invoke. NOT part of the session, because a
+   * session is plain data that has to survive `JSON.stringify` into a save —
+   * a function in it would be silently dropped and the Boar would stop firing
+   * after a reload with no error anywhere.
+   */
+  readonly services?: CrestServices;
   /**
    * Compute without touching anything: no supplies spent, nothing written to
    * the combat protocol. The display asks what the castle would weigh dozens
@@ -106,7 +108,8 @@ export function resolve(
   data: EventData,
   options: ResolveOptions = {},
 ): ResolveResult {
-  const run = new Run(registry, session, Boolean(options.dryRun));
+  const run = new Run(registry, session, Boolean(options.dryRun),
+    options.services ?? NO_SERVICES);
   const context = run.makeContext(event, data, null, 'original');
   run.walkRow(context);
   return { data: context.data, protocol: context.protocol, session: run.session() };
@@ -123,6 +126,7 @@ export function resolve(
 class Run {
   private readonly registry: CrestRegistry;
   private readonly row: CrestRow;
+  private readonly denseRow: readonly (CrestId | null)[];
   /**
    * The supply shelf, as a working copy. Crests put powder on it and take
    * powder off it during a resolution; `session()` hands the result back as
@@ -140,13 +144,21 @@ class Run {
   /** The context currently travelling through the row, if any. */
   private running: CrestContext | null = null;
 
-  constructor(registry: CrestRegistry, session: CrestSession, dryRun: boolean) {
+  private readonly services: CrestServices;
+
+  constructor(
+    registry: CrestRegistry, session: CrestSession, dryRun: boolean, services: CrestServices,
+  ) {
     this.registry = registry;
     this.row = session.row;
+    let last = session.row.slots.length;
+    while (last > 0 && !session.row.slots[last - 1]) last--;
+    this.denseRow = session.row.slots.slice(0, last);
     this.pool = { ...session.resources };
     this.round = session.round;
     this.enemy = session.enemy;
     this.dryRun = dryRun;
+    this.services = services;
     this.tally = { ...session.tally };
     this.protocol = [...session.protocol];
     this.nr = session.nextNr;
@@ -416,10 +428,19 @@ class Run {
       retrigger: (context, slot) => this.retrigger(context, slot),
       copy: (context, slot) => this.copy(context, slot),
       raise: (context, event, data) => this.trigger(event, data, context),
-      row: () => this.row.slots,
+      /*
+       * The row as the crests see it: the LIST of crests carried, not five
+       * pigeonholes. A castle with one crest has a row of length 1, and the
+       * Surcoat ("+12 % per crest to my right") therefore finds nothing.
+       *
+       * Padding the list to five made the Surcoat find four phantom
+       * neighbours and the Ouroboros believe it was not last yet — two crests
+       * silently worth something else than their card says.
+       */
+      row: () => this.denseRow,
       resources: () => this.pool,
       moveResource: (context, kind, amount) => this.moveResource(context, kind, amount),
-      services: () => this.base.services,
+      services: () => this.services,
     };
   }
 }

@@ -60,7 +60,19 @@ function baueTuerme() {
  * Jetzt laeuft ein geskripteter Kampf ueber drei Runden mit Setzen, Ersetzen
  * und Tauschen. Das ist langsamer und misst dafuer das System.
  */
-const DECK = P.EINHEITEN_POOL.slice(0, 30).map(k => k.id);
+/*
+ * DAS GANZE BLATT, nicht dreissig Karten.
+ *
+ * Mit dreissig war der Zugstapel in Runde drei leer und wurde neu gemischt -
+ * und von da an ziehen die beiden Baeume legitim verschieden, weil der eine
+ * aus Math.random schoepft und der andere aus einem gesaeten Erzeuger. Damit
+ * waeren ALLE 2450 Paare unvergleichbar gewesen, und eine Pruefung, die ihre
+ * Faelle ueberspringt, beweist nichts.
+ *
+ * 52 Karten reichen fuer drei Runden mit Abstand. Kein Mischen, kein Zufall,
+ * jedes Paar vergleichbar.
+ */
+const DECK = P.EINHEITEN_POOL.map(k => k.id);
 
 function rechne(reihe, { hp = 500000, setzen = 3, regeln = [] } = {}) {
   P.neuerVorrat();

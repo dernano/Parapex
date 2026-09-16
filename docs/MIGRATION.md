@@ -156,7 +156,7 @@ Dependency order, not feature order. Each phase leaves the game playable.
 | **3a ✅** | Golden fixtures for the crest system, captured before anything moves | 250 single-crest cases (50 crests × 5 combat shapes), 2450 ordered pairs, 50 guard rows; every crest ignites, 4 of 6 rejection reasons exercised |
 | **3b ✅** | The typed pipeline: slots, strict left-to-right order, trigger sources, all six guards, protocol, dry runs | 24 machinery tests against stub crests; all six rejection reasons exercised; four deliberate breaks caught |
 | **3c ✅** | The effect primitives and all 50 crest definitions, as typed data | content parity: every crest listens to exactly the events it did, with the same name, glyph, tincture, rarity and card text |
-| **3d** | Wire the pipeline into `CombatEngine`; run the 2450 pair fixtures | every single, pair and guard fixture reproduced |
+| **3d ✅** | Pipeline wired into `CombatEngine`; every crest event fired at its call site | 2449 of 2450 ordered pairs exact, 1 known deviation named and measured; every single-crest and guard fixture reproduced |
 | **4** | Pixi renderer beside the old one: terrain, castle, five towers, one unit, one projectile | both renderers from one state, visually compared |
 | **5** | Unit visuals: atlas, `UnitVisualDefinition`, anchors, recoil | profile before/after |
 | **6** | `AnimationDirector` consumes the event list | simulation finishes before presentation starts |
@@ -208,6 +208,8 @@ a suite that proved nothing.
 | A crest losing an event in translation | 1 |
 | A crest's card text drifting | 1 |
 | The Dragon listening only to volleys | 2 |
+| Row padded back to five slots | 10 |
+| Row walked right to left (with crests) | 12 |
 
 The weighted-fallback case is the instructive one. The first version of that
 test chose weights where the countdown reached zero inside the loop, so the
@@ -247,7 +249,45 @@ already right.
 
 A green suite that has never been seen to fail is a decoration.
 
-## 8. Two recursion guards cannot be tested, and that is the finding
+## 8. What the 2450 pairs found
+
+Five divergences, four of them mine, and each one instructive.
+
+**The row is a LIST, not five pigeonholes.** `tools.row()` returned the padded
+five slots, so the Surcoat ("+12 % per crest to my right") found four phantom
+neighbours and the Ouroboros never believed it was last. Two crests silently
+worth something other than their card says.
+
+**Factors must be applied one at a time, in protocol order.** `(a·f₁·f₂)·v` and
+`a·v·(f₁·f₂)` are equal in arithmetic and not in floating point. It showed up
+as a one-hit-point difference in two fixtures.
+
+**The round-end event carries no formations** — so the War Chest, whose card
+promises one veteran mark per formation, always gives exactly one. That is a
+LEGACY BUG, reproduced faithfully. Fixing it here would be a balance change
+smuggled in under a migration; it belongs on a list, not in this work.
+
+**A callback cannot write to a state the caller then discards.** The Boar's
+parting shot was applied inside the crest resolution, while `resolve` returned
+a state derived from the one it was handed — so the shot happened and vanished.
+
+**The last one is not a bug but a design choice, and it is named.** The parting
+shot is now applied after the replacement event rather than nested inside it,
+because nesting it faithfully would need the ambient running-context this
+migration exists to remove. Force, volleys and hit points come out identical;
+the protocol is six ignitions shorter. Measured rather than assumed that this
+cannot reach a number: the World Wheel is the only crest counting ignitions,
+and all three orderings of Boar / World Wheel / Ouroboros give exactly the
+legacy values, because it counts within its own event.
+
+**And one that was not a divergence at all.** Two pairs involving the Dove
+differed because the draw pile ran out in round three and was reshuffled — and
+the two trees draw that randomness from different places, exactly as Phase 2b
+said. The fix was not to tolerate it but to remove it: the fixture deck is now
+all 52 cards, so no combat reshuffles and every pair is comparable. A suite
+that skips its cases proves nothing.
+
+## 9. Two recursion guards cannot be tested, and that is the finding
 
 A brute-force sweep — 4,000 random five-crest rows across three combat shapes,
 12,000 combats — asked which of the five recursion guards any legal row can
@@ -287,7 +327,7 @@ that they are **unproven**, rather than listing them as covered. When a
 future crest generates events from inside events, these two become live rules
 overnight, and the fixtures will need to grow with it.
 
-## 9. Building the crest fixtures took three attempts
+## 10. Building the crest fixtures took three attempts
 
 Worth recording, because each attempt looked finished.
 
