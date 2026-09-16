@@ -195,6 +195,14 @@ export interface CrestTools {
   /** The row as it stands right now. Commander rules reorder it mid-combat. */
   row(): readonly (CrestId | null)[];
   resources(): Resources;
+  /**
+   * Move a supply. Returns how much really moved — giving always succeeds,
+   * taking is capped by what is on the shelf.
+   *
+   * On a dry run the arithmetic happens but the shelf is not touched:
+   * otherwise every mouse movement over a tower would cost powder.
+   */
+  moveResource(context: CrestContext, kind: ResourceKind, amount: number): number;
 }
 
 export type CrestReaction = (

@@ -1,7 +1,7 @@
 import type { Enemy } from '@/core/types';
 import type {
   CommanderRuleId, CrestContext, CrestDefinition, CrestEventName, CrestId, CrestRow,
-  CrestTools, EventData, Ignition, Rejection, Resources, TriggerSource,
+  CrestTools, EventData, Ignition, Rejection, ResourceKind, Resources, TriggerSource,
 } from './types';
 import { LIMITS } from './types';
 
@@ -103,7 +103,12 @@ export function resolve(
 class Run {
   private readonly registry: CrestRegistry;
   private readonly row: CrestRow;
-  private readonly resources: Resources;
+  /**
+   * The supply shelf, as a working copy. Crests put powder on it and take
+   * powder off it during a resolution; `session()` hands the result back as
+   * data. The session passed in is never touched.
+   */
+  private readonly pool: Record<ResourceKind, number>;
   private readonly round: number;
   private readonly enemy: Enemy | null;
   private readonly dryRun: boolean;
@@ -118,7 +123,7 @@ class Run {
   constructor(registry: CrestRegistry, session: CrestSession, dryRun: boolean) {
     this.registry = registry;
     this.row = session.row;
-    this.resources = session.resources;
+    this.pool = { ...session.resources };
     this.round = session.round;
     this.enemy = session.enemy;
     this.dryRun = dryRun;
@@ -134,6 +139,7 @@ class Run {
   session(): CrestSession {
     return {
       ...this.base,
+      resources: this.pool,
       tally: this.tally,
       protocol: this.protocol,
       nextNr: this.nr,
@@ -351,6 +357,26 @@ class Run {
   }
 
   /**
+   * Move a supply, and say how much really moved.
+   *
+   * Giving always succeeds. Taking is capped by the shelf — a crest that wants
+   * five powder and finds two spends two, and the protocol says two, because a
+   * log that claimed five would send the player looking for the missing three.
+   */
+  private moveResource(context: CrestContext, kind: ResourceKind, amount: number): number {
+    if (!amount) return 0;
+    if (amount > 0) {
+      if (!context.dryRun) this.pool[kind] += amount;
+      return amount;
+    }
+    const wanted = -amount;
+    const taken = Math.min(this.pool[kind], wanted);
+    if (!taken) return 0;
+    if (!context.dryRun) this.pool[kind] -= taken;
+    return -taken;
+  }
+
+  /**
    * What stands on a slot. Non-negative slots are the player's crests,
    * negative ones the commander's rules — so both run through the same door
    * and land in the same protocol.
@@ -371,7 +397,8 @@ class Run {
       copy: (context, slot) => this.copy(context, slot),
       raise: (context, event, data) => this.trigger(event, data, context),
       row: () => this.row.slots,
-      resources: () => this.resources,
+      resources: () => this.pool,
+      moveResource: (context, kind, amount) => this.moveResource(context, kind, amount),
     };
   }
 }
