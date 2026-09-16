@@ -1,4 +1,5 @@
 import type { CombatState, Tower, Unit } from '@/core/types';
+import type { Particle } from './effects/particles';
 import {
   ENEMY_COLUMN, GRID_COLS, GRID_ROWS, TOWER_FOOTPRINT, TOWER_ROWS, WALL_COLUMN,
   heightBandForRank, layerIndex, platformHeight, type LayerName,
@@ -24,7 +25,8 @@ import {
  */
 
 export type SceneNodeKind =
-  | 'ground' | 'wall' | 'tower' | 'unit' | 'enemy' | 'projectile' | 'shadow';
+  | 'ground' | 'wall' | 'tower' | 'unit' | 'enemy' | 'projectile' | 'shadow'
+  | 'particle' | 'projectileShadow';
 
 export interface SceneNode {
   /** Stable across frames, so the binding can reuse a sprite instead of rebuilding it. */
@@ -193,14 +195,29 @@ export function buildBattlefieldScene(
   state: CombatState,
   camera: Camera,
   projectiles: readonly FlyingProjectile[] = [],
+  particles: readonly Particle[] = [],
 ): Scene {
   const nodes = [
     ...groundNodes(camera),
     ...castleNodes(state, camera),
     ...unitNodes(state.towers, camera),
     ...enemyNodes(state, camera),
+    /*
+     * A shadow on the GROUND beneath an arcing shot. In isometric pixel art
+     * this communicates height better than anything else — without it a
+     * trebuchet stone and a low cannonball are the same dot moving right.
+     */
+    ...projectiles.filter(p => (p.at.height ?? 0) > 8).map(p =>
+      node(`shotShadow:${p.id}`, 'projectileShadow', 'DECORATION',
+        { col: p.at.col, row: p.at.row }, 'fx/shot-shadow', camera,
+        { height: p.at.height ?? 0 })),
     ...projectiles.map(p => node(`shot:${p.id}`, 'projectile', 'PROJECTILES',
       p.at, `projectile/${p.kind}`, camera)),
+    ...particles.map(p => node(`fx:${p.id}`, 'particle',
+      p.kind === 'dust' || p.kind === 'debris' ? 'IMPACTS' : 'WORLD_FX',
+      p.at, `particle/${p.kind}`, camera,
+      { size: Math.round(p.size), opacity: Math.round(p.opacity * 100) / 100,
+        palette: p.palette })),
   ];
 
   nodes.sort((a, b) => {

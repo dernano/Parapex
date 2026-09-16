@@ -1,7 +1,7 @@
 /**
  * The pixel art bible, as code.
  *
- * `docs/PIXEL_ART_BIBLE.md` is the prose; this is the same set of numbers in a
+ * `docs/ART_BIBLE.md` is the prose; this is the same set of numbers in a
  * form assets can import. `src/tests/artRules.test.ts` reads the document and
  * fails if the two drift apart — a specification nobody can violate silently
  * is worth more than one everybody agrees with.

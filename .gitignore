@@ -7,3 +7,6 @@ dist/
 
 # Der neue Baum
 dist/
+
+# Erzeugte Anlagen — die Quelle ist nachvollziehbar, das Ergebnis nicht
+assets/build/

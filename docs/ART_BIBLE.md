@@ -1,9 +1,29 @@
-# Pixel Art Bible
+# Art Bible
 
 The rules every asset obeys. No individual asset invents its own.
 
-This document is normative: `src/rendering/artRules.ts` carries the same
-numbers as code, and `src/tests/artRules.test.ts` fails if the two drift apart.
+This document is normative in three places at once: `src/rendering/artRules.ts`
+carries the same numbers as code, `assets/specs.json` carries the frame sizes
+and anchors the pipeline enforces, and any prompt written for an image
+generator is derived from here rather than invented at the keyboard.
+
+## 0. The style, in one paragraph — read this before writing a prompt
+
+Castle Master looks like a handcrafted medieval PC strategy game from roughly
+the late-1990s tradition, rebuilt with modern responsiveness. Grounded military
+atmosphere, muted materials, strong silhouettes, small believable soldiers,
+weapons readable at a glance.
+
+It is explicitly **not**: mobile pixel art, cute pixel art, JRPG pixel art,
+generic fantasy pixel art, high-saturation indie pixel art, a smooth digital
+painting reduced to pixels, AI fantasy concept art, or a photograph with a
+retro filter. If a generated asset would look at home in a phone game's store
+listing, it is wrong for this one.
+
+**CONSISTENCY BEATS INDIVIDUAL BEAUTY.** Ten beautiful soldiers that look like
+they came from ten games are useless; four plainer soldiers that obviously
+belong to the same game are the goal. Same camera, same light, same pixel
+density, same proportions, same palette, same outline language — every time.
 
 ---
 

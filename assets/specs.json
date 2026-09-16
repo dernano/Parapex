@@ -1,0 +1,84 @@
+{
+  "_note": "The asset contract. Read by scripts/art/pipeline.py and by src/assets/manifest.ts, so the normaliser and the game can never disagree about a frame size or an anchor. Derived from docs/ART_BIBLE.md; change the bible first.",
+  "_version": 1,
+
+  "pixelScale": 1,
+  "background": "transparent",
+
+  "palette": {
+    "earth": ["#3a2e20", "#4d3d2a", "#635036", "#756244", "#8a7351"],
+    "grass": ["#2f3a22", "#43512e", "#58663a", "#6d7a45"],
+    "stone": ["#4a4a52", "#5f6068", "#7a7a80", "#928f8a", "#a8a49a"],
+    "wood": ["#332017", "#4a3122", "#6a4d30", "#8a6a42"],
+    "iron": ["#2a2d33", "#434750", "#6b7079", "#949aa3", "#b9bec6"],
+    "cloth": ["#5a3a3a", "#5a4a3a", "#6a5a3a"],
+    "heraldic": ["#a8261f", "#2f5fa8", "#4f7a3a", "#e3b552"],
+    "fire": ["#5a1a08", "#8a2f0c", "#c25a15", "#e89a3c", "#ffd98a"]
+  },
+
+  "families": {
+    "unit": {
+      "frame": { "w": 28, "h": 30 },
+      "anchor": { "x": 14, "y": 29 },
+      "maxColours": 12,
+      "animations": {
+        "bow":       ["idle", "draw", "hold", "release", "recover"],
+        "crossbow":  ["idle", "raise", "aim", "fire", "reload"],
+        "artillery": ["idle", "prepare", "release", "recover"],
+        "gunner":    ["idle", "prepare", "fire", "recoil", "recover"]
+      },
+      "sockets": ["muzzle", "recoilPivot", "smoke", "banner"],
+      "layers": ["body", "weapon", "equipment", "machine"]
+    },
+    "castle": {
+      "frame": { "w": 88, "h": 120 },
+      "anchor": { "x": 44, "y": 119 },
+      "maxColours": 16,
+      "animations": { "tower": ["idle"], "wall": ["idle"], "parapet": ["idle"] },
+      "layers": ["back", "front"]
+    },
+    "terrain": {
+      "frame": { "w": 44, "h": 22 },
+      "anchor": { "x": 22, "y": 11 },
+      "maxColours": 8,
+      "animations": { "tile": ["idle"] },
+      "layers": ["ground"]
+    },
+    "enemy": {
+      "frame": { "w": 20, "h": 26 },
+      "anchor": { "x": 10, "y": 25 },
+      "maxColours": 10,
+      "animations": { "infantry": ["idle", "step", "fall"], "banner": ["idle", "wave"] },
+      "layers": ["body"]
+    },
+    "projectile": {
+      "frame": { "w": 12, "h": 12 },
+      "anchor": { "x": 6, "y": 6 },
+      "maxColours": 5,
+      "animations": { "arrow": ["fly"], "bolt": ["fly"], "stone": ["fly"], "ball": ["fly"] },
+      "layers": ["body"]
+    },
+    "crest": {
+      "frame": { "w": 32, "h": 38 },
+      "anchor": { "x": 16, "y": 37 },
+      "maxColours": 12,
+      "animations": { "shield": ["idle", "trigger"] },
+      "layers": ["shield"]
+    }
+  },
+
+  "required": {
+    "_note": "The complete slot list for the combat vertical slice. A slot with no source file is reported as MISSING, so the gap is visible instead of silently placeholder.",
+    "unit": [
+      "bow/longbowman", "crossbow/pavise", "artillery/ballista", "gunner/bombard"
+    ],
+    "castle": [
+      "tower/watchtower", "tower/archerTower", "tower/ballistaTower",
+      "tower/cannonTower", "tower/powderTower", "wall/segment", "parapet/front"
+    ],
+    "terrain": ["earth/a", "earth/b", "grass/a", "grass/b", "path/a", "debris/a"],
+    "enemy": ["infantry/spearman", "infantry/archer", "banner/red"],
+    "projectile": ["arrow/plain", "bolt/plain", "stone/plain", "ball/plain"],
+    "crest": ["millwheel", "whetstone", "powderHorn"]
+  }
+}

@@ -21,7 +21,9 @@
     "golden:draws": "node scripts/goldenDraws.mjs",
     "golden:combat": "node scripts/goldenCombat.mjs",
     "golden:crests": "node scripts/goldenCrests.mjs",
-    "golden:shapes": "node scripts/goldenCrestShapes.mjs"
+    "golden:shapes": "node scripts/goldenCrestShapes.mjs",
+    "art": "python3 scripts/art/pipeline.py",
+    "art:check": "python3 scripts/art/pipeline.py --selftest"
   },
   "engines": {
     "node": ">=20"

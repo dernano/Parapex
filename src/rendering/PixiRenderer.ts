@@ -1,7 +1,30 @@
 import { Application, Container, Graphics } from 'pixi.js';
 import { LAYERS, TILE_HEIGHT, TILE_WIDTH, type LayerName } from './artRules';
 import { facesOf, placeholderFor, type Shape } from './placeholderAtlas';
+import { PARTICLE_COLOURS, type ParticleKind } from './effects/particles';
 import type { Scene, SceneNode } from './SceneGraph';
+
+/** A particle is one chunky square. Scale and alpha come from the scene. */
+function buildParticle(node: SceneNode): Graphics {
+  const kind = node.sprite.split('/')[1] as ParticleKind;
+  const colours = PARTICLE_COLOURS[kind] ?? PARTICLE_COLOURS.smoke;
+  const colour = colours[Number(node.detail?.palette ?? 0) % colours.length]!;
+  const g = new Graphics();
+  g.rect(-2, -2, 4, 4).fill(colour);
+  return g;
+}
+
+/**
+ * The ground shadow under an arcing shot. It shrinks as the shot climbs, which
+ * is what actually reads as height.
+ */
+function buildShotShadow(node: SceneNode): Graphics {
+  const height = Number(node.detail?.height ?? 0);
+  const shrink = Math.max(0.3, 1 - height / 160);
+  const g = new Graphics();
+  g.ellipse(0, 0, 5 * shrink, 2.5 * shrink).fill({ color: 0x1a1510, alpha: 0.45 });
+  return g;
+}
 
 /**
  * Pixi binding. Thin on purpose.
@@ -80,6 +103,12 @@ export class BattlefieldRenderer {
         this.layers.get(node.layer)!.addChild(sprite);
       }
       sprite.position.set(node.screen.x, node.screen.y);
+      // Particles change size and opacity every frame; rebuild only those.
+      if (node.kind === 'particle') {
+        sprite.alpha = Number(node.detail?.opacity ?? 1);
+        const size = Number(node.detail?.size ?? 2);
+        sprite.scale.set(size / 4);
+      }
       // Within a layer, order is the scene's, not the creation order.
       sprite.zIndex = node.depth;
     }
@@ -93,6 +122,8 @@ export class BattlefieldRenderer {
   }
 
   private build(node: SceneNode): Graphics {
+    if (node.kind === 'particle') return buildParticle(node);
+    if (node.kind === 'projectileShadow') return buildShotShadow(node);
     const placeholder = placeholderFor(node.sprite);
     const g = new Graphics();
     for (const shape of placeholder.shapes) paint(g, shape);
