@@ -92,7 +92,7 @@ Ranked by *how quietly they can break*.
 | # | Risk | Why it is dangerous | Mitigation |
 |---|---|---|---|
 | 1 | **Crest ordering** | `(s+10)×3 ≠ s×3+10`. Effects apply in place, strictly left to right. A reordering bug produces plausible-but-wrong numbers, not a crash. | Golden fixtures per crest **and per pair**, generated from legacy before any code moves. |
-| 2 | **Recursion guards** ◐ *4 of 6 covered* | Depth 6 / 12 per slot / 60 per event / 24 chains / circle detection. Off-by-one here changes late-run damage by orders of magnitude. | Fixtures now trip `kreis`, `siegel`, `jePlatz` and `jeEreignis`. `tiefe` and `ketten` are **unreachable** — see below. |
+| 2 | **Recursion guards** ✅ *all 6 covered* | Depth 6 / 12 per slot / 60 per event / 24 chains / circle detection. Off-by-one here changes late-run damage by orders of magnitude. | Legacy fixtures reach 4 of 6. The typed pipeline's stub tests reach all 6, including the two no real crest can trigger — see §8. |
 | 3 | **Singleton → passed state** ◐ *combat done* | ~80 functions read an ambient binding. A missed one reads stale state and silently diverges. | `derKampf` has no counterpart in the new tree: `performAction` takes state and returns state, and a deep-frozen state survives every action. Five singletons remain in the legacy tree (`derLauf`, `dasBand`, `derVorrat`, `dieBelagerung`, `dasLager`) and fall in phases 3 and 8. |
 | 4 | **Removing `probe`** ✅ *done for combat* | Every call site must be classified as ask-or-apply. Getting one wrong burns resources during a hover. | Gone without replacement. `previewDeployment` and `computeForce` cannot mutate, so there is nothing to suppress. Proved by freezing the state and asking. |
 | 5 | **Shared tower objects** | Splitting rules and rendering into two objects can let them drift. | Renderer holds only `towerIndex`; it never owns tower data. |
@@ -154,7 +154,7 @@ Dependency order, not feature order. Each phase leaves the game playable.
 | **2b′** | Wire the draws into the migrated systems — cannot happen before those systems move (2c for the deck, 8 for rewards/offers/encounters) | no `Math.random` left in `src/` — already enforced |
 | **2c ✅** | `CombatState` as data; `performAction(state, action) → {state, events}` for deploy / replace / exchange / endRound | 15 scripted combats, 55 actions, step-by-step parity; plus purity, determinism and no-card-lost properties |
 | **3a ✅** | Golden fixtures for the crest system, captured before anything moves | 250 single-crest cases (50 crests × 5 combat shapes), 2450 ordered pairs, 50 guard rows; every crest ignites, 4 of 6 rejection reasons exercised |
-| **3b** | The typed pipeline itself: slots, order, trigger sources, guards, protocol | the machinery, unit-tested against the guards |
+| **3b ✅** | The typed pipeline: slots, strict left-to-right order, trigger sources, all six guards, protocol, dry runs | 24 machinery tests against stub crests; all six rejection reasons exercised; four deliberate breaks caught |
 | **3c** | The 50 crest definitions and the effect primitives | every fixture above reproduced |
 | **4** | Pixi renderer beside the old one: terrain, castle, five towers, one unit, one projectile | both renderers from one state, visually compared |
 | **5** | Unit visuals: atlas, `UnitVisualDefinition`, anchors, recoil | profile before/after |
@@ -196,6 +196,10 @@ a suite that proved nothing.
 | Exchanged cards discarded before drawing | **nothing — the test was missing** |
 | Replacement charged the deployment price | **nothing — and nothing can** |
 | `Math.random` in the rules | the architecture guard |
+| Circle guard removed | 2 |
+| `perSlot` guard removed | 2 |
+| A copy counted as a retrigger | 3 |
+| Row walked right to left | 2 |
 
 The weighted-fallback case is the instructive one. The first version of that
 test chose weights where the countdown reached zero inside the loop, so the
@@ -242,6 +246,21 @@ The reason is structural. The only crest that generates a new event is the
 Ouroboros, and the circle guard stops it re-entering its own descendant — so
 every chain terminates at depth 1 or 2. `tiefe` and `ketten` are insurance
 against a crest that does not exist yet.
+
+**`depth` has a precise threshold, and it is worth knowing.** A chain deepens
+only while a NEW identity is still free to raise, because the circle guard
+blocks everyone already in the chain's origin. Measured in the typed pipeline:
+
+| Raising identities | Deepest chain | `depth` fires |
+|---|---|---|
+| 5 crests | 5 | no |
+| 5 crests + 1 commander rule | 6 | no |
+| 5 crests + 2 commander rules | 6 | **yes** |
+
+So the guard becomes live at **seven** raising identities. Today the game has
+one raising crest and no raising commander rule. The day a second and third
+appear, this guard stops being insurance — and the number above says exactly
+when.
 
 That is not an argument for deleting them. It is an argument for saying plainly
 that they are **unproven**, rather than listing them as covered. When a

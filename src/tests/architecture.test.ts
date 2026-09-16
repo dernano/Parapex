@@ -39,6 +39,13 @@ function importsOf(text: string): string[] {
   return out;
 }
 
+/**
+ * The layers that carry game RULES. Nothing in them may reach for a renderer,
+ * the DOM, a timer or unseeded randomness. `crests/` joined the list in Phase
+ * 3b; a layer that is not named here is a layer nobody is guarding.
+ */
+const RULE_LAYERS = ['core/', 'content/', 'simulation/', 'crests/'];
+
 describe('dependency direction', () => {
   it('finds source files at all', () => {
     expect(FILES.length).toBeGreaterThan(5);
@@ -51,12 +58,18 @@ describe('dependency direction', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('simulation and content never import a renderer or the DOM', () => {
+  it('every rule layer is actually present in the tree', () => {
+    // A guard that names a folder nobody has created guards nothing.
+    for (const layer of RULE_LAYERS) {
+      expect(FILES.some(f => f.path.startsWith(layer)), layer).toBe(true);
+    }
+  });
+
+  it('the rule layers never import a renderer or the DOM', () => {
     const forbidden = ['pixi.js', '@/rendering', '@/ui', '@/animation', '@/app'];
     const offenders: string[] = [];
     for (const file of FILES) {
-      if (!file.path.startsWith('simulation/') && !file.path.startsWith('content/')
-        && !file.path.startsWith('core/')) continue;
+      if (!RULE_LAYERS.some(layer => file.path.startsWith(layer))) continue;
       for (const specifier of importsOf(file.text)) {
         if (forbidden.some(f => specifier === f || specifier.startsWith(`${f}/`))) {
           offenders.push(`${file.path} -> ${specifier}`);
@@ -71,8 +84,7 @@ describe('dependency direction', () => {
     const banned = /\b(document|window|requestAnimationFrame|setTimeout|setInterval)\s*[.(]/;
     const offenders: string[] = [];
     for (const file of FILES) {
-      if (!file.path.startsWith('simulation/') && !file.path.startsWith('content/')
-        && !file.path.startsWith('core/')) continue;
+      if (!RULE_LAYERS.some(layer => file.path.startsWith(layer))) continue;
       const code = file.text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
       if (banned.test(code)) offenders.push(file.path);
     }
@@ -87,8 +99,7 @@ describe('dependency direction', () => {
      */
     const offenders: string[] = [];
     for (const file of FILES) {
-      if (!file.path.startsWith('simulation/') && !file.path.startsWith('content/')
-        && !file.path.startsWith('core/')) continue;
+      if (!RULE_LAYERS.some(layer => file.path.startsWith(layer))) continue;
       const code = file.text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
       if (/Math\s*\.\s*random/.test(code)) offenders.push(file.path);
     }
