@@ -17,7 +17,8 @@
     "legacy:test": "node scripts/baue.mjs && tsc -p tsconfig.legacy.json && node scripts/pruefe-kern.mjs && node scripts/pruefe-feldzug.mjs && node scripts/pruefe.mjs",
     "legacy:serve": "node scripts/serve.js",
     "legacy:bot": "node scripts/bot.mjs",
-    "legacy:style": "node scripts/stil.mjs"
+    "legacy:style": "node scripts/stil.mjs",
+    "golden:draws": "node scripts/goldenDraws.mjs"
   },
   "engines": {
     "node": ">=20"

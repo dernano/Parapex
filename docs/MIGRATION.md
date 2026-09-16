@@ -97,7 +97,7 @@ Ranked by *how quietly they can break*.
 | 4 | **Removing `probe`** | Every call site must be classified as ask-or-apply. Getting one wrong burns resources during a hover. | The new engine cannot mutate at all, so a miscall is a type error, not a bug. |
 | 5 | **Shared tower objects** | Splitting rules and rendering into two objects can let them drift. | Renderer holds only `towerIndex`; it never owns tower data. |
 | 6 | **`k.wappen === band.reihe`** | Copying the array breaks reordering; not copying leaks mutation. | One owner (`CombatState.crests`), pipeline receives it as a parameter. |
-| 7 | **Seeded RNG** | Seeding *changes every draw*. Run-level golden fixtures cannot be compared across the change. | Seed first, regenerate run-level fixtures, then migrate. Combat-level fixtures are RNG-free and stay valid. |
+| 7 | **Seeded RNG** ✅ *addressed* | Seeding *changes every draw*. Run-level golden fixtures cannot be compared across the change. | Resolved differently than planned, and better: instead of comparing outcomes, `scripts/goldenDraws.mjs` feeds the legacy code a **scripted stream** and records it. The generator is then out of the question and only the algorithm is on trial. 47 fixtures, all five algorithms match. |
 | 8 | **Encounter roll in the UI** | Moving it changes when it is rolled relative to the seed. | Move it with the seed (Phase 2b), not before. |
 | 9 | **Animation-gated flow** | An event queue observes state at different moments than a timer chain. | `AnimationDirector` replays a finished event list; simulation completes before presentation starts. |
 | 10 | **Save compatibility** | v1 refuses mismatches outright, so a shape change bricks in-flight runs. | v2 written by a migration from v1, with a fixture of a real v1 save. |
@@ -150,7 +150,8 @@ Dependency order, not feature order. Each phase leaves the game playable.
 | **0 ✅** | Freeze at **`6b72a89`** (local tag `legacy-baseline`; this session's git proxy does not relay tags, so the commit SHA is the durable marker), golden fixtures for force + formations | 25 fixtures written |
 | **1 ✅** | npm, TypeScript 7, Vite 8, Vitest 5, PixiJS 8; `dev`/`build`/`test`/`typecheck` | build + tests green, legacy untouched |
 | **2a ✅** | Vertical slice: units, towers, formations, force — typed, pure, proven | 27 parity tests |
-| **2b** | Seeded `Rng`; deck, rewards, offers, encounters draw from it | run-level fixtures regenerated and stable across two runs of one seed |
+| **2b ✅** | Seeded `Rng` (sfc32, serialisable state) and the five draw algorithms, proven against the legacy inline code under a scripted stream | 47 draw fixtures; same seed deals the same hand; a saved state resumes the exact stream |
+| **2b′** | Wire the draws into the migrated systems — cannot happen before those systems move (2c for the deck, 8 for rewards/offers/encounters) | no `Math.random` left in `src/` — already enforced |
 | **2c** | `CombatState` as data; `performAction(state, action) → {state, events}` for deploy / replace / exchange / endRound | legacy combat suite reproduced against the new engine |
 | **3** | Crest pipeline, typed events, recursion guards | per-crest and per-pair fixtures identical |
 | **4** | Pixi renderer beside the old one: terrain, castle, five towers, one unit, one projectile | both renderers from one state, visually compared |
@@ -173,3 +174,32 @@ Dependency order, not feature order. Each phase leaves the game playable.
 - the rules call `Math.random`
 
 All four were verified to fail when deliberately violated.
+
+## 7. On testing the tests
+
+Every parity suite here is checked by deliberately breaking the implementation
+and confirming the suite goes red. This is not ceremony — it has already caught
+a suite that proved nothing.
+
+| Break | Caught |
+|---|---|
+| Volley count off by 0.0001 | 25 of 27 |
+| Tower factor removed | exactly the 4 tower-type cases |
+| Shuffle direction reversed | 3 |
+| `range` made exclusive | 5 |
+| Weighted fallback removed | **nothing — the test was wrong** |
+| `Math.random` in the rules | the architecture guard |
+
+The weighted-fallback case is the instructive one. The first version of that
+test chose weights where the countdown reached zero inside the loop, so the
+fallback line never executed and deleting it passed. A search over 200,000
+random weight sets found a case where floating-point rounding really does leave
+the countdown at +1.1e-16 after the last subtraction. That case is in the test
+now.
+
+The same applies to the fixtures themselves: `goldenDraws.mjs` aborts if a case
+consumed no randomness, because one silently did — `belohnungsRang` is not in
+the legacy barrel, and an optional call swallowed it into a fixture that tested
+nothing.
+
+A green suite that has never been seen to fail is a decoration.
