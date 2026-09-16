@@ -158,7 +158,7 @@ Dependency order, not feature order. Each phase leaves the game playable.
 | **3c ✅** | The effect primitives and all 50 crest definitions, as typed data | content parity: every crest listens to exactly the events it did, with the same name, glyph, tincture, rarity and card text |
 | **3d ✅** | Pipeline wired into `CombatEngine`; every crest event fired at its call site | 2449 of 2450 ordered pairs exact, 1 known deviation named and measured; every single-crest and guard fixture reproduced |
 | **4 ✅** | Pixel art bible; world transform proven identical to the legacy over the whole grid; explicit layers; pure scene graph; thin Pixi binding | 420 tests; battlefield renders in a real browser from a real `CombatState` — `docs/phase4-battlefield.png` |
-| **5** | Unit visuals: atlas, `UnitVisualDefinition`, anchors, recoil | profile before/after |
+| **5 ◐** | `UnitVisualDefinition` for four families, firing as a pure function of time, muzzle sockets, world-direction recoil, per-weapon arcs, rank-as-equipment | 16 firing tests, four deliberate breaks caught. **The system is done; the visible payoff waits on real sprites** — see §11 |
 | **6** | `AnimationDirector` consumes the event list | simulation finishes before presentation starts |
 | **7** | DOM UI as typed components | |
 | **8** | Campaign/siege on typed state | |
@@ -177,6 +177,30 @@ Dependency order, not feature order. Each phase leaves the game playable.
 - the rules call `Math.random`
 
 All four were verified to fail when deliberately violated.
+
+## 11. Phase 5 is finished as a system and unfinished as a look
+
+Everything the brief asks for mechanically is in place and proven:
+
+- four families whose firing differs in length, rhythm, recoil, arc and speed
+- the shot leaving an actual muzzle socket, per family
+- recoil derived from the projection, opposite the firing vector
+- rank reading as equipment — armour, helmet, weapon, heraldry — across a
+  height range of six pixels for all thirteen ranks
+- a pose that is a pure function of time, with no field in it that could move
+  a unit's feet even by accident
+
+And the screenshot shows almost none of it. At gameplay zoom a ten-pixel
+recoil on a twenty-six-pixel placeholder blob is invisible; what one can see is
+the projectiles travelling, and that is all.
+
+That is not a defect in the system, and it is not fixed by more code.
+"The player should enjoy watching the castle fire" needs soldiers with
+silhouettes — a bow that visibly bends, a crossbow's lever, a trebuchet arm
+coming over, a bombard's smoke. Those are drawings.
+
+What the system guarantees is that when those drawings exist they drop into
+sockets that already point the right way.
 
 ## 7. On testing the tests
 
