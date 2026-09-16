@@ -1,3 +1,5 @@
+import type { RngState } from '@/simulation/Rng';
+
 /**
  * The vocabulary of the game.
  *
@@ -208,3 +210,125 @@ export interface Settlement {
   /** What actually lands, rounded. */
   readonly force: number;
 }
+
+/* ---------- Combat ---------- */
+
+/**
+ * One enemy with one strength value. That eight raiders stand on the field is
+ * a picture, not a mechanic: they share the value, take no turns of their own
+ * and have no goal. It is why there is no long enemy turn eating half the
+ * combat.
+ */
+export interface Enemy {
+  readonly id: string;
+  /** German, shown to the player. */
+  readonly displayName: string;
+  readonly hp: number;
+  readonly maxHp: number;
+}
+
+export type CombatOutcome = 'victory' | 'defeat';
+
+/**
+ * The whole of a combat, as data.
+ *
+ * Every field is readonly and every array is a new array after an action. This
+ * is the single largest departure from the legacy tree, where `derKampf` was a
+ * module-level binding that eighty functions read and wrote. Nothing here is
+ * ambient; nothing reaches for it.
+ *
+ * `rng` is the generator's state rather than a generator, so a combat state is
+ * plain JSON — it saves, it restores, it compares in a test.
+ */
+export interface CombatState {
+  readonly round: number;
+  readonly maxRounds: number;
+  readonly momentum: number;
+  readonly maxMomentum: number;
+  /** How many cards have been exchanged this round. Some crests discount by count. */
+  readonly exchangesThisRound: number;
+  readonly towers: readonly Tower[];
+  /** Drawn from the END, the way the legacy pile is popped. */
+  readonly drawPile: readonly Unit[];
+  readonly hand: readonly Unit[];
+  readonly discardPile: readonly Unit[];
+  readonly enemy: Enemy;
+  readonly outcome: CombatOutcome | null;
+  readonly rng: RngState;
+}
+
+/* ---------- Actions: what the interface may ask for ---------- */
+
+/**
+ * Deploying onto an occupied tower replaces the unit there — one action, not
+ * two, exactly as the rules have it. The events tell the two apart.
+ */
+export type CombatAction =
+  | { readonly type: 'DEPLOY_UNIT'; readonly cardUid: string; readonly towerIndex: number }
+  | { readonly type: 'EXCHANGE_CARDS'; readonly cardUids: readonly string[] }
+  | { readonly type: 'END_ROUND' };
+
+/**
+ * Why an action was refused — a code, not a sentence.
+ *
+ * The engine does not decide wording. `content/combat/rejections.ts` holds the
+ * German the player reads, so a message can be reworded without touching a
+ * rule, and a rule can be tested without asserting on prose.
+ */
+export type CombatRejection =
+  | 'COMBAT_OVER'
+  | 'NO_SUCH_TOWER'
+  | 'CARD_NOT_IN_HAND'
+  | 'NOT_ENOUGH_MOMENTUM'
+  | 'NO_CARDS_CHOSEN';
+
+/* ---------- Events: what happened, for the presentation to replay ---------- */
+
+/**
+ * The simulation produces these; it never plays them. An animation may take
+ * 600 ms over a `VOLLEY_FIRED`, and the damage in it was decided before the
+ * first frame — which is the whole point of the separation.
+ */
+export type CombatEvent =
+  | { readonly type: 'ROUND_BEGAN'; readonly round: number; readonly momentum: number }
+  | { readonly type: 'CARDS_DRAWN'; readonly units: readonly Unit[] }
+  | { readonly type: 'DRAW_PILE_RESHUFFLED'; readonly count: number }
+  | { readonly type: 'UNIT_DEPLOYED'; readonly towerIndex: number;
+      readonly unit: Unit; readonly cost: number }
+  | { readonly type: 'UNIT_REPLACED'; readonly towerIndex: number;
+      readonly removed: Unit; readonly unit: Unit }
+  | { readonly type: 'SHOT_FIRED'; readonly towerIndex: number; readonly unit: Unit;
+      readonly force: number; readonly source: DamageSource }
+  | { readonly type: 'VOLLEY_FIRED'; readonly settlement: Settlement }
+  | { readonly type: 'DAMAGE_DEALT'; readonly amount: number; readonly source: DamageSource;
+      readonly hpBefore: number; readonly hpAfter: number }
+  | { readonly type: 'OVERKILL'; readonly amount: number; readonly source: DamageSource }
+  | { readonly type: 'CARDS_EXCHANGED'; readonly removed: readonly Unit[];
+      readonly drawn: readonly Unit[]; readonly cost: number }
+  | { readonly type: 'ROUND_ENDED'; readonly round: number; readonly force: number }
+  | { readonly type: 'COMBAT_ENDED'; readonly outcome: CombatOutcome };
+
+/** Where a hit came from. Presentation picks the sound and the animation from it. */
+export type DamageSource = 'deployment' | 'volley';
+
+/**
+ * Why an action failed, with the one number a message might need.
+ *
+ * The legacy tree had two different refusals for missing momentum: a flat
+ * "Nicht genug Tatendrang." when deploying, and "Dafür fehlen 3 Tatendrang."
+ * when exchanging several cards at once. The second is the better message, and
+ * dropping it would have been a quiet regression — the parity fixtures caught
+ * exactly that. So the shortfall travels as a NUMBER and the content layer
+ * decides the sentence.
+ */
+export interface CombatFailure {
+  readonly ok: false;
+  readonly reason: CombatRejection;
+  /** How much momentum was missing. Present only where a message shows it. */
+  readonly shortfall?: number;
+}
+
+/** What an action returns: a new state and what happened, or why not. */
+export type ActionResult =
+  | { readonly ok: true; readonly state: CombatState; readonly events: readonly CombatEvent[] }
+  | CombatFailure;

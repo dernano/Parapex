@@ -93,8 +93,8 @@ Ranked by *how quietly they can break*.
 |---|---|---|---|
 | 1 | **Crest ordering** | `(s+10)×3 ≠ s×3+10`. Effects apply in place, strictly left to right. A reordering bug produces plausible-but-wrong numbers, not a crash. | Golden fixtures per crest **and per pair**, generated from legacy before any code moves. |
 | 2 | **Recursion guards** | Depth 6 / 12 per slot / 60 per event / 24 chains / circle detection. Off-by-one here changes late-run damage by orders of magnitude. | Fixtures that deliberately hit every guard, asserting the rejection reason. |
-| 3 | **Singleton → passed state** | ~80 functions currently read an ambient binding. A missed one reads stale state and silently diverges. | Do it mechanically per module, with the legacy suite green after each; the ambient binding stays until its last reader is gone. |
-| 4 | **Removing `probe`** | Every call site must be classified as ask-or-apply. Getting one wrong burns resources during a hover. | The new engine cannot mutate at all, so a miscall is a type error, not a bug. |
+| 3 | **Singleton → passed state** ◐ *combat done* | ~80 functions read an ambient binding. A missed one reads stale state and silently diverges. | `derKampf` has no counterpart in the new tree: `performAction` takes state and returns state, and a deep-frozen state survives every action. Five singletons remain in the legacy tree (`derLauf`, `dasBand`, `derVorrat`, `dieBelagerung`, `dasLager`) and fall in phases 3 and 8. |
+| 4 | **Removing `probe`** ✅ *done for combat* | Every call site must be classified as ask-or-apply. Getting one wrong burns resources during a hover. | Gone without replacement. `previewDeployment` and `computeForce` cannot mutate, so there is nothing to suppress. Proved by freezing the state and asking. |
 | 5 | **Shared tower objects** | Splitting rules and rendering into two objects can let them drift. | Renderer holds only `towerIndex`; it never owns tower data. |
 | 6 | **`k.wappen === band.reihe`** | Copying the array breaks reordering; not copying leaks mutation. | One owner (`CombatState.crests`), pipeline receives it as a parameter. |
 | 7 | **Seeded RNG** ✅ *addressed* | Seeding *changes every draw*. Run-level golden fixtures cannot be compared across the change. | Resolved differently than planned, and better: instead of comparing outcomes, `scripts/goldenDraws.mjs` feeds the legacy code a **scripted stream** and records it. The generator is then out of the question and only the algorithm is on trial. 47 fixtures, all five algorithms match. |
@@ -152,7 +152,7 @@ Dependency order, not feature order. Each phase leaves the game playable.
 | **2a ✅** | Vertical slice: units, towers, formations, force — typed, pure, proven | 27 parity tests |
 | **2b ✅** | Seeded `Rng` (sfc32, serialisable state) and the five draw algorithms, proven against the legacy inline code under a scripted stream | 47 draw fixtures; same seed deals the same hand; a saved state resumes the exact stream |
 | **2b′** | Wire the draws into the migrated systems — cannot happen before those systems move (2c for the deck, 8 for rewards/offers/encounters) | no `Math.random` left in `src/` — already enforced |
-| **2c** | `CombatState` as data; `performAction(state, action) → {state, events}` for deploy / replace / exchange / endRound | legacy combat suite reproduced against the new engine |
+| **2c ✅** | `CombatState` as data; `performAction(state, action) → {state, events}` for deploy / replace / exchange / endRound | 15 scripted combats, 55 actions, step-by-step parity; plus purity, determinism and no-card-lost properties |
 | **3** | Crest pipeline, typed events, recursion guards | per-crest and per-pair fixtures identical |
 | **4** | Pixi renderer beside the old one: terrain, castle, five towers, one unit, one projectile | both renderers from one state, visually compared |
 | **5** | Unit visuals: atlas, `UnitVisualDefinition`, anchors, recoil | profile before/after |
@@ -188,6 +188,11 @@ a suite that proved nothing.
 | Shuffle direction reversed | 3 |
 | `range` made exclusive | 5 |
 | Weighted fallback removed | **nothing — the test was wrong** |
+| Drawing from the wrong end of the pile | 15 |
+| No immediate shot on deployment | 13 |
+| A sixth round allowed | 1 |
+| Exchanged cards discarded before drawing | **nothing — the test was missing** |
+| Replacement charged the deployment price | **nothing — and nothing can** |
 | `Math.random` in the rules | the architecture guard |
 
 The weighted-fallback case is the instructive one. The first version of that
@@ -201,5 +206,17 @@ The same applies to the fixtures themselves: `goldenDraws.mjs` aborts if a case
 consumed no randomness, because one silently did — `belohnungsRang` is not in
 the legacy barrel, and an optional call swallowed it into a fixture that tested
 nothing.
+
+The exchange-ordering break is the other kind of lesson: the rule was right,
+the test simply did not exist. The reshuffle test only ever deployed, so the
+ordering it depends on never came up. A deck of eight now forces the pile dry
+*during* an exchange, where discarding early would hand back the card you just
+paid to lose.
+
+**The last row is an honest limit, not a gap.** `costs.deploy` and
+`costs.replace` are both 1, so no test can tell a hardcoded value from the
+correct expression. What can be done is to make the distinction structural:
+`deployCost()` reads both constants, so the day they differ the engine is
+already right.
 
 A green suite that has never been seen to fail is a decoration.

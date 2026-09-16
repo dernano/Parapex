@@ -1,0 +1,5522 @@
+{
+  "_hinweis": "Generated from the legacy implementation by scripts/goldenCombat.mjs. Both trees run with shuffling switched off so draws are comparable. Actions address cards by hand index. Do not hand-edit.",
+  "_quelle": "quelle/kern/kampf.js",
+  "faelle": [
+    {
+      "name": "Eine Einheit setzen",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fuenf setzen leert den Tatendrang",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99986,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 2
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 2,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              null,
+              null
+            ],
+            "feindHp": 99974,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 3
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 1,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              null
+            ],
+            "feindHp": 99963,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 4
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 0,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10"
+            ],
+            "feindHp": 99953,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Der sechste Zug wird abgewiesen",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99986,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 2
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 2,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              null,
+              null
+            ],
+            "feindHp": 99974,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 3
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 1,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              null
+            ],
+            "feindHp": 99963,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 4
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 0,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10"
+            ],
+            "feindHp": 99953,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": false,
+            "grund": "Nicht genug Tatendrang."
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 0,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10"
+            ],
+            "feindHp": 99953,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ersetzen legt den Vorgaenger ab",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 2
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              "kanonier-1",
+              null,
+              null
+            ],
+            "feindHp": 99999,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 2
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [
+              "kanonier-1"
+            ],
+            "tuerme": [
+              null,
+              null,
+              "artillerie-13",
+              null,
+              null
+            ],
+            "feindHp": 99986,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ein Turm, den es nicht gibt",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 9
+          },
+          "antwort": {
+            "ok": false,
+            "grund": "Diesen Turm gibt es nicht."
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Der Sofortschuss trifft, Turmtyp zaehlt mit",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "schuetzenturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99986,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Eine Karte tauschen",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "tauschen",
+            "handIndizes": [
+              0
+            ]
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 1,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6"
+            ],
+            "ablage": [
+              "kanonier-1"
+            ],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Drei auf einmal tauschen",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "tauschen",
+            "handIndizes": [
+              1,
+              3,
+              5
+            ]
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 2,
+            "tauschInRunde": 3,
+            "hand": [
+              "kanonier-1",
+              "artillerie-12",
+              "artillerie-10",
+              "artillerie-8",
+              "artillerie-7",
+              "artillerie-6",
+              "artillerie-5"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-11",
+              "artillerie-9"
+            ],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tauschen ueber den Tatendrang hinaus",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "tauschen",
+            "handIndizes": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          "antwort": {
+            "ok": false,
+            "grund": "Dafür fehlen 1 Tatendrang."
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Erst setzen, dann tauschen",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99986,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "tauschen",
+            "handIndizes": [
+              0,
+              1
+            ]
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 1,
+            "tauschInRunde": 2,
+            "hand": [
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7",
+              "artillerie-6"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5"
+            ],
+            "ablage": [
+              "artillerie-12",
+              "artillerie-11"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99986,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Eine Runde beenden",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99986,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-7",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13"
+            ],
+            "ablage": [
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-13",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99972,
+            "ende": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fuenf Runden ohne Sieg sind eine Niederlage",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 100000000,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 100000000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999999,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-7",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999998,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999991,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 3,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "armbrust-13",
+              "armbrust-12",
+              "armbrust-11",
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 99999983,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 2
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 3,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "armbrust-12",
+              "armbrust-11",
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              "armbrust-13",
+              null,
+              null
+            ],
+            "feindHp": 99999970,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 4,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "armbrust-6",
+              "armbrust-5",
+              "armbrust-4",
+              "armbrust-3",
+              "armbrust-2",
+              "armbrust-1",
+              "bogen-13"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-12",
+              "armbrust-11",
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              "armbrust-13",
+              null,
+              null
+            ],
+            "feindHp": 99999949,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 3
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 4,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "armbrust-5",
+              "armbrust-4",
+              "armbrust-3",
+              "armbrust-2",
+              "armbrust-1",
+              "bogen-13"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-12",
+              "armbrust-11",
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              "armbrust-13",
+              "armbrust-6",
+              null
+            ],
+            "feindHp": 99999943,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 5,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "bogen-12",
+              "bogen-11",
+              "bogen-10",
+              "bogen-9",
+              "bogen-8",
+              "bogen-7",
+              "bogen-6"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-12",
+              "armbrust-11",
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7",
+              "armbrust-5",
+              "armbrust-4",
+              "armbrust-3",
+              "armbrust-2",
+              "armbrust-1",
+              "bogen-13"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              "armbrust-13",
+              "armbrust-6",
+              null
+            ],
+            "feindHp": 99999916,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 4
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 5,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "bogen-11",
+              "bogen-10",
+              "bogen-9",
+              "bogen-8",
+              "bogen-7",
+              "bogen-6"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-12",
+              "armbrust-11",
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7",
+              "armbrust-5",
+              "armbrust-4",
+              "armbrust-3",
+              "armbrust-2",
+              "armbrust-1",
+              "bogen-13"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              "armbrust-13",
+              "armbrust-6",
+              "bogen-12"
+            ],
+            "feindHp": 99999904,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 5,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "bogen-11",
+              "bogen-10",
+              "bogen-9",
+              "bogen-8",
+              "bogen-7",
+              "bogen-6"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-12",
+              "armbrust-11",
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7",
+              "armbrust-5",
+              "armbrust-4",
+              "armbrust-3",
+              "armbrust-2",
+              "armbrust-1",
+              "bogen-13"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              "armbrust-13",
+              "armbrust-6",
+              "bogen-12"
+            ],
+            "feindHp": 99999826,
+            "ende": "niederlage"
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": false,
+            "grund": "Der Kampf ist vorbei."
+          },
+          "stand": {
+            "runde": 5,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "bogen-11",
+              "bogen-10",
+              "bogen-9",
+              "bogen-8",
+              "bogen-7",
+              "bogen-6"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-12",
+              "armbrust-11",
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7",
+              "armbrust-5",
+              "armbrust-4",
+              "armbrust-3",
+              "armbrust-2",
+              "armbrust-1",
+              "bogen-13"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-7",
+              "armbrust-13",
+              "armbrust-6",
+              "bogen-12"
+            ],
+            "feindHp": 99999826,
+            "ende": "niederlage"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Der Sofortschuss allein entscheidet",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 1,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 1,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 0,
+            "ende": "sieg"
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": false,
+            "grund": "Der Kampf ist vorbei."
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 0,
+            "ende": "sieg"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Die Salve entscheidet",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 30,
+        "turmTypen": [
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm",
+          "wachturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 30,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 29,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 1,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-12",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 17,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-7",
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-12",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 4,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 2
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-12",
+              "artillerie-7",
+              null,
+              null
+            ],
+            "feindHp": 0,
+            "ende": "sieg"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Eine ganze Partie mit gemischten Zuegen",
+      "aufbau": {
+        "deckIds": [
+          "bogen-1",
+          "bogen-2",
+          "bogen-3",
+          "bogen-4",
+          "bogen-5",
+          "bogen-6",
+          "bogen-7",
+          "bogen-8",
+          "bogen-9",
+          "bogen-10",
+          "bogen-11",
+          "bogen-12",
+          "bogen-13",
+          "armbrust-1",
+          "armbrust-2",
+          "armbrust-3",
+          "armbrust-4",
+          "armbrust-5",
+          "armbrust-6",
+          "armbrust-7",
+          "armbrust-8",
+          "armbrust-9",
+          "armbrust-10",
+          "armbrust-11",
+          "armbrust-12",
+          "armbrust-13",
+          "artillerie-1",
+          "artillerie-2",
+          "artillerie-3",
+          "artillerie-4",
+          "artillerie-5",
+          "artillerie-6",
+          "artillerie-7",
+          "artillerie-8",
+          "artillerie-9",
+          "artillerie-10",
+          "artillerie-11",
+          "artillerie-12",
+          "artillerie-13",
+          "kanonier-1"
+        ],
+        "feindHp": 4000,
+        "turmTypen": [
+          "schuetzenturm",
+          "ballistenturm",
+          "wachturm",
+          "geschuetzturm",
+          "pulverturm"
+        ]
+      },
+      "schritte": [
+        {
+          "handlung": null,
+          "stand": {
+            "runde": 1,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "kanonier-1",
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 4000,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              null,
+              null,
+              null,
+              null
+            ],
+            "feindHp": 3999,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 2,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6",
+              "artillerie-7"
+            ],
+            "ablage": [],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-11",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 3988,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "tauschen",
+            "handIndizes": [
+              0
+            ]
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 2,
+            "tauschInRunde": 1,
+            "hand": [
+              "artillerie-12",
+              "artillerie-10",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6"
+            ],
+            "ablage": [
+              "artillerie-13"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-11",
+              null,
+              null,
+              null
+            ],
+            "feindHp": 3988,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 1,
+            "turmIndex": 2
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 1,
+            "tatendrang": 1,
+            "tauschInRunde": 1,
+            "hand": [
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12",
+              "armbrust-13",
+              "artillerie-1",
+              "artillerie-2",
+              "artillerie-3",
+              "artillerie-4",
+              "artillerie-5",
+              "artillerie-6"
+            ],
+            "ablage": [
+              "artillerie-13"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-11",
+              "artillerie-10",
+              null,
+              null
+            ],
+            "feindHp": 3978,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-6",
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-13"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-11",
+              "artillerie-10",
+              null,
+              null
+            ],
+            "feindHp": 3956,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 3
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-5",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-13"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-6",
+              null
+            ],
+            "feindHp": 3948,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 4
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-13"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10",
+              "armbrust-11",
+              "armbrust-12"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-6",
+              "artillerie-5"
+            ],
+            "feindHp": 3943,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "tauschen",
+            "handIndizes": [
+              0,
+              1
+            ]
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 2,
+            "tatendrang": 1,
+            "tauschInRunde": 2,
+            "hand": [
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-13",
+              "armbrust-12",
+              "armbrust-11"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3",
+              "armbrust-4",
+              "armbrust-5",
+              "armbrust-6",
+              "armbrust-7",
+              "armbrust-8",
+              "armbrust-9",
+              "armbrust-10"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7",
+              "artillerie-4",
+              "artillerie-3"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-6",
+              "artillerie-5"
+            ],
+            "feindHp": 3943,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 3,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "armbrust-10",
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7",
+              "armbrust-6",
+              "armbrust-5",
+              "armbrust-4"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-13",
+              "armbrust-12",
+              "armbrust-11"
+            ],
+            "tuerme": [
+              "kanonier-1",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-6",
+              "artillerie-5"
+            ],
+            "feindHp": 3731,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 0
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 3,
+            "tatendrang": 4,
+            "tauschInRunde": 0,
+            "hand": [
+              "armbrust-9",
+              "armbrust-8",
+              "armbrust-7",
+              "armbrust-6",
+              "armbrust-5",
+              "armbrust-4"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-13",
+              "armbrust-12",
+              "armbrust-11",
+              "kanonier-1"
+            ],
+            "tuerme": [
+              "armbrust-10",
+              "artillerie-11",
+              "artillerie-10",
+              "artillerie-6",
+              "artillerie-5"
+            ],
+            "feindHp": 3721,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "setzen",
+            "handIndex": 0,
+            "turmIndex": 1
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 3,
+            "tatendrang": 3,
+            "tauschInRunde": 0,
+            "hand": [
+              "armbrust-8",
+              "armbrust-7",
+              "armbrust-6",
+              "armbrust-5",
+              "armbrust-4"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9",
+              "bogen-10",
+              "bogen-11",
+              "bogen-12",
+              "bogen-13",
+              "armbrust-1",
+              "armbrust-2",
+              "armbrust-3"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-13",
+              "armbrust-12",
+              "armbrust-11",
+              "kanonier-1",
+              "artillerie-11"
+            ],
+            "tuerme": [
+              "armbrust-10",
+              "armbrust-9",
+              "artillerie-10",
+              "artillerie-6",
+              "artillerie-5"
+            ],
+            "feindHp": 3708,
+            "ende": null
+          }
+        },
+        {
+          "handlung": {
+            "art": "runde"
+          },
+          "antwort": {
+            "ok": true,
+            "grund": null
+          },
+          "stand": {
+            "runde": 4,
+            "tatendrang": 5,
+            "tauschInRunde": 0,
+            "hand": [
+              "armbrust-3",
+              "armbrust-2",
+              "armbrust-1",
+              "bogen-13",
+              "bogen-12",
+              "bogen-11",
+              "bogen-10"
+            ],
+            "zug": [
+              "bogen-1",
+              "bogen-2",
+              "bogen-3",
+              "bogen-4",
+              "bogen-5",
+              "bogen-6",
+              "bogen-7",
+              "bogen-8",
+              "bogen-9"
+            ],
+            "ablage": [
+              "artillerie-13",
+              "artillerie-12",
+              "artillerie-9",
+              "artillerie-8",
+              "artillerie-7",
+              "artillerie-4",
+              "artillerie-3",
+              "artillerie-2",
+              "artillerie-1",
+              "armbrust-13",
+              "armbrust-12",
+              "armbrust-11",
+              "kanonier-1",
+              "artillerie-11",
+              "armbrust-8",
+              "armbrust-7",
+              "armbrust-6",
+              "armbrust-5",
+              "armbrust-4"
+            ],
+            "tuerme": [
+              "armbrust-10",
+              "armbrust-9",
+              "artillerie-10",
+              "artillerie-6",
+              "artillerie-5"
+            ],
+            "feindHp": 3478,
+            "ende": null
+          }
+        }
+      ]
+    }
+  ]
+}

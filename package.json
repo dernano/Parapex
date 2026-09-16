@@ -18,7 +18,8 @@
     "legacy:serve": "node scripts/serve.js",
     "legacy:bot": "node scripts/bot.mjs",
     "legacy:style": "node scripts/stil.mjs",
-    "golden:draws": "node scripts/goldenDraws.mjs"
+    "golden:draws": "node scripts/goldenDraws.mjs",
+    "golden:combat": "node scripts/goldenCombat.mjs"
   },
   "engines": {
     "node": ">=20"
