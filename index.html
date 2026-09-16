@@ -758,12 +758,12 @@
           <div id="werk-schau"><canvas id="werk-vorschau" width="120" height="120"></canvas></div>
         </div>
       </div>
-      <textarea id="werk-text" spellcheck="false" placeholder="Hier erscheint deine Figur zum Kopieren. Du kannst hier auch eine einfügen und auf Einlesen drücken."></textarea>
+      <textarea id="werk-text" spellcheck="false" placeholder="Hier erscheint deine Figur zum Kopieren. Du kannst hier auch eine einfügen und sie übernehmen lassen."></textarea>
       <div id="werk-knoepfe">
-        <button type="button" class="ghost-btn" id="werk-zurueck">Zurücksetzen</button>
-        <button type="button" class="ghost-btn" id="werk-ausgeben">Ausgeben</button>
-        <button type="button" class="ghost-btn" id="werk-einlesen">Einlesen</button>
-        <button type="button" class="endround" id="werk-zu">Fertig</button>
+        <button type="button" class="ghost-btn" id="werk-zurueck">Wieder die Originalfigur</button>
+        <button type="button" class="ghost-btn" id="werk-ausgeben">Figur als Text schreiben</button>
+        <button type="button" class="ghost-btn" id="werk-einlesen">Text als Figur übernehmen</button>
+        <button type="button" class="endround" id="werk-zu">Zurück ins Spiel</button>
       </div>
     </div>
   </div>
@@ -13119,7 +13119,7 @@ function pkBaueOberflaeche() {
       <div class="pk-handzeile"><div class="pk-hand" id="pk-hand"></div></div>
       <div class="pk-leiste">
         <div class="pk-sortier">Sortierung
-          <button id="pk-sort-farbe" type="button" title="Nach Gattung, darin nach Rang">Farbe</button>
+          <button id="pk-sort-farbe" type="button" title="Nach Gattung, darin nach Rang">Gattung</button>
           <button id="pk-sort-rang" type="button" title="Nach Rang, darin nach Gattung">Rang</button>
         </div>
         <div class="pk-drang">Tatendrang <span class="pk-pips" id="pk-pips"></span></div>
@@ -16490,7 +16490,7 @@ function pkZeigeProtokoll(zurueck = null) {
     '<div class="pk-schritte">' + rechnung + '</div>' +
     '<div class="pk-tafel-fuss">' +
       '<button class="pk-knopf haupt" id="pk-zurueck">'
-      + (derKampf && !derKampf.ende ? 'Zurück zur Schlacht' : 'Zurück') + '</button>' +
+      + (derKampf && !derKampf.ende ? 'Zurück zur Schlacht' : 'Zurück zum Feldzug') + '</button>' +
     '</div>', { breit: true });
   t.querySelector('#pk-zurueck').addEventListener('click', () => {
     pkRaeumeTafel();
@@ -17242,7 +17242,7 @@ function pkZeigeBelagerung() {
     + '</div>'
     + '<div class="pk-tafel-fuss">'
       + '<button class="pk-knopf" id="pk-deck-ansehen">Deck ansehen</button>'
-      + '<button class="pk-knopf" id="pk-buch">Kriegsbuch</button>'
+      + '<button class="pk-knopf" id="pk-buch">Im Kriegsbuch nachschlagen</button>'
     + '</div>'
     + '</div>', { breit: true, neu: pkZeigeBelagerung });
 

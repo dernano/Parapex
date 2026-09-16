@@ -1245,6 +1245,44 @@ const ergebnis = await seite.evaluate(() => {
       ? true : 'in der letzten Runde sagt er "' + knopf.textContent + '"';
   });
 
+  /*
+   * Ein Knopf sagt, was er TUT - nicht, welchen Kasten er bewegt. "Fertig",
+   * "Ausgeben", "Zuruecksetzen" sind Handgriffe an einer Oberflaeche; woran
+   * ein Spieler ablesen soll, was danach geschieht, steht darin nicht. Vier
+   * solche Woerter standen hier, und jedes stand an einer anderen Stelle -
+   * darum geht diese Pruefung ueber ALLE Knoepfe und nicht ueber eine Liste.
+   */
+  const NACKTE_KNOEPFE = ['ok', 'weiter', 'zurück', 'zurueck', 'fertig', 'abbrechen',
+    'schliessen', 'schließen', 'ausgeben', 'einlesen', 'übernehmen', 'zurücksetzen',
+    'anwenden', 'bestätigen', 'speichern', 'laden', 'ja', 'nein', 'start', 'los',
+    'öffnen', 'kriegsbuch', 'protokoll', 'deck', 'einstellungen'];
+
+  pruefe('Kein Knopf sagt nur, was die Oberfläche tut', () => {
+    const gesehen = new Map();
+    const sammle = (wo) => {
+      for (const b of document.querySelectorAll('button')) {
+        const t = (b.textContent || '').trim();
+        if (t && !gesehen.has(t)) gesehen.set(t, wo);
+      }
+    };
+    sammle('im Grundgerüst');
+    P.neuerLauf();
+    pkBetreteAbschnitt();
+    sammle('auf der Ante-Seite');
+    pkBuchAufschlagen('kampf');
+    sammle('im Kriegsbuch');
+    pkRaeumeTafel();
+    pkBetreteAbschnitt();
+    pkZeigeDeck(pkBetreteAbschnitt);
+    sammle('beim Deck');
+    pkRaeumeTafel();
+    if (gesehen.size < 12) return 'nur ' + gesehen.size + ' Knöpfe gefunden';
+    for (const [t, wo] of gesehen) {
+      if (NACKTE_KNOEPFE.includes(t.toLowerCase())) return '"' + t + '" ' + wo;
+    }
+    return true;
+  });
+
   /* ---------- Die Ante-Seite: sie muss lesbar sein, nicht nur richtig ---------- */
   /*
    * Zweimal ist diese Seite unbrauchbar geworden, ohne dass etwas abstuerzte:
