@@ -4,3 +4,6 @@ dist/
 *.log
 .idea/
 .vscode/
+
+# Der neue Baum
+dist/

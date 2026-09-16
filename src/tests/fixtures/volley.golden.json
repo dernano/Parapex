@@ -1,0 +1,2683 @@
+{
+  "_hinweis": "Generated from the legacy implementation by scripts/golden.mjs. The TypeScript engine must reproduce these values exactly. Do not hand-edit.",
+  "_quelle": "quelle/kern/wucht.js + quelle/kern/formationen.js",
+  "faelle": [
+    {
+      "name": "kein Turm besetzt",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 0,
+        "salven": 1,
+        "grund": 0,
+        "jeSalve": 0,
+        "formationen": [],
+        "posten": [],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 0
+          },
+          {
+            "art": "salven",
+            "name": "1 Salven",
+            "wert": "×1",
+            "wucht": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "eine Einheit",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-1",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 1,
+        "salven": 1,
+        "grund": 1,
+        "jeSalve": 1,
+        "formationen": [],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 1,
+            "turmFaktor": 1,
+            "wucht": 1,
+            "grund": 1,
+            "bonus": 0,
+            "schuesse": 1
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 1
+          },
+          {
+            "art": "salven",
+            "name": "1 Salven",
+            "wert": "×1",
+            "wucht": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "eine Einheit, hoechster Rang",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-13",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 13,
+        "salven": 1,
+        "grund": 13,
+        "jeSalve": 13,
+        "formationen": [],
+        "posten": [
+          {
+            "turm": 2,
+            "basis": 13,
+            "turmFaktor": 1,
+            "wucht": 13,
+            "grund": 13,
+            "bonus": 0,
+            "schuesse": 1
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 13
+          },
+          {
+            "art": "salven",
+            "name": "1 Salven",
+            "wert": "×1",
+            "wucht": 13
+          }
+        ]
+      }
+    },
+    {
+      "name": "Geschlossene Front, gemischt",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-1",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-4",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-7",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-10",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-12",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 68,
+        "salven": 2,
+        "grund": 34,
+        "jeSalve": 34,
+        "formationen": [
+          {
+            "id": "geschlosseneFront",
+            "familie": "grund",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 1,
+            "turmFaktor": 1,
+            "wucht": 1,
+            "grund": 1,
+            "bonus": 0,
+            "schuesse": 2
+          },
+          {
+            "turm": 1,
+            "basis": 4,
+            "turmFaktor": 1,
+            "wucht": 4,
+            "grund": 4,
+            "bonus": 0,
+            "schuesse": 2
+          },
+          {
+            "turm": 2,
+            "basis": 7,
+            "turmFaktor": 1,
+            "wucht": 7,
+            "grund": 7,
+            "bonus": 0,
+            "schuesse": 2
+          },
+          {
+            "turm": 3,
+            "basis": 10,
+            "turmFaktor": 1,
+            "wucht": 10,
+            "grund": 10,
+            "bonus": 0,
+            "schuesse": 2
+          },
+          {
+            "turm": 4,
+            "basis": 12,
+            "turmFaktor": 1,
+            "wucht": 12,
+            "grund": 12,
+            "bonus": 0,
+            "schuesse": 2
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 34
+          },
+          {
+            "art": "formation",
+            "name": "Geschlossene Front",
+            "wert": "+1",
+            "wucht": 68
+          },
+          {
+            "art": "salven",
+            "name": "2 Salven",
+            "wert": "×2",
+            "wucht": 68
+          }
+        ]
+      }
+    },
+    {
+      "name": "Regiment: drei Bogen",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-2",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-5",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 48,
+        "salven": 3,
+        "grund": 16,
+        "jeSalve": 16,
+        "formationen": [
+          {
+            "id": "regiment",
+            "familie": "gattung",
+            "salven": 2,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 2,
+            "turmFaktor": 1,
+            "wucht": 2,
+            "grund": 2,
+            "bonus": 0,
+            "schuesse": 3
+          },
+          {
+            "turm": 1,
+            "basis": 5,
+            "turmFaktor": 1,
+            "wucht": 5,
+            "grund": 5,
+            "bonus": 0,
+            "schuesse": 3
+          },
+          {
+            "turm": 2,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 3
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 16
+          },
+          {
+            "art": "formation",
+            "name": "Regiment",
+            "wert": "+2",
+            "wucht": 48
+          },
+          {
+            "art": "salven",
+            "name": "3 Salven",
+            "wert": "×3",
+            "wucht": 48
+          }
+        ]
+      }
+    },
+    {
+      "name": "Grosses Regiment: vier Armbrust",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-1",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-4",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-7",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-11",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 115,
+        "salven": 5,
+        "grund": 23,
+        "jeSalve": 23,
+        "formationen": [
+          {
+            "id": "grossesRegiment",
+            "familie": "gattung",
+            "salven": 4,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 1,
+            "turmFaktor": 1,
+            "wucht": 1,
+            "grund": 1,
+            "bonus": 0,
+            "schuesse": 5
+          },
+          {
+            "turm": 1,
+            "basis": 4,
+            "turmFaktor": 1,
+            "wucht": 4,
+            "grund": 4,
+            "bonus": 0,
+            "schuesse": 5
+          },
+          {
+            "turm": 2,
+            "basis": 7,
+            "turmFaktor": 1,
+            "wucht": 7,
+            "grund": 7,
+            "bonus": 0,
+            "schuesse": 5
+          },
+          {
+            "turm": 3,
+            "basis": 11,
+            "turmFaktor": 1,
+            "wucht": 11,
+            "grund": 11,
+            "bonus": 0,
+            "schuesse": 5
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 23
+          },
+          {
+            "art": "formation",
+            "name": "Großes Regiment",
+            "wert": "+4",
+            "wucht": 115
+          },
+          {
+            "art": "salven",
+            "name": "5 Salven",
+            "wert": "×5",
+            "wucht": 115
+          }
+        ]
+      }
+    },
+    {
+      "name": "Reine Garde: fuenf Artillerie",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-1",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-3",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-12",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 279,
+        "salven": 9,
+        "grund": 31,
+        "jeSalve": 31,
+        "formationen": [
+          {
+            "id": "reineGarde",
+            "familie": "gattung",
+            "salven": 7,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "id": "geschlosseneFront",
+            "familie": "grund",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 1,
+            "turmFaktor": 1,
+            "wucht": 1,
+            "grund": 1,
+            "bonus": 0,
+            "schuesse": 9
+          },
+          {
+            "turm": 1,
+            "basis": 3,
+            "turmFaktor": 1,
+            "wucht": 3,
+            "grund": 3,
+            "bonus": 0,
+            "schuesse": 9
+          },
+          {
+            "turm": 2,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 9
+          },
+          {
+            "turm": 3,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 9
+          },
+          {
+            "turm": 4,
+            "basis": 12,
+            "turmFaktor": 1,
+            "wucht": 12,
+            "grund": 12,
+            "bonus": 0,
+            "schuesse": 9
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 31
+          },
+          {
+            "art": "formation",
+            "name": "Reine Garde",
+            "wert": "+7",
+            "wucht": 279
+          },
+          {
+            "art": "formation",
+            "name": "Geschlossene Front",
+            "wert": "+1",
+            "wucht": 279
+          },
+          {
+            "art": "salven",
+            "name": "9 Salven",
+            "wert": "×9",
+            "wucht": 279
+          }
+        ]
+      }
+    },
+    {
+      "name": "Doppelposten",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 24,
+        "salven": 2,
+        "grund": 12,
+        "jeSalve": 12,
+        "formationen": [
+          {
+            "id": "doppelposten",
+            "familie": "rang",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 2
+          },
+          {
+            "turm": 1,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 2
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 12
+          },
+          {
+            "art": "formation",
+            "name": "Doppelposten",
+            "wert": "+1",
+            "wucht": 24
+          },
+          {
+            "art": "salven",
+            "name": "2 Salven",
+            "wert": "×2",
+            "wucht": 24
+          }
+        ]
+      }
+    },
+    {
+      "name": "Doppelte Wache",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 90,
+        "salven": 3,
+        "grund": 30,
+        "jeSalve": 30,
+        "formationen": [
+          {
+            "id": "doppelteWache",
+            "familie": "rang",
+            "salven": 2,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 3
+          },
+          {
+            "turm": 1,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 3
+          },
+          {
+            "turm": 2,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 3
+          },
+          {
+            "turm": 3,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 3
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 30
+          },
+          {
+            "art": "formation",
+            "name": "Doppelte Wache",
+            "wert": "+2",
+            "wucht": 90
+          },
+          {
+            "art": "salven",
+            "name": "3 Salven",
+            "wert": "×3",
+            "wucht": 90
+          }
+        ]
+      }
+    },
+    {
+      "name": "Drillingsposten",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-8",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-8",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-8",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 96,
+        "salven": 4,
+        "grund": 24,
+        "jeSalve": 24,
+        "formationen": [
+          {
+            "id": "drillingsposten",
+            "familie": "rang",
+            "salven": 3,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 8,
+            "turmFaktor": 1,
+            "wucht": 8,
+            "grund": 8,
+            "bonus": 0,
+            "schuesse": 4
+          },
+          {
+            "turm": 1,
+            "basis": 8,
+            "turmFaktor": 1,
+            "wucht": 8,
+            "grund": 8,
+            "bonus": 0,
+            "schuesse": 4
+          },
+          {
+            "turm": 2,
+            "basis": 8,
+            "turmFaktor": 1,
+            "wucht": 8,
+            "grund": 8,
+            "bonus": 0,
+            "schuesse": 4
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 24
+          },
+          {
+            "art": "formation",
+            "name": "Drillingsposten",
+            "wert": "+3",
+            "wucht": 96
+          },
+          {
+            "art": "salven",
+            "name": "4 Salven",
+            "wert": "×4",
+            "wucht": 96
+          }
+        ]
+      }
+    },
+    {
+      "name": "Viererblock",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-11",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-11",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-11",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-11",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 484,
+        "salven": 11,
+        "grund": 44,
+        "jeSalve": 44,
+        "formationen": [
+          {
+            "id": "viererblock",
+            "familie": "rang",
+            "salven": 10,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 11,
+            "turmFaktor": 1,
+            "wucht": 11,
+            "grund": 11,
+            "bonus": 0,
+            "schuesse": 11
+          },
+          {
+            "turm": 1,
+            "basis": 11,
+            "turmFaktor": 1,
+            "wucht": 11,
+            "grund": 11,
+            "bonus": 0,
+            "schuesse": 11
+          },
+          {
+            "turm": 2,
+            "basis": 11,
+            "turmFaktor": 1,
+            "wucht": 11,
+            "grund": 11,
+            "bonus": 0,
+            "schuesse": 11
+          },
+          {
+            "turm": 3,
+            "basis": 11,
+            "turmFaktor": 1,
+            "wucht": 11,
+            "grund": 11,
+            "bonus": 0,
+            "schuesse": 11
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 44
+          },
+          {
+            "art": "formation",
+            "name": "Viererblock",
+            "wert": "+10",
+            "wucht": 484
+          },
+          {
+            "art": "salven",
+            "name": "11 Salven",
+            "wert": "×11",
+            "wucht": 484
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vormarsch",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-3",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-4",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-5",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 36,
+        "salven": 3,
+        "grund": 12,
+        "jeSalve": 12,
+        "formationen": [
+          {
+            "id": "vormarsch",
+            "familie": "folge",
+            "salven": 2,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 3,
+            "turmFaktor": 1,
+            "wucht": 3,
+            "grund": 3,
+            "bonus": 0,
+            "schuesse": 3
+          },
+          {
+            "turm": 1,
+            "basis": 4,
+            "turmFaktor": 1,
+            "wucht": 4,
+            "grund": 4,
+            "bonus": 0,
+            "schuesse": 3
+          },
+          {
+            "turm": 2,
+            "basis": 5,
+            "turmFaktor": 1,
+            "wucht": 5,
+            "grund": 5,
+            "bonus": 0,
+            "schuesse": 3
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 12
+          },
+          {
+            "art": "formation",
+            "name": "Vormarsch",
+            "wert": "+2",
+            "wucht": 36
+          },
+          {
+            "art": "salven",
+            "name": "3 Salven",
+            "wert": "×3",
+            "wucht": 36
+          }
+        ]
+      }
+    },
+    {
+      "name": "Grosser Vormarsch",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-3",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-4",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-5",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 90,
+        "salven": 5,
+        "grund": 18,
+        "jeSalve": 18,
+        "formationen": [
+          {
+            "id": "grosserVormarsch",
+            "familie": "folge",
+            "salven": 4,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 3,
+            "turmFaktor": 1,
+            "wucht": 3,
+            "grund": 3,
+            "bonus": 0,
+            "schuesse": 5
+          },
+          {
+            "turm": 1,
+            "basis": 4,
+            "turmFaktor": 1,
+            "wucht": 4,
+            "grund": 4,
+            "bonus": 0,
+            "schuesse": 5
+          },
+          {
+            "turm": 2,
+            "basis": 5,
+            "turmFaktor": 1,
+            "wucht": 5,
+            "grund": 5,
+            "bonus": 0,
+            "schuesse": 5
+          },
+          {
+            "turm": 3,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 5
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 18
+          },
+          {
+            "art": "formation",
+            "name": "Großer Vormarsch",
+            "wert": "+4",
+            "wucht": 90
+          },
+          {
+            "art": "salven",
+            "name": "5 Salven",
+            "wert": "×5",
+            "wucht": 90
+          }
+        ]
+      }
+    },
+    {
+      "name": "Perfekter Vormarsch, gemischt",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-2",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-3",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-4",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-5",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 180,
+        "salven": 9,
+        "grund": 20,
+        "jeSalve": 20,
+        "formationen": [
+          {
+            "id": "perfekterVormarsch",
+            "familie": "folge",
+            "salven": 7,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "id": "geschlosseneFront",
+            "familie": "grund",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 2,
+            "turmFaktor": 1,
+            "wucht": 2,
+            "grund": 2,
+            "bonus": 0,
+            "schuesse": 9
+          },
+          {
+            "turm": 1,
+            "basis": 3,
+            "turmFaktor": 1,
+            "wucht": 3,
+            "grund": 3,
+            "bonus": 0,
+            "schuesse": 9
+          },
+          {
+            "turm": 2,
+            "basis": 4,
+            "turmFaktor": 1,
+            "wucht": 4,
+            "grund": 4,
+            "bonus": 0,
+            "schuesse": 9
+          },
+          {
+            "turm": 3,
+            "basis": 5,
+            "turmFaktor": 1,
+            "wucht": 5,
+            "grund": 5,
+            "bonus": 0,
+            "schuesse": 9
+          },
+          {
+            "turm": 4,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 9
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 20
+          },
+          {
+            "art": "formation",
+            "name": "Perfekter Vormarsch",
+            "wert": "+7",
+            "wucht": 180
+          },
+          {
+            "art": "formation",
+            "name": "Geschlossene Front",
+            "wert": "+1",
+            "wucht": 180
+          },
+          {
+            "art": "salven",
+            "name": "9 Salven",
+            "wert": "×9",
+            "wucht": 180
+          }
+        ]
+      }
+    },
+    {
+      "name": "Folge mit Wiederholung zaehlt einmal",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-8",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-8",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-10",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 140,
+        "salven": 4,
+        "grund": 35,
+        "jeSalve": 35,
+        "formationen": [
+          {
+            "id": "vormarsch",
+            "familie": "folge",
+            "salven": 2,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              2,
+              3
+            ]
+          },
+          {
+            "id": "doppelposten",
+            "familie": "rang",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 8,
+            "turmFaktor": 1,
+            "wucht": 8,
+            "grund": 8,
+            "bonus": 0,
+            "schuesse": 4
+          },
+          {
+            "turm": 1,
+            "basis": 8,
+            "turmFaktor": 1,
+            "wucht": 8,
+            "grund": 8,
+            "bonus": 0,
+            "schuesse": 4
+          },
+          {
+            "turm": 2,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 4
+          },
+          {
+            "turm": 3,
+            "basis": 10,
+            "turmFaktor": 1,
+            "wucht": 10,
+            "grund": 10,
+            "bonus": 0,
+            "schuesse": 4
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 35
+          },
+          {
+            "art": "formation",
+            "name": "Vormarsch",
+            "wert": "+2",
+            "wucht": 140
+          },
+          {
+            "art": "formation",
+            "name": "Doppelposten",
+            "wert": "+1",
+            "wucht": 140
+          },
+          {
+            "art": "salven",
+            "name": "4 Salven",
+            "wert": "×4",
+            "wucht": 140
+          }
+        ]
+      }
+    },
+    {
+      "name": "Koeniglicher Aufmarsch",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-2",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-3",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-4",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-5",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 340,
+        "salven": 17,
+        "grund": 20,
+        "jeSalve": 20,
+        "formationen": [
+          {
+            "id": "koeniglicherAufmarsch",
+            "familie": "gattung",
+            "salven": 15,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "id": "geschlosseneFront",
+            "familie": "grund",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 2,
+            "turmFaktor": 1,
+            "wucht": 2,
+            "grund": 2,
+            "bonus": 0,
+            "schuesse": 17
+          },
+          {
+            "turm": 1,
+            "basis": 3,
+            "turmFaktor": 1,
+            "wucht": 3,
+            "grund": 3,
+            "bonus": 0,
+            "schuesse": 17
+          },
+          {
+            "turm": 2,
+            "basis": 4,
+            "turmFaktor": 1,
+            "wucht": 4,
+            "grund": 4,
+            "bonus": 0,
+            "schuesse": 17
+          },
+          {
+            "turm": 3,
+            "basis": 5,
+            "turmFaktor": 1,
+            "wucht": 5,
+            "grund": 5,
+            "bonus": 0,
+            "schuesse": 17
+          },
+          {
+            "turm": 4,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 17
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 20
+          },
+          {
+            "art": "formation",
+            "name": "Königlicher Aufmarsch",
+            "wert": "+15",
+            "wucht": 340
+          },
+          {
+            "art": "formation",
+            "name": "Geschlossene Front",
+            "wert": "+1",
+            "wucht": 340
+          },
+          {
+            "art": "salven",
+            "name": "17 Salven",
+            "wert": "×17",
+            "wucht": 340
+          }
+        ]
+      }
+    },
+    {
+      "name": "Koenigliche Garde",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-10",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-11",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-12",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "kanonier-13",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 1485,
+        "salven": 27,
+        "grund": 55,
+        "jeSalve": 55,
+        "formationen": [
+          {
+            "id": "koeniglicheGarde",
+            "familie": "gattung",
+            "salven": 25,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "id": "geschlosseneFront",
+            "familie": "grund",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 1,
+            "basis": 10,
+            "turmFaktor": 1,
+            "wucht": 10,
+            "grund": 10,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 2,
+            "basis": 11,
+            "turmFaktor": 1,
+            "wucht": 11,
+            "grund": 11,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 3,
+            "basis": 12,
+            "turmFaktor": 1,
+            "wucht": 12,
+            "grund": 12,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 4,
+            "basis": 13,
+            "turmFaktor": 1,
+            "wucht": 13,
+            "grund": 13,
+            "bonus": 0,
+            "schuesse": 27
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 55
+          },
+          {
+            "art": "formation",
+            "name": "Königliche Garde",
+            "wert": "+25",
+            "wucht": 1485
+          },
+          {
+            "art": "formation",
+            "name": "Geschlossene Front",
+            "wert": "+1",
+            "wucht": 1485
+          },
+          {
+            "art": "salven",
+            "name": "27 Salven",
+            "wert": "×27",
+            "wucht": 1485
+          }
+        ]
+      }
+    },
+    {
+      "name": "Garde in ungeordneter Stellung",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-12",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-13",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-10",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-11",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 1485,
+        "salven": 27,
+        "grund": 55,
+        "jeSalve": 55,
+        "formationen": [
+          {
+            "id": "koeniglicheGarde",
+            "familie": "gattung",
+            "salven": 25,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "id": "geschlosseneFront",
+            "familie": "grund",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 12,
+            "turmFaktor": 1,
+            "wucht": 12,
+            "grund": 12,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 1,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 2,
+            "basis": 13,
+            "turmFaktor": 1,
+            "wucht": 13,
+            "grund": 13,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 3,
+            "basis": 10,
+            "turmFaktor": 1,
+            "wucht": 10,
+            "grund": 10,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 4,
+            "basis": 11,
+            "turmFaktor": 1,
+            "wucht": 11,
+            "grund": 11,
+            "bonus": 0,
+            "schuesse": 27
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 55
+          },
+          {
+            "art": "formation",
+            "name": "Königliche Garde",
+            "wert": "+25",
+            "wucht": 1485
+          },
+          {
+            "art": "formation",
+            "name": "Geschlossene Front",
+            "wert": "+1",
+            "wucht": 1485
+          },
+          {
+            "art": "salven",
+            "name": "27 Salven",
+            "wert": "×27",
+            "wucht": 1485
+          }
+        ]
+      }
+    },
+    {
+      "name": "Schuetzenturm traegt Bogen",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "schuetzenturm",
+            "einheit": "bogen-10",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 14,
+        "salven": 1,
+        "grund": 10,
+        "jeSalve": 14,
+        "formationen": [],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 10,
+            "turmFaktor": 1.4,
+            "wucht": 14,
+            "grund": 10,
+            "bonus": 0,
+            "schuesse": 1
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 14
+          },
+          {
+            "art": "salven",
+            "name": "1 Salven",
+            "wert": "×1",
+            "wucht": 14
+          }
+        ]
+      }
+    },
+    {
+      "name": "Schuetzenturm traegt keine Armbrust",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "schuetzenturm",
+            "einheit": "armbrust-10",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 10,
+        "salven": 1,
+        "grund": 10,
+        "jeSalve": 10,
+        "formationen": [],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 10,
+            "turmFaktor": 1,
+            "wucht": 10,
+            "grund": 10,
+            "bonus": 0,
+            "schuesse": 1
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 10
+          },
+          {
+            "art": "salven",
+            "name": "1 Salven",
+            "wert": "×1",
+            "wucht": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "fuenf passende Tuerme",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "pulverturm",
+            "einheit": "kanonier-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "pulverturm",
+            "einheit": "kanonier-10",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "pulverturm",
+            "einheit": "kanonier-11",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "pulverturm",
+            "einheit": "kanonier-12",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "pulverturm",
+            "einheit": "kanonier-13",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 2079,
+        "salven": 27,
+        "grund": 55,
+        "jeSalve": 77,
+        "formationen": [
+          {
+            "id": "koeniglicheGarde",
+            "familie": "gattung",
+            "salven": 25,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "id": "geschlosseneFront",
+            "familie": "grund",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 9,
+            "turmFaktor": 1.4,
+            "wucht": 12.6,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 1,
+            "basis": 10,
+            "turmFaktor": 1.4,
+            "wucht": 14,
+            "grund": 10,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 2,
+            "basis": 11,
+            "turmFaktor": 1.4,
+            "wucht": 15.399999999999999,
+            "grund": 11,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 3,
+            "basis": 12,
+            "turmFaktor": 1.4,
+            "wucht": 16.799999999999997,
+            "grund": 12,
+            "bonus": 0,
+            "schuesse": 27
+          },
+          {
+            "turm": 4,
+            "basis": 13,
+            "turmFaktor": 1.4,
+            "wucht": 18.2,
+            "grund": 13,
+            "bonus": 0,
+            "schuesse": 27
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 77
+          },
+          {
+            "art": "formation",
+            "name": "Königliche Garde",
+            "wert": "+25",
+            "wucht": 2079
+          },
+          {
+            "art": "formation",
+            "name": "Geschlossene Front",
+            "wert": "+1",
+            "wucht": 2079
+          },
+          {
+            "art": "salven",
+            "name": "27 Salven",
+            "wert": "×27",
+            "wucht": 2079
+          }
+        ]
+      }
+    },
+    {
+      "name": "gemischte Tuerme, gemischte Gattungen",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "schuetzenturm",
+            "einheit": "bogen-13",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "ballistenturm",
+            "einheit": "armbrust-13",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "geschuetzturm",
+            "einheit": "artillerie-13",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "pulverturm",
+            "einheit": "kanonier-13",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-12",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 1018,
+        "salven": 12,
+        "grund": 64,
+        "jeSalve": 85,
+        "formationen": [
+          {
+            "id": "viererblock",
+            "familie": "rang",
+            "salven": 10,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "id": "geschlosseneFront",
+            "familie": "grund",
+            "salven": 1,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 13,
+            "turmFaktor": 1.4,
+            "wucht": 18.2,
+            "grund": 13,
+            "bonus": 0,
+            "schuesse": 12
+          },
+          {
+            "turm": 1,
+            "basis": 13,
+            "turmFaktor": 1.4,
+            "wucht": 18.2,
+            "grund": 13,
+            "bonus": 0,
+            "schuesse": 12
+          },
+          {
+            "turm": 2,
+            "basis": 13,
+            "turmFaktor": 1.4,
+            "wucht": 18.2,
+            "grund": 13,
+            "bonus": 0,
+            "schuesse": 12
+          },
+          {
+            "turm": 3,
+            "basis": 13,
+            "turmFaktor": 1.4,
+            "wucht": 18.2,
+            "grund": 13,
+            "bonus": 0,
+            "schuesse": 12
+          },
+          {
+            "turm": 4,
+            "basis": 12,
+            "turmFaktor": 1,
+            "wucht": 12,
+            "grund": 12,
+            "bonus": 0,
+            "schuesse": 12
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 84.8
+          },
+          {
+            "art": "formation",
+            "name": "Viererblock",
+            "wert": "+10",
+            "wucht": 1017.6
+          },
+          {
+            "art": "formation",
+            "name": "Geschlossene Front",
+            "wert": "+1",
+            "wucht": 1017.6
+          },
+          {
+            "art": "salven",
+            "name": "12 Salven",
+            "wert": "×12",
+            "wucht": 1017.6
+          }
+        ]
+      }
+    },
+    {
+      "name": "geschliffener Bogen behaelt seinen Rang",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-9",
+            "wuchtBonus": 4,
+            "stufe": 2
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "armbrust-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "artillerie-9",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 124,
+        "salven": 4,
+        "grund": 31,
+        "jeSalve": 31,
+        "formationen": [
+          {
+            "id": "drillingsposten",
+            "familie": "rang",
+            "salven": 3,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              1,
+              2
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 13,
+            "turmFaktor": 1,
+            "wucht": 13,
+            "grund": 9,
+            "bonus": 4,
+            "schuesse": 4
+          },
+          {
+            "turm": 1,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 4
+          },
+          {
+            "turm": 2,
+            "basis": 9,
+            "turmFaktor": 1,
+            "wucht": 9,
+            "grund": 9,
+            "bonus": 0,
+            "schuesse": 4
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 31
+          },
+          {
+            "art": "formation",
+            "name": "Drillingsposten",
+            "wert": "+3",
+            "wucht": 124
+          },
+          {
+            "art": "salven",
+            "name": "4 Salven",
+            "wert": "×4",
+            "wucht": 124
+          }
+        ]
+      }
+    },
+    {
+      "name": "Schliff auf passendem Turm",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "schuetzenturm",
+            "einheit": "bogen-9",
+            "wuchtBonus": 6,
+            "stufe": 3
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 21,
+        "salven": 1,
+        "grund": 15,
+        "jeSalve": 21,
+        "formationen": [],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 15,
+            "turmFaktor": 1.4,
+            "wucht": 21,
+            "grund": 9,
+            "bonus": 6,
+            "schuesse": 1
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 21
+          },
+          {
+            "art": "salven",
+            "name": "1 Salven",
+            "wert": "×1",
+            "wucht": 21
+          }
+        ]
+      }
+    },
+    {
+      "name": "Luecken zwischen den Stellungen",
+      "eingabe": {
+        "tuerme": [
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-5",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-6",
+            "wuchtBonus": 0,
+            "stufe": 0
+          },
+          {
+            "typ": "wachturm",
+            "einheit": null
+          },
+          {
+            "typ": "wachturm",
+            "einheit": "bogen-7",
+            "wuchtBonus": 0,
+            "stufe": 0
+          }
+        ]
+      },
+      "erwartet": {
+        "wucht": 90,
+        "salven": 5,
+        "grund": 18,
+        "jeSalve": 18,
+        "formationen": [
+          {
+            "id": "regiment",
+            "familie": "gattung",
+            "salven": 2,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              2,
+              4
+            ]
+          },
+          {
+            "id": "vormarsch",
+            "familie": "folge",
+            "salven": 2,
+            "stufe": 1,
+            "tuerme": [
+              0,
+              2,
+              4
+            ]
+          }
+        ],
+        "posten": [
+          {
+            "turm": 0,
+            "basis": 5,
+            "turmFaktor": 1,
+            "wucht": 5,
+            "grund": 5,
+            "bonus": 0,
+            "schuesse": 5
+          },
+          {
+            "turm": 2,
+            "basis": 6,
+            "turmFaktor": 1,
+            "wucht": 6,
+            "grund": 6,
+            "bonus": 0,
+            "schuesse": 5
+          },
+          {
+            "turm": 4,
+            "basis": 7,
+            "turmFaktor": 1,
+            "wucht": 7,
+            "grund": 7,
+            "bonus": 0,
+            "schuesse": 5
+          }
+        ],
+        "schritte": [
+          {
+            "art": "grund",
+            "name": "Wucht je Salve",
+            "wert": null,
+            "wucht": 18
+          },
+          {
+            "art": "formation",
+            "name": "Regiment",
+            "wert": "+2",
+            "wucht": 90
+          },
+          {
+            "art": "formation",
+            "name": "Vormarsch",
+            "wert": "+2",
+            "wucht": 90
+          },
+          {
+            "art": "salven",
+            "name": "5 Salven",
+            "wert": "×5",
+            "wucht": 90
+          }
+        ]
+      }
+    }
+  ]
+}

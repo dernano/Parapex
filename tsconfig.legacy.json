@@ -1,0 +1,18 @@
+{
+  "//": "The LEGACY tree only. quelle/**/*.js is JavaScript with JSDoc, checked without emitting. The new TypeScript tree under src/ has its own, strict tsconfig.json.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "noUnusedLocals": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true
+  },
+  "include": ["quelle/**/*.js"]
+}
