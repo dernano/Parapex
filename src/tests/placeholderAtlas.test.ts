@@ -6,6 +6,7 @@ import {
 } from '@/rendering/placeholderAtlas';
 import { UNIT_SCALE_PROBES } from '@/rendering/presentation/settings';
 import { UNIT_VISUALS } from '@/rendering/units/UnitVisual';
+import { weaponFor } from '@/rendering/procedural/weapons';
 
 /**
  * The placeholders are scaffolding and are meant to be deleted. What they are
@@ -23,17 +24,26 @@ describe('every muzzle socket lands on a weapon', () => {
   it('draws a weapon that reaches the socket, for every branch', () => {
     for (const branch of BRANCH_IDS) {
       const visual = UNIT_VISUALS[branch];
-      const sprite = unitFigure(branch, 'professional', 1);
-      const weapon = sprite.shapes[0]!;
-      expect(weapon.kind, branch).toBe('rect');
-      if (weapon.kind !== 'rect') continue;
+      const weapon = weaponFor(branch, 1);
+      expect(weapon.length, `${branch} has no weapon`).toBeGreaterThan(1);
 
+      // The drawn extent of the weapon alone has to reach the muzzle: that is
+      // the whole point of drawing it, and it is why a flash at the socket no
+      // longer appears beside a soldier holding nothing.
+      const bounds = drawnBounds({
+        width: 0, height: 0, anchor: { x: 0, y: 0 }, shapes: weapon,
+      });
       const muzzle = visual.sockets.muzzle;
-      const left = weapon.x;
-      const right = weapon.x + weapon.w;
-      expect(muzzle.x, `${branch} muzzle x`).toBeGreaterThanOrEqual(left - 1);
-      expect(muzzle.x, `${branch} muzzle x`).toBeLessThanOrEqual(right + 1);
+      expect(muzzle.x, `${branch} muzzle x`).toBeGreaterThanOrEqual(bounds.left - 1);
+      expect(muzzle.x, `${branch} muzzle x`).toBeLessThanOrEqual(bounds.right + 1);
+      expect(muzzle.y, `${branch} muzzle y`).toBeGreaterThanOrEqual(bounds.top - 2);
+      expect(muzzle.y, `${branch} muzzle y`).toBeLessThanOrEqual(bounds.bottom + 2);
     }
+  });
+
+  it('gives the four families four different weapons', () => {
+    const shapes = BRANCH_IDS.map(b => JSON.stringify(weaponFor(b, 1)));
+    expect(new Set(shapes).size).toBe(BRANCH_IDS.length);
   });
 
   /** One table. The atlas must not grow a second, disagreeing set. */

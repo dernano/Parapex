@@ -72,6 +72,8 @@ export class BattlefieldRenderer {
   /** Everything the debug toggles put on top. Rebuilt every frame; it is small. */
   private readonly overlay = new Container();
   private readonly art: ArtRegister | null;
+  /** The camera the last frame used, for the one sprite that spans the field. */
+  private camera = { originX: 0, originY: 0 };
   private count = 0;
 
   private constructor(app: Application, art: ArtRegister | null) {
@@ -146,6 +148,7 @@ export class BattlefieldRenderer {
   /** Draw a scene. Nodes that vanished are removed; the rest are moved. */
   render(scene: Scene, settings?: PresentationSettings): void {
     const seen = new Set<string>();
+    this.camera = scene.camera;
 
     for (const node of scene.nodes) {
       seen.add(node.id);
@@ -211,6 +214,7 @@ export class BattlefieldRenderer {
       node.detail?.accent ?? '',
       node.detail?.span ?? '',
       node.kind === 'scar' ? node.detail?.size ?? '' : '',
+      node.detail?.variant ?? '',
       node.text ?? '',
     ].join('|');
   }
@@ -251,6 +255,8 @@ export class BattlefieldRenderer {
       ...(node.detail?.span !== undefined ? { span: Number(node.detail.span) } : {}),
       ...(node.detail?.size !== undefined && node.kind === 'scar'
         ? { size: Number(node.detail.size) } : {}),
+      ...(node.detail?.variant !== undefined ? { variant: Number(node.detail.variant) } : {}),
+      ...(node.kind === 'terrain' ? { camera: this.camera } : {}),
     });
   }
 
@@ -379,43 +385,75 @@ const LAYER_TINTS = [
   0xffd98a, 0xa8261f, 0xc25a15, 0xb9bec6, 0x2f5fa8, 0xffffff,
 ];
 
-function diamond(g: Graphics, cx: number, cy: number, w: number, h: number, fill: string): void {
+function diamond(
+  g: Graphics, cx: number, cy: number, w: number, h: number,
+  fill: string, alpha = 1,
+): void {
   g.moveTo(cx, cy - h / 2)
     .lineTo(cx + w / 2, cy)
     .lineTo(cx, cy + h / 2)
     .lineTo(cx - w / 2, cy)
     .closePath()
-    .fill(fill);
+    .fill({ color: fill, alpha });
 }
 
 function paint(g: Graphics, shape: Shape): void {
-  if (shape.kind === 'diamond') {
-    diamond(g, shape.cx, shape.cy, shape.w, shape.h, shape.fill);
-    return;
+  switch (shape.kind) {
+    case 'diamond':
+      diamond(g, shape.cx, shape.cy, shape.w, shape.h, shape.fill, shape.alpha);
+      return;
+
+    case 'rect':
+      g.rect(shape.x, shape.y, shape.w, shape.h)
+        .fill({ color: shape.fill, alpha: shape.alpha ?? 1 });
+      return;
+
+    case 'ellipse':
+      g.ellipse(shape.cx, shape.cy, shape.rx, shape.ry)
+        .fill({ color: shape.fill, alpha: shape.alpha ?? 1 });
+      return;
+
+    case 'poly': {
+      const [first, ...rest] = shape.points;
+      if (!first) return;
+      g.moveTo(first[0], first[1]);
+      for (const [x, y] of rest) g.lineTo(x, y);
+      g.closePath().fill({ color: shape.fill, alpha: shape.alpha ?? 1 });
+      return;
+    }
+
+    case 'line': {
+      const [first, ...rest] = shape.points;
+      if (!first) return;
+      g.moveTo(first[0], first[1]);
+      for (const [x, y] of rest) g.lineTo(x, y);
+      g.stroke({ color: shape.colour, width: shape.width ?? 1, alpha: shape.alpha ?? 1 });
+      return;
+    }
+
+    case 'box': {
+      // Left face, right face, lit top — the sun from the upper right.
+      const { top, right, left } = facesOf(shape.base);
+      const halfW = shape.w / 2;
+      const halfH = shape.h / 2;
+      const topY = shape.cy - shape.depth;
+
+      g.moveTo(shape.cx - halfW, shape.cy - halfH)
+        .lineTo(shape.cx, shape.cy)
+        .lineTo(shape.cx, shape.cy - shape.depth)
+        .lineTo(shape.cx - halfW, shape.cy - halfH - shape.depth)
+        .closePath().fill(left);
+
+      g.moveTo(shape.cx + halfW, shape.cy - halfH)
+        .lineTo(shape.cx, shape.cy)
+        .lineTo(shape.cx, shape.cy - shape.depth)
+        .lineTo(shape.cx + halfW, shape.cy - halfH - shape.depth)
+        .closePath().fill(right);
+
+      diamond(g, shape.cx, topY - halfH, shape.w, shape.h, top);
+      return;
+    }
   }
-  if (shape.kind === 'rect') {
-    g.rect(shape.x, shape.y, shape.w, shape.h).fill(shape.fill);
-    return;
-  }
-  // A block: left face, right face, lit top — the sun from the upper right.
-  const { top, right, left } = facesOf(shape.base);
-  const halfW = shape.w / 2;
-  const halfH = shape.h / 2;
-  const topY = shape.cy - shape.depth;
-
-  g.moveTo(shape.cx - halfW, shape.cy - halfH)
-    .lineTo(shape.cx, shape.cy)
-    .lineTo(shape.cx, shape.cy - shape.depth)
-    .lineTo(shape.cx - halfW, shape.cy - halfH - shape.depth)
-    .closePath().fill(left);
-
-  g.moveTo(shape.cx + halfW, shape.cy - halfH)
-    .lineTo(shape.cx, shape.cy)
-    .lineTo(shape.cx, shape.cy - shape.depth)
-    .lineTo(shape.cx + halfW, shape.cy - halfH - shape.depth)
-    .closePath().fill(right);
-
-  diamond(g, shape.cx, topY - halfH, shape.w, shape.h, top);
 }
 
 export { TILE_HEIGHT, TILE_WIDTH };

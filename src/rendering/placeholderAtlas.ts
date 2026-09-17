@@ -3,8 +3,17 @@ import {
 } from './artRules';
 import { scaledUnitHeight } from './presentation/settings';
 import { visualForProjectile } from './effects/projectileVisual';
-import { UNIT_VISUALS } from './units/UnitVisual';
-import type { BranchId } from '@/core/types';
+import { buildTerrain } from './procedural/terrain';
+import { scenerySprite, type SceneryKind } from './procedural/scenery';
+import {
+  BANNER_RISE, PARAPET_RISE, bannerSprite, towerBody, towerCrown,
+  wallSegment as curtainWall,
+} from './procedural/castle';
+
+export { BANNER_RISE };
+import { weaponFor } from './procedural/weapons';
+
+export { PARAPET_RISE };
 
 /**
  * PLACEHOLDER ART. Explicitly, and labelled as such everywhere it appears.
@@ -57,12 +66,26 @@ export function facesOf(base: string): { top: string; right: string; left: strin
 /** A drawing instruction. Plain data, so the atlas is testable without a GPU. */
 export type Shape =
   | { readonly kind: 'diamond'; readonly cx: number; readonly cy: number;
-      readonly w: number; readonly h: number; readonly fill: string }
+      readonly w: number; readonly h: number; readonly fill: string;
+      readonly alpha?: number }
   | { readonly kind: 'box'; readonly cx: number; readonly cy: number;
       readonly w: number; readonly h: number; readonly depth: number;
       readonly base: string }
   | { readonly kind: 'rect'; readonly x: number; readonly y: number;
-      readonly w: number; readonly h: number; readonly fill: string };
+      readonly w: number; readonly h: number; readonly fill: string;
+      readonly alpha?: number }
+  /** An arbitrary outline. Trees, rocks, roofs — anything not a box. */
+  | { readonly kind: 'poly'; readonly points: readonly (readonly [number, number])[];
+      readonly fill: string; readonly alpha?: number }
+  /** A line. Cracks, cart ruts, mortar joints, grass blades. */
+  | { readonly kind: 'line'; readonly points: readonly (readonly [number, number])[];
+      readonly colour: string; readonly width?: number; readonly alpha?: number }
+  | { readonly kind: 'ellipse'; readonly cx: number; readonly cy: number;
+      readonly rx: number; readonly ry: number; readonly fill: string;
+      readonly alpha?: number };
+
+const ramp = (family: keyof typeof PALETTE, step: number): string =>
+  PALETTE[family][Math.min(step, PALETTE[family].length - 1)]!;
 
 export interface PlaceholderSprite {
   readonly width: number;
@@ -70,13 +93,22 @@ export interface PlaceholderSprite {
   /** The point that touches the tile: bottom centre of the footprint. */
   readonly anchor: { readonly x: number; readonly y: number };
   readonly shapes: readonly Shape[];
-  /** Sockets, relative to the sprite's own top-left. */
+  /**
+   * Sockets, relative to the sprite's own top-left.
+   *
+   * Units do NOT carry them: a unit's sockets live in `UNIT_VISUALS` and
+   * nowhere else, because two tables of the same fact disagreed by four
+   * pixels once already.
+   */
   readonly sockets?: Readonly<Record<string, { readonly x: number; readonly y: number }>>;
 }
 
-const ramp = (family: keyof typeof PALETTE, step: number): string =>
-  PALETTE[family][Math.min(step, PALETTE[family].length - 1)]!;
-
+/**
+ * One tile of ground, for anything that still asks for a single one.
+ *
+ * The battlefield itself no longer does — it is one drawing, in
+ * `procedural/terrain.ts`. This remains for previews and for the atlas test.
+ */
 export function groundTile(variant: number): PlaceholderSprite {
   const family = variant % 2 === 0 ? 'earth' : 'grass';
   return {
@@ -87,46 +119,6 @@ export function groundTile(variant: number): PlaceholderSprite {
       w: TILE_WIDTH, h: TILE_HEIGHT,
       fill: ramp(family, 1 + (variant >> 1)),
     }],
-  };
-}
-
-export function wallSegment(): PlaceholderSprite {
-  const height = 34;
-  return {
-    width: TILE_WIDTH, height: height + TILE_HEIGHT,
-    anchor: { x: TILE_WIDTH / 2, y: height + TILE_HEIGHT / 2 },
-    shapes: [{
-      kind: 'box', cx: TILE_WIDTH / 2, cy: height + TILE_HEIGHT / 2,
-      w: TILE_WIDTH, h: TILE_HEIGHT, depth: height, base: ramp('stone', 2),
-    }],
-  };
-}
-
-/** Tower heights by type, within the bible's 70–96 band. */
-const TOWER_HEIGHT: Readonly<Record<string, number>> = {
-  watchtower: 70, archerTower: 78, ballistaTower: 82, cannonTower: 88, powderTower: 96,
-};
-
-export function towerBlock(type: string): PlaceholderSprite {
-  const height = TOWER_HEIGHT[type] ?? 70;
-  const width = TILE_WIDTH * 2;
-  const footprint = TILE_HEIGHT * 2;
-  return {
-    width, height: height + footprint,
-    anchor: { x: width / 2, y: height + footprint / 2 },
-    shapes: [
-      { kind: 'box', cx: width / 2, cy: height + footprint / 2,
-        /*
-         * A DARKER stone than the bible's mid tone, deliberately. At ramp 3
-         * the placeholder tower is so pale that a soldier standing on it
-         * disappears, and the whole point of the workbench is to judge the
-         * soldier. Still inside the palette; still one sun.
-         */
-        w: width * 0.8, h: footprint * 0.8, depth: height, base: ramp('stone', 1) },
-      // Crenellations: a lighter band on the lit top.
-      { kind: 'diamond', cx: width / 2, cy: footprint / 2 + 2,
-        w: width * 0.86, h: footprint * 0.86, fill: mix(ramp('stone', 2), LIGHT.warm, 0.18) },
-    ],
   };
 }
 
@@ -182,7 +174,7 @@ export function unitFigure(
        * art and is not meant to be. It is the proof that the socket is on the
        * weapon, and it will be deleted the day a real barrel replaces it.
        */
-      weaponStub(branch, scale),
+      ...weaponFor(branch, scale),
       // Helmet, body, boots: three value clusters, strong silhouette, no
       // detail that would vanish at gameplay distance.
       { kind: 'rect', x: Math.round(width * 0.2), y: 0,
@@ -205,75 +197,7 @@ export function unitFigure(
   };
 }
 
-/**
- * The parapet: the near merlons the garrison stands BEHIND.
- *
- * THE PROPORTIONS ARE THE WHOLE POINT, and the first version of this got them
- * badly wrong: a full-height block in front of the soldier occludes him
- * perfectly and hides him completely, which solves the layering and loses the
- * garrison. A screenshot found that in one glance; the test that was supposed
- * to catch it only asserted the two OVERLAPPED.
- *
- * So the rim is deliberately low. It sits eleven pixels down-screen of the
- * figure's feet, and its total height is set so its top lands around the
- * soldier's knee — enough that he is standing in the architecture, far too
- * little to swallow him. `PARAPET_RISE` is that number, and the visibility
- * test reads it rather than trusting it.
- */
-export const PARAPET_RISE = 9;
 
-/**
- * A bar from the hands to the muzzle socket, in the family's own proportions.
- *
- * Scaffolding, explicitly. What it buys is that every socket in
- * `UNIT_VISUALS` becomes visibly right or visibly wrong instead of being a
- * number nobody can check.
- */
-function weaponStub(branch: string, scale: number): Shape {
-  const visual = UNIT_VISUALS[branch as BranchId];
-  if (!visual) return { kind: 'rect', x: 0, y: 0, w: 1, h: 1, fill: ramp('iron', 1) };
-  const muzzle = visual.sockets.muzzle;
-  const pivot = visual.sockets.recoilPivot;
-  const x = Math.round(Math.min(pivot.x, muzzle.x) * scale);
-  // Straight from the socket: the figure fills its box, so socket y IS the
-  // distance from the top of the sprite. The shim that used to sit here was
-  // compensating for a soldier who did not.
-  const y = Math.round(Math.min(pivot.y, muzzle.y) * scale);
-  return {
-    kind: 'rect',
-    x, y,
-    w: Math.max(2, Math.round(Math.abs(muzzle.x - pivot.x) * scale)),
-    h: Math.max(2, Math.round(Math.abs(muzzle.y - pivot.y) * scale)),
-    // Artillery and guns are wood and iron; bows are wood.
-    fill: branch === 'gunner' ? ramp('iron', 1) : ramp('wood', 2),
-  };
-}
-
-export function parapetBlock(_type: string): PlaceholderSprite {
-  const width = TILE_WIDTH * 2;
-  // A thin diamond, not the tower's whole two-by-two footprint: a rim has
-  // depth, not volume.
-  const thickness = Math.round(TILE_HEIGHT * 0.55);
-  const height = PARAPET_RISE + thickness;
-  return {
-    width, height,
-    anchor: { x: width / 2, y: height },
-    shapes: [
-      /*
-       * `cy` is the BOTTOM of the block, not its middle.
-       *
-       * A box draws from `cy` upward by `depth` plus the thickness of its top
-       * diamond, so putting `cy` half a thickness up puts the whole rim six
-       * pixels higher than the declared box says. That is exactly how a
-       * parapet measured at "forty per cent of the soldier" ended up hiding
-       * all of him except his helmet: the metadata and the drawing disagreed,
-       * and the test read the metadata. `drawnBounds` now settles it.
-       */
-      { kind: 'box', cx: width / 2, cy: height,
-        w: width * 0.8, h: thickness, depth: PARAPET_RISE, base: ramp('stone', 3) },
-    ],
-  };
-}
 
 /** A formation's standard, its connector, and the caption plate. */
 export function formationPiece(
@@ -395,6 +319,10 @@ export interface PlaceholderOptions {
   readonly span?: number;
   /** How wide a ground scar is, in logical pixels. */
   readonly size?: number;
+  /** Which of a piece of scenery's three shapes to draw, and how large. */
+  readonly variant?: number;
+  /** The whole ground is one drawing, and it needs the camera to place it. */
+  readonly camera?: { readonly originX: number; readonly originY: number };
 }
 
 /** Resolve a scene node's sprite name to a placeholder. */
@@ -405,11 +333,26 @@ export function placeholderFor(
   const [family, ...rest] = sprite.split('/');
   switch (family) {
     case 'ground': return groundTile(Number(rest[0]) || 0);
+    case 'terrain':
+      /*
+       * The whole field in one sprite. Its anchor is the camera's origin, so
+       * the shapes can be built in screen space once and then simply placed —
+       * which is what makes a ground with gravel in it affordable.
+       */
+      return {
+        width: 0, height: 0,
+        anchor: { x: options.camera?.originX ?? 0, y: options.camera?.originY ?? 0 },
+        shapes: buildTerrain(options.camera ?? { originX: 0, originY: 0 }),
+      };
+    case 'scenery':
+      return scenerySprite((rest[0] ?? 'bush') as SceneryKind,
+        options.variant ?? 0, options.scale ?? 1);
     case 'castle': {
       const name = rest[0] ?? '';
-      if (name === 'wall') return wallSegment();
-      if (name.startsWith('parapet-')) return parapetBlock(name.replace('parapet-', ''));
-      return towerBlock(name.replace('tower-', ''));
+      if (name === 'wall') return curtainWall();
+      if (name.startsWith('parapet-')) return towerCrown(name.replace('parapet-', ''));
+      if (name.startsWith('banner-')) return bannerSprite(name.replace('banner-', ''));
+      return towerBody(name.replace('tower-', ''));
     }
     case 'unit':
       return unitFigure(rest[0] ?? 'bow',
@@ -467,16 +410,27 @@ export function drawnBounds(sprite: PlaceholderSprite): DrawnBounds {
   };
 
   for (const shape of sprite.shapes) {
-    if (shape.kind === 'rect') {
-      take(shape.x, shape.y, shape.x + shape.w, shape.y + shape.h);
-    } else if (shape.kind === 'diamond') {
-      take(shape.cx - shape.w / 2, shape.cy - shape.h / 2,
-        shape.cx + shape.w / 2, shape.cy + shape.h / 2);
-    } else {
-      // Side faces run from cy up by depth; the lit top diamond sits above
-      // that, centred at cy - depth - h/2.
-      take(shape.cx - shape.w / 2, shape.cy - shape.depth - shape.h,
-        shape.cx + shape.w / 2, shape.cy);
+    switch (shape.kind) {
+      case 'rect':
+        take(shape.x, shape.y, shape.x + shape.w, shape.y + shape.h);
+        break;
+      case 'diamond':
+      case 'ellipse': {
+        const w = shape.kind === 'diamond' ? shape.w / 2 : shape.rx;
+        const h = shape.kind === 'diamond' ? shape.h / 2 : shape.ry;
+        take(shape.cx - w, shape.cy - h, shape.cx + w, shape.cy + h);
+        break;
+      }
+      case 'poly':
+      case 'line':
+        for (const [x, y] of shape.points) take(x, y, x, y);
+        break;
+      case 'box':
+        // Side faces run from cy up by depth; the lit top diamond sits above
+        // that, centred at cy - depth - h/2.
+        take(shape.cx - shape.w / 2, shape.cy - shape.depth - shape.h,
+          shape.cx + shape.w / 2, shape.cy);
+        break;
     }
   }
 

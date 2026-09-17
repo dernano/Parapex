@@ -9,7 +9,10 @@ import {
   TOWER_ROWS, WALL_COLUMN, heightBandForRank, layerIndex, platformHeight,
   type LayerName,
 } from './artRules';
+import { BANNER_RISE } from './placeholderAtlas';
 import { castleLayer, nearestGarrison, towerPieces } from './occlusion';
+import { TERRAIN_MARGIN } from './procedural/terrain';
+import { scatterScenery, type SceneryPiece } from './procedural/scenery';
 import {
   groundDepth, snap, toScreen, type Camera, type ScreenPoint, type WorldPoint,
 } from './WorldTransform';
@@ -33,7 +36,7 @@ import {
 export type SceneNodeKind =
   | 'ground' | 'wall' | 'tower' | 'parapet' | 'unit' | 'enemy' | 'projectile'
   | 'shadow' | 'particle' | 'projectileShadow' | 'formation' | 'floating' | 'ghost'
-  | 'scar';
+  | 'scar' | 'terrain' | 'scenery' | 'banner';
 
 export interface SceneNode {
   /** Stable across frames, so the binding can reuse a sprite instead of rebuilding it. */
@@ -100,21 +103,55 @@ const node = (
 });
 
 /**
- * The ground. One node per tile, with a deterministic variant so the terrain
- * has texture without flickering between frames.
+ * The ground: ONE node, not four hundred.
  *
- * The grid may still exist mechanically; the player should not constantly SEE
- * it. The variant is what breaks the repetition.
+ * It never moves, so it costs one drawing. Four hundred separate diamonds were
+ * four hundred things to sort, upload and transform every frame for a surface
+ * that is identical on every one of them — and they could not carry gravel,
+ * cracks or grass without becoming four thousand.
+ *
+ * What it looks like is `procedural/terrain.ts`; the scene only says where it
+ * goes and which layer it belongs to.
  */
-function groundNodes(camera: Camera): SceneNode[] {
-  const out: SceneNode[] = [];
-  for (let col = 0; col < GRID_COLS; col++) {
-    for (let row = 0; row < GRID_ROWS; row++) {
-      out.push(node(`ground:${col}:${row}`, 'ground', 'GROUND',
-        { col, row }, `ground/${terrainVariant(col, row)}`, camera));
-    }
-  }
-  return out;
+function groundNode(camera: Camera): SceneNode {
+  return node('terrain', 'terrain', 'GROUND', { col: 0, row: 0 }, 'terrain/ground', camera);
+}
+
+/**
+ * Trees, bushes and stones. Nothing here is interactive and the rules do not
+ * know it exists — which is exactly why it is worth having.
+ */
+function sceneryNodes(camera: Camera, pieces: readonly SceneryPiece[]): SceneNode[] {
+  return pieces.map(piece => node(
+    piece.id, 'scenery',
+    // In DECORATION, so a tree is behind anything standing on the field but in
+    // front of the ground it grows out of.
+    'DECORATION', piece.world, `scenery/${piece.kind}`, camera,
+    { variant: piece.variant, scale: Math.round(piece.scale * 100) / 100 },
+  ));
+}
+
+/**
+ * The scenery of this battlefield.
+ *
+ * Scattered once and cached: it is deterministic, so recomputing it every
+ * frame would produce the same answer at a cost.
+ */
+let scenery: readonly SceneryPiece[] | null = null;
+
+export function battlefieldScenery(): readonly SceneryPiece[] {
+  if (scenery) return scenery;
+  scenery = scatterScenery({
+    cols: GRID_COLS, rows: GRID_ROWS, margin: TERRAIN_MARGIN,
+    keepOut: [
+      // The wall line, its whole length.
+      ...Array.from({ length: GRID_ROWS }, (_, row) => ({ col: WALL_COLUMN, row })),
+      // The ground the enemy forms up on.
+      ...Array.from({ length: GRID_ROWS }, (_, row) => ({ col: ENEMY_COLUMN, row })),
+      ...Array.from({ length: GRID_ROWS }, (_, row) => ({ col: ENEMY_COLUMN + 1, row })),
+    ],
+  });
+  return scenery;
 }
 
 /**
@@ -153,6 +190,13 @@ function castleNodes(state: CombatState, camera: Camera): SceneNode[] {
   state.towers.forEach((tower, i) => {
     const centre = towerCentre(i);
     const garrison = anchors[i]!;
+    /*
+     * The banner flies above everything — it is not in front of one soldier,
+     * it is over the whole tower, and it needs no occlusion decision at all.
+     */
+    out.push(node(`banner:${i}`, 'banner', 'WORLD_FX',
+      { ...centre, height: platformHeight(tower.type) + BANNER_RISE },
+      `castle/banner-${tower.type}`, camera, { index: i }));
     for (const piece of towerPieces(centre, garrison, tower.type)) {
       out.push(node(`tower:${i}:${piece.piece}`,
         piece.piece === 'towerParapet' ? 'parapet' : 'tower',
@@ -267,7 +311,8 @@ export function buildBattlefieldScene(
   const shotShadows = settings?.effects.shotShadows ?? true;
 
   const nodes = [
-    ...groundNodes(camera),
+    groundNode(camera),
+    ...sceneryNodes(camera, battlefieldScenery()),
     /*
      * Scars sit in DECORATION: on the ground, above the tiles, below
      * everything that stands on it. They are drawn before the castle so a
